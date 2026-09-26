@@ -385,7 +385,7 @@ Faults: `rtsp.reset`, `rtsp.refuse`.
 
 ### 11.2 ONVIF events (phase 5)
 
-On the ONVIF port (8000; container 8000 → high port like the others), the
+On the ONVIF port (8000, unprivileged, so the container uses it as is), the
 subset the gateway needs for events: `GetCapabilities`/`GetServices`,
 `CreatePullPointSubscription`, `PullMessages`, `Renew`, `Unsubscribe`, with
 WS-UsernameToken authentication. Event topics and message shapes (motion,
