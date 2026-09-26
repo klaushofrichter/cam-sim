@@ -47,6 +47,8 @@ export class Engine {
   readonly rng: Rng;
   serial: string;
   rebooting = false;
+  // Power: 'off' after power-off, 'booting' during power-on, else 'on'.
+  power: 'on' | 'off' | 'booting' = 'on';
   // How the Reboot command behaves; unset: the speed's timing and a 50/50
   // chance of dropping the connection before answering (as the firmware does).
   rebootDefaults: { ms?: number; dropsConnection?: boolean } = {};
@@ -94,7 +96,7 @@ export class Engine {
   }
 
   offline(): boolean {
-    return this.rebooting || this.certRestarting || !!this.faults.active('offline');
+    return this.power !== 'on' || this.rebooting || this.certRestarting || !!this.faults.active('offline');
   }
 
   get certificate(): CertState {
@@ -131,13 +133,44 @@ export class Engine {
     this.dropFlv();
     this.dropDownloads();
     this.bus.emit('state', { rebooting: true });
-    const ms = Math.min(Math.max(0, Number(opts.ms ?? this.timings.rebootMs) || 0), 600_000);
+    await this.boot(opts.ms);
+    this.rebooting = false;
+    this.bus.emit('state', { rebooting: false });
+  }
+
+  // Start-up after a reboot or power-on: offline for `ms`, then a new serial,
+  // no sessions, and the saved settings take effect.
+  private async boot(msOpt?: number): Promise<void> {
+    const ms = Math.min(Math.max(0, Number(msOpt ?? this.timings.rebootMs) || 0), 600_000);
     await new Promise((r) => setTimeout(r, ms));
     this.serial = this.newSerial();
     this.sessions.revokeAll();
     this.settings.applySavedOnReboot();
-    this.rebooting = false;
-    this.bus.emit('state', { rebooting: false });
+  }
+
+  // Power-off: every connection drops, sessions end, the recording in
+  // progress is closed and background events pause. False when not on.
+  powerOff(): boolean {
+    if (this.power !== 'on' || this.rebooting) return false;
+    this.power = 'off';
+    this.events.stop();
+    this.sessions.revokeAll();
+    this.dropFlv();
+    this.dropDownloads();
+    this.bus.emit('state', { power: 'off' });
+    return true;
+  }
+
+  // Power-on: boots like a reboot. False when the camera isn't off.
+  async powerOn(ms?: number): Promise<boolean> {
+    if (this.power !== 'off') return false;
+    this.power = 'booting';
+    this.bus.emit('state', { power: 'booting' });
+    await this.boot(ms);
+    this.power = 'on';
+    if (this.config.autoEvents.length) this.events.startAuto(this.config.autoEvents);
+    this.bus.emit('state', { power: 'on' });
+    return true;
   }
 
   dropFlv(): void {
@@ -171,6 +204,7 @@ export class Engine {
       model: 'RLC-1224A',
       firmVer: this.config.firmVer,
       offline: this.offline(),
+      power: this.power,
       rebooting: this.rebooting,
       faults: this.faults.list(),
       events: this.events.recent(20),

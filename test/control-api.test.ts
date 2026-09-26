@@ -116,6 +116,43 @@ describe('control API: faults, actions, reset', () => {
     expect((await request(ctl).post('/sim/api/actions/nope').set(auth)).status).toBe(400);
   });
 
+  it('power-off takes the camera down until power-on boots it', async () => {
+    const { ctl, cam, engine } = await setup();
+    closers.push(() => engine.stop());
+    const t = await login(cam);
+    engine.events.trigger('motion', 60);
+    expect((await request(ctl).post('/sim/api/actions/power-off').set(auth)).status).toBe(204);
+    expect(engine.offline()).toBe(true);
+    expect(engine.sd.all()[0].end).not.toBeNull(); // the recording was closed
+    let s = (await request(ctl).get('/sim/api/state').set(auth)).body;
+    expect(s.power).toBe('off');
+    expect((await request(ctl).post('/sim/api/events').set(auth).send({ type: 'motion', durationS: 5 })).body).toEqual({ error: 'powered_off' });
+    expect((await request(ctl).post('/sim/api/actions/power-off').set(auth)).status).toBe(409);
+    expect((await request(ctl).post('/sim/api/actions/reboot').set(auth)).status).toBe(409);
+    const serial = s.serial;
+
+    expect((await request(ctl).post('/sim/api/actions/power-on').set(auth).send({ ms: 60 })).status).toBe(202);
+    expect((await request(ctl).get('/sim/api/state').set(auth)).body.power).toBe('booting');
+    expect(engine.offline()).toBe(true);
+    await new Promise((r) => setTimeout(r, 120));
+    s = (await request(ctl).get('/sim/api/state').set(auth)).body;
+    expect(s.power).toBe('on');
+    expect(s.serial).not.toBe(serial);
+    expect((await post(cam, 'GetDevInfo', {}, t)).reply.error.rspCode).toBe(-6);
+    expect((await request(ctl).post('/sim/api/actions/power-on').set(auth)).status).toBe(409);
+  });
+
+  it('power-off applies saved settings at the next power-on', async () => {
+    const { ctl, cam, engine } = await setup();
+    const t = await login(cam);
+    await post(cam, 'SetIsp', { Isp: { channel: 0, dayNight: 'Color' } }, t); // partial write
+    expect(engine.settings.running.Isp.rotation).toBe(0);
+    await request(ctl).post('/sim/api/actions/power-off').set(auth);
+    await request(ctl).post('/sim/api/actions/power-on').set(auth).send({ ms: 1 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(engine.settings.running.Isp.rotation).toBe(1);
+  });
+
   it('resets to a known state', async () => {
     const { ctl, cam, engine } = await setup();
     await login(cam);
