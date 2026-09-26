@@ -72,6 +72,7 @@ describe('camera API: Download', () => {
     expect(r.status).toBe(200);
     expect(r.headers['content-type']).toBe('video/mp4');
     expect(r.body.subarray(4, 12).toString()).toBe('ftypmp42');
+    expect(Number(r.headers['content-length'])).toBe(r.body.length);
     expect(engine.counters.downloads).toBe(1);
     expect(engine.counters.downloadOrder).toEqual(['081510']);
   });

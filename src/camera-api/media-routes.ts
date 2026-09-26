@@ -71,7 +71,9 @@ export async function download(engine: Engine, req: Request, res: Response): Pro
       setTimeout(() => cb(null, chunk), (chunk.length / bps) * 1000);
     },
   });
-  res.status(200).type('video/mp4');
+  // Content-Length as the firmware's download sends it (cams forwards it);
+  // not re-measured since the camera stopped serving downloads.
+  res.status(200).type('video/mp4').setHeader('Content-Length', String(size));
   const file = createReadStream(path, { highWaterMark: 16 * 1024 });
   res.on('close', () => file.destroy());
   file.pipe(shaper).pipe(res);
