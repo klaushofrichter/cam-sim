@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Control API actions `power-off` and `power-on`: the camera goes dark
+  (connections drop, sessions end, the recording in progress closes, events
+  are refused) until power-on boots it like a reboot. `state.power` reports
+  `on`, `off` or `booting`.
+- README: API reference for the simulated camera API and the control API.
+
+## v2026.09.26.2
+
 - Fixture clips are 12 s (players skip 10 s), built with fast presets under a
   cross-process lock; `ensureFixtures` and `defaultFixtureDir` are exported so
   test runners can build them once in a global setup.

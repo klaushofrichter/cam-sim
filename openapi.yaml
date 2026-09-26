@@ -83,6 +83,7 @@ paths:
                 durationS: { type: integer, minimum: 1, maximum: 3600 }
       responses:
         '201': { description: the event and the recording it starts or extends (null when not recorded) }
+        '409': { description: the camera is powered off }
         '400': { description: invalid input, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /sim/api/recordings/seed:
     post:
@@ -133,13 +134,24 @@ paths:
         '204': { description: cleared }
   /sim/api/actions/{name}:
     parameters:
-      - { name: name, in: path, required: true, schema: { type: string, enum: [tokens.revoke, reboot, flv.dropActive, downloads.dropActive] } }
+      - { name: name, in: path, required: true, schema: { type: string, enum: [tokens.revoke, reboot, power-off, power-on, flv.dropActive, downloads.dropActive] } }
     post:
-      summary: One-shot action; reboot takes {ms, dropsConnection}
+      summary: >
+        One-shot action. reboot takes {ms, dropsConnection}; power-on takes {ms} (boot time).
+        power-off drops every connection and ends sessions until power-on.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ms: { type: integer, minimum: 0, maximum: 600000 }
+                dropsConnection: { type: boolean }
       responses:
-        '202': { description: reboot started }
+        '202': { description: reboot or power-on started }
         '204': { description: done }
-        '400': { description: unknown action }
+        '400': { description: unknown action or bad parameter }
+        '409': { description: 'not possible in this power state (powered_off, already_off, already_on)' }
   /sim/api/reset:
     post:
       summary: Back to a known state; an empty body resets everything

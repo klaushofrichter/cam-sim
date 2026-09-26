@@ -39,6 +39,7 @@ export function createControlApp(engine: Engine): express.Express {
     const { type, durationS } = req.body ?? {};
     if (!(TRIGGERS as readonly string[]).includes(type)) return bad(res, `type must be one of ${TRIGGERS.join(', ')}`);
     if (!Number.isInteger(durationS) || durationS < 1 || durationS > 3600) return bad(res, 'durationS must be an integer from 1 to 3600');
+    if (e.power !== 'on') return void res.status(409).json({ error: 'powered_off' });
     const { recording } = e.events.trigger(type as Trigger, durationS);
     res.status(201).json({ event: e.events.recent(1)[0], recording });
   });
@@ -89,10 +90,22 @@ export function createControlApp(engine: Engine): express.Express {
     if (name === 'tokens.revoke') e.sessions.revokeAll();
     if (name === 'flv.dropActive') e.dropFlv();
     if (name === 'downloads.dropActive') e.dropDownloads();
+    const ms = req.body?.ms;
+    if ((name === 'reboot' || name === 'power-on') && ms !== undefined && !(Number.isInteger(ms) && ms >= 0 && ms <= 600_000)) {
+      return bad(res, 'ms must be an integer from 0 to 600000');
+    }
     if (name === 'reboot') {
-      const ms = req.body?.ms;
-      if (ms !== undefined && !(Number.isInteger(ms) && ms >= 0 && ms <= 600_000)) return bad(res, 'ms must be an integer from 0 to 600000');
+      if (e.power !== 'on') return void res.status(409).json({ error: 'powered_off' });
       void e.reboot({ ms, dropsConnection: req.body?.dropsConnection === true });
+      return void res.status(202).end();
+    }
+    if (name === 'power-off') {
+      if (!e.powerOff()) return void res.status(409).json({ error: e.power === 'off' ? 'already_off' : 'busy' });
+      return void res.status(204).end();
+    }
+    if (name === 'power-on') {
+      if (e.power !== 'off') return void res.status(409).json({ error: 'already_on' });
+      void e.powerOn(ms);
       return void res.status(202).end();
     }
     res.status(204).end();
