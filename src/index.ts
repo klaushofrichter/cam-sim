@@ -20,6 +20,7 @@ export interface CamSimOptions {
   users: User[];
   name?: string;
   controlToken?: string;
+  controlTls?: 'auto' | 'on' | 'off';
   tz?: string;
   sdMb?: number;
   speed?: 'fast' | 'real';
@@ -58,6 +59,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     users: o.users,
     controlToken: o.controlToken,
     webUi: false,
+    controlTls: o.controlTls ?? 'auto',
     media: 'fixture',
     dataDir: o.dataDir,
     fixtureDir: o.fixtureDir,
@@ -94,10 +96,16 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
     async listen(ports = {}, host) {
       const p = { ...config.ports, ...ports };
       camera = await startListeners(engine, { http: p.http, https: p.https }, host);
-      // The control port uses the camera's certificate when one was configured.
-      control = config.tlsCertFile
-        ? https.createServer({ cert: engine.certificate.cert, key: engine.certificate.key }, controlApp)
-        : http.createServer(controlApp);
+      // The control port uses the camera's certificate: with 'on' always (and
+      // it follows ImportCertificate), with 'auto' when one was configured.
+      const tls = config.controlTls === 'on' || (config.controlTls === 'auto' && !!config.tlsCertFile);
+      if (tls) {
+        const server = https.createServer({ cert: engine.certificate.cert, key: engine.certificate.key }, controlApp);
+        const onCert = (c: { cert: string; key: string }) => server.setSecureContext({ cert: c.cert, key: c.key });
+        engine.bus.on('cert', onCert);
+        server.on('close', () => engine.bus.off('cert', onCert));
+        control = server;
+      } else control = http.createServer(controlApp);
       const srv = control;
       const controlPort = await new Promise<number>((resolve, reject) => {
         srv.once('error', reject);

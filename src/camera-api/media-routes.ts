@@ -42,7 +42,7 @@ export async function download(engine: Engine, req: Request, res: Response): Pro
   if (e.activeDownloads.size > 0) return void req.socket.destroy();
 
   e.counters.downloads++;
-  e.counters.downloadOrder.push(found.rec.start);
+  e.counters.noteDownload(found.rec.start);
   e.counters.activeDownloads++;
   e.activeDownloads.add(res);
   res.on('close', () => {
@@ -96,6 +96,8 @@ function shifted(tag: FlvTag, offsetMs: number): Buffer {
 }
 
 const isConfig = (t: FlvTag) => (t.type === 9 || t.type === 8) && t.bytes[12] === 0;
+// AVC/HEVC end of sequence: never mid-stream (a live camera doesn't end).
+const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 
 // Endless video/x-flv, paced by tag timestamps; the fixture loops with
 // increasing timestamps (a camera never ends a stream on its own).
@@ -108,9 +110,11 @@ export async function flv(engine: Engine, req: Request, res: Response): Promise<
   if (delay) await sleep(delay);
   if (res.destroyed || res.writableEnded) return;
   const stream = /channel0_main/.test(String(req.query.stream ?? '')) ? 'main' : 'sub';
-  const { header, tags } = e.media.liveFlv(stream);
+  const { header, tags: all } = e.media.liveFlv(stream);
+  const tags = all.filter((t) => !isEndOfSequence(t));
   const loopMs = e.media.durationMs(stream);
   const loopTags = tags.filter((t) => t.type !== 18 && !isConfig(t));
+  const canLoop = loopMs > 0 && loopTags.length > 0;
 
   e.counters.activeStreams++;
   e.counters.streamsOpened++;
@@ -123,6 +127,7 @@ export async function flv(engine: Engine, req: Request, res: Response): Promise<
     for (;;) {
       const list = pass === 0 ? tags : loopTags;
       if (next >= list.length) {
+        if (!canLoop) return; // nothing to repeat: stay open, silent
         pass++;
         next = 0;
         continue;
@@ -132,6 +137,12 @@ export async function flv(engine: Engine, req: Request, res: Response): Promise<
       if (at > due) break;
       res.write(shifted(t, pass * loopMs));
       next++;
+      // A viewer that stops reading is dropped, like a camera does, rather
+      // than buffering without bound.
+      if (res.writableLength > e.limits.flvBufferBytes) {
+        res.destroy();
+        return;
+      }
     }
   };
   const timer = setInterval(pump, 20);

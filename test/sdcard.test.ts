@@ -116,6 +116,32 @@ describe('SdCard', () => {
     expect(lines.join('')).toContain('sd_index_invalid');
   });
 
+  it('drops malformed index records with a warning', () => {
+    for (const text of ['[{}]', '{}', '[{"id":"r1","date":"2026-09-26","start":"x","end":null,"mainEnd":null,"triggers":["motion"],"dst":true}]']) {
+      writeFileSync(join(dir, 'index.json'), text);
+      const lines: string[] = [];
+      const log = createLogger('info', new Writable({ write(c, _e, cb) { lines.push(String(c)); cb(); } }));
+      const sd = make({ dir, log });
+      expect(sd.all()).toEqual([]);
+      expect(lines.join('')).toMatch(/sd_index_invalid|sd_record_dropped/);
+    }
+  });
+
+  it('closes recordings left open by a shutdown when loading', () => {
+    const a = make({ dir });
+    a.add({ date: '2026-09-26', start: '065221', triggers: ['motion'], dst: true });
+    const b = make({ dir });
+    expect(b.all()[0].end).toBe('065236');
+    expect(b.all()[0].files.sub.name).toContain('_065221_065236_');
+  });
+
+  it('rolls EndTime to the next day for a clip that crosses midnight', () => {
+    const sd = make();
+    sd.add({ date: '2026-09-26', start: '235950', end: '000015', triggers: ['motion'], dst: true });
+    const [f] = sd.search('sub', { year: 2026, mon: 9, day: 26 }, { year: 2026, mon: 9, day: 26 });
+    expect(f.EndTime).toEqual({ year: 2026, mon: 9, day: 27, hour: 0, min: 0, sec: 15 });
+  });
+
   it('clears', () => {
     const sd = make();
     sd.seed(DEMO_CLIPS);

@@ -128,7 +128,8 @@ given as `*_FILE` pointing at a mounted file, which wins over the plain variable
 | `CAMSIM_HTTP_PORT` | `8080` | camera HTTP (maps 80) |
 | `CAMSIM_RTSP_PORT` | `8554` | RTSP (maps 554) |
 | `CAMSIM_ONVIF_PORT` | `8000` | ONVIF events (maps 8000) |
-| `CAMSIM_CONTROL_PORT` | `9443` | control API + web UI; TLS with the same certificate when one is set |
+| `CAMSIM_CONTROL_PORT` | `9443` | control API + web UI |
+| `CAMSIM_CONTROL_TLS` | `auto` | TLS on the control port: `auto` = only with `CAMSIM_TLS_CERT_FILE`; `on` = always, with the camera's current certificate, following `ImportCertificate` (use in the cluster); `off` |
 | `CAMSIM_FTP_*` | — | FTP upload target, see section 11.3 |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level |
 

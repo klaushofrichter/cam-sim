@@ -82,6 +82,16 @@ describe('camera API: sessions and device', () => {
     expect((await post(app, 'DelUser', { User: { userName: 'g' } }, admin)).reply.code).toBe(0);
   });
 
+  it('never echoes markup back in a command name', async () => {
+    const { app } = await makeCamera();
+    const t = await login(app);
+    const res = await request(app).post(`/cgi-bin/api.cgi?cmd=${encodeURIComponent('<img src=x>')}&token=${t}`).send([{ cmd: '<b>x</b>', param: {} }]);
+    expect(res.text).not.toMatch(/</);
+    expect(JSON.parse(res.text)[0]).toMatchObject({ cmd: 'Unknown', code: 1 });
+    const bad = await request(app).post(`/cgi-bin/api.cgi?cmd=${encodeURIComponent('<i>')}`).set('Content-Type', 'application/json').send('[{');
+    expect(bad.text).not.toMatch(/</);
+  });
+
   it('answers a body that is not JSON with -4', async () => {
     const { app } = await makeCamera();
     const res = await request(app).post('/cgi-bin/api.cgi?cmd=Login').set('Content-Type', 'application/json').send('[{');

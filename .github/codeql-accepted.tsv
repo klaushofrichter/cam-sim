@@ -1,3 +1,7 @@
 # Accepted CodeQL findings. The gate in pr-checks.yml ignores exactly
 # these, and nothing else. Changing this file takes a pull request.
 # Format: ruleId<TAB>path<TAB>reason
+js/sensitive-get-query	src/camera-api/media-routes.ts	The Reolink firmware takes the session token as a query parameter on GET (Snap, Download, /flv) and has no header alternative; the simulator must accept it the same way. Tokens are never logged: request records keep the path without the query (test/redaction.test.ts).
+js/missing-rate-limiting	src/camera-api/app.ts	The simulated camera API reproduces the firmware, which does not rate-limit; cam-sim is a test tool, and rate limiting would change what clients under test see. The control API needs a bearer token compared in constant time.
+js/disabling-certificate-validation	test/tls.test.ts	Test-only: connects to the simulator's self-signed factory certificate on purpose, to read back which certificate is being served.
+js/disabling-certificate-validation	test/index.test.ts	Test-only: connects to the control port's self-signed factory certificate on purpose, to read back which certificate is being served.

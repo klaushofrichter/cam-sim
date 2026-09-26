@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { localParts, isDstOn, type Clock } from './clock';
 import type { Rng } from './rng';
-import type { SdCard, Recording } from './sdcard';
+import { addSeconds, type SdCard, type Recording } from './sdcard';
 import type { SettingsStore } from './settings';
 import type { Trigger } from './types';
 
@@ -23,12 +23,6 @@ export interface SimEvent {
   durationS: number;
   recordingId: string | null;
 }
-
-const addSeconds = (hms: string, s: number) => {
-  const t = (Number(hms.slice(0, 2)) * 3600 + Number(hms.slice(2, 4)) * 60 + Number(hms.slice(4, 6)) + s) % 86400;
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(Math.floor(t / 3600))}${p(Math.floor((t % 3600) / 60))}${p(t % 60)}`;
-};
 
 // Triggered events. An event sets the detection state for its duration and,
 // when the recording schedule allows it, starts or extends a recording that
@@ -123,9 +117,19 @@ export class Events extends EventEmitter {
     this.autoTimers.clear();
   }
 
+  // Stops background events and finishes the recording in progress, so a
+  // shutdown doesn't leave it open.
   stop(): void {
     this.stopAuto();
-    if (this.current) clearTimeout(this.current.timer);
+    const cur = this.current;
+    if (!cur) return;
+    clearTimeout(cur.timer);
+    this.current = null;
+    const rec = this.o.sd.byId(cur.id);
+    if (rec && rec.end === null) {
+      const end = addSeconds(rec.start, Math.max(1, Math.round((this.o.clock.now().getTime() - cur.startMs) / 1000)));
+      this.o.sd.finish(cur.id, end, addSeconds(end, MAIN_EXTRA_S));
+    }
   }
 }
 

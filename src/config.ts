@@ -14,6 +14,9 @@ export interface CamSimConfig {
   users: User[];
   controlToken?: string;
   webUi: boolean;
+  // Control port TLS: auto = only with CAMSIM_TLS_CERT_FILE; on = always,
+  // with the camera's current certificate (following ImportCertificate).
+  controlTls: 'auto' | 'on' | 'off';
   media: 'fixture' | 'video';
   dataDir?: string;
   fixtureDir?: string;
@@ -107,6 +110,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     users,
     controlToken: secret('CAMSIM_CONTROL_TOKEN'),
     webUi: env.CAMSIM_WEB_UI === 'true',
+    controlTls: oneOf('CAMSIM_CONTROL_TLS', ['auto', 'on', 'off'] as const, 'auto'),
     media: oneOf('CAMSIM_MEDIA', ['fixture', 'video'] as const, 'fixture'),
     dataDir: env.CAMSIM_DATA_DIR || undefined,
     fixtureDir: env.CAMSIM_FIXTURE_DIR || undefined,

@@ -54,6 +54,24 @@ export function fileName(stream: Stream, date: string, dst: boolean, start: stri
   return `${ROOT}/${date}/${base}`;
 }
 
+// HHMMSS plus `s` seconds, wrapping at midnight.
+export const addSeconds = (hms: string, s: number) => {
+  const t = (((Number(hms.slice(0, 2)) * 3600 + Number(hms.slice(2, 4)) * 60 + Number(hms.slice(4, 6)) + s) % 86400) + 86400) % 86400;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(Math.floor(t / 3600))}${p(Math.floor((t % 3600) / 60))}${p(t % 60)}`;
+};
+
+const HMS = /^([01]\d|2[0-3])[0-5]\d[0-5]\d$/;
+const TRIGGER_SET = new Set(['motion', 'person', 'vehicle', 'pet']);
+function validRecord(r: any): boolean {
+  return !!r && typeof r === 'object' && typeof r.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && HMS.test(r.start) &&
+    (r.end === null || HMS.test(r.end)) && (r.mainEnd === null || HMS.test(r.mainEnd)) && typeof r.dst === 'boolean' &&
+    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => TRIGGER_SET.has(String(t)));
+}
+// A recording that was still open when the simulator stopped gets the
+// default post-record length.
+const CLOSE_AFTER_S = 15;
+
 type Day = { year: number; mon: number; day: number; hour?: number; min?: number; sec?: number };
 const p2 = (n: number) => String(n).padStart(2, '0');
 const dayKey = (d: Day) => `${d.year}-${p2(d.mon)}-${p2(d.day)}`;
@@ -61,6 +79,12 @@ const timeObj = (date: string, hms: string) => ({
   year: Number(date.slice(0, 4)), mon: Number(date.slice(5, 7)), day: Number(date.slice(8, 10)),
   hour: Number(hms.slice(0, 2)), min: Number(hms.slice(2, 4)), sec: Number(hms.slice(4, 6)),
 });
+
+function nextDay(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 // Steps back `days` calendar days with UTC-date arithmetic, so DST changes in
 // between can't land it a day early or late (as in cams' mock).
@@ -84,7 +108,19 @@ export class SdCard {
       this.file = join(opts.dir, 'index.json');
       try {
         const loaded = readJson(this.file);
-        if (Array.isArray(loaded)) this.recs = loaded as Stored[];
+        if (loaded !== undefined && !Array.isArray(loaded)) opts.log.warn({ file: this.file }, 'sd_index_invalid');
+        if (Array.isArray(loaded)) {
+          const good = loaded.filter(validRecord) as Stored[];
+          if (good.length !== loaded.length) opts.log.warn({ file: this.file, dropped: loaded.length - good.length }, 'sd_record_dropped');
+          for (const r of good) {
+            if (r.end === null) {
+              r.end = addSeconds(r.start, CLOSE_AFTER_S);
+              r.mainEnd = addSeconds(r.end, 2);
+              opts.log.warn({ id: r.id }, 'sd_open_recording_closed');
+            }
+          }
+          this.recs = good;
+        }
       } catch {
         opts.log.warn({ file: this.file }, 'sd_index_invalid');
       }
@@ -149,7 +185,8 @@ export class SdCard {
           size: String(r.files[stream].size),
           type: stream,
           StartTime: timeObj(r.date, r.start),
-          EndTime: end ? timeObj(r.date, end) : timeObj(r.date, r.start),
+          // A clip that crosses midnight ends on the next day.
+          EndTime: end ? timeObj(end < r.start ? nextDay(r.date) : r.date, end) : timeObj(r.date, r.start),
           frameRate: 0,
           width: 0,
           height: 0,

@@ -34,12 +34,10 @@ export function readJson(file: string): unknown {
   return JSON.parse(text);
 }
 
-const BLOCKED = new Set(['__proto__', 'constructor', 'prototype']);
-
 // Deep merge of `patch` into `target`, skipping prototype keys.
 export function deepMerge(target: Record<string, any>, patch: Record<string, any>): Record<string, any> {
   for (const [k, v] of Object.entries(patch)) {
-    if (BLOCKED.has(k)) continue;
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
     if (v && typeof v === 'object' && !Array.isArray(v) && target[k] && typeof target[k] === 'object' && !Array.isArray(target[k])) {
       deepMerge(target[k], v);
     } else {

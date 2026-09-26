@@ -50,6 +50,7 @@ export class Engine {
   // How the Reboot command behaves; unset: the speed's timing and a 50/50
   // chance of dropping the connection before answering (as the firmware does).
   rebootDefaults: { ms?: number; dropsConnection?: boolean } = {};
+  limits = { flvBufferBytes: 4 * 1024 * 1024 };
   // The web server restarts after a certificate change (about 10 s on the camera).
   certRestarting = false;
   readonly certs: Certificates;
@@ -130,7 +131,8 @@ export class Engine {
     this.dropFlv();
     this.dropDownloads();
     this.bus.emit('state', { rebooting: true });
-    await new Promise((r) => setTimeout(r, opts.ms ?? this.timings.rebootMs));
+    const ms = Math.min(Math.max(0, Number(opts.ms ?? this.timings.rebootMs) || 0), 600_000);
+    await new Promise((r) => setTimeout(r, ms));
     this.serial = this.newSerial();
     this.sessions.revokeAll();
     this.settings.applySavedOnReboot();

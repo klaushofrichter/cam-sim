@@ -1,5 +1,26 @@
 import type pino from 'pino';
 import { factorySettings, resetDefaults, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
+
+const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+// Factory settings with every well-formed object of `loaded` laid over them.
+// Returns whether anything was missing or malformed.
+function overFactory(name: string, loaded: unknown): { settings: Settings; complete: boolean } {
+  const settings = factorySettings(name);
+  if (!isObject(loaded)) return { settings, complete: false };
+  let complete = true;
+  for (const key of Object.keys(settings) as Array<keyof Settings>) {
+    const v = loaded[key];
+    if (key === 'AiAlarm') {
+      for (const t of AI_TYPES) {
+        if (isObject(v) && isObject(v[t])) deepMerge(settings.AiAlarm[t], v[t]);
+        else complete = false;
+      }
+    } else if (isObject(v)) deepMerge(settings[key] as Record<string, any>, v);
+    else complete = false;
+  }
+  return { settings, complete };
+}
 import { clone, deepMerge, readJson, writeJsonAtomic } from '../util/json-file';
 
 type Key = keyof Settings;
@@ -62,15 +83,20 @@ export class SettingsStore {
   constructor(opts: { name: string; file?: string; log: pino.Logger }) {
     this.name = opts.name;
     this.file = opts.file;
-    let loaded: Settings | undefined;
+    let saved = factorySettings(opts.name);
     if (opts.file) {
       try {
-        loaded = readJson(opts.file) as Settings | undefined;
+        const loaded = readJson(opts.file);
+        if (loaded !== undefined) {
+          const r = overFactory(opts.name, loaded);
+          saved = r.settings;
+          if (!r.complete) opts.log.warn({ file: opts.file }, 'settings_file_invalid');
+        }
       } catch {
         opts.log.warn({ file: opts.file }, 'settings_file_invalid');
       }
     }
-    this.saved = loaded ?? factorySettings(opts.name);
+    this.saved = saved;
     this.running = clone(this.saved);
   }
 

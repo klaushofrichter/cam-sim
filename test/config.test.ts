@@ -87,6 +87,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, CAMSIM_WEB_UI: 'true' })).toThrow(/CAMSIM_WEB_UI/);
   });
 
+  it('parses CAMSIM_CONTROL_TLS', () => {
+    expect(loadConfig(base).controlTls).toBe('auto');
+    expect(loadConfig({ ...base, CAMSIM_CONTROL_TLS: 'on' }).controlTls).toBe('on');
+    expect(() => loadConfig({ ...base, CAMSIM_CONTROL_TLS: 'yes' })).toThrow(/CAMSIM_CONTROL_TLS/);
+  });
+
   it('uses CAMSIM_SEED when set', () => {
     expect(loadConfig({ ...base, CAMSIM_SEED: '42' }).seed).toBe(42);
   });

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import http from 'http';
+import net from 'net';
 import request from 'supertest';
 import { makeCamera, post, login, listen, rawGet } from '../helpers';
 import { readFlv } from '../../src/media/flv';
@@ -88,6 +89,34 @@ describe('camera API: FLV live', () => {
     const ms = tags.map((t) => t.ms);
     expect(Math.max(...ms)).toBeGreaterThan(dur);
     expect(ms.slice(1).every((m, i) => m >= ms[i] - 200)).toBe(true); // no jump back to 0
+  }, 20_000);
+
+  it('never sends an end-of-sequence tag mid-stream', async () => {
+    const { flv, engine } = await served();
+    const dur = engine.media.durationMs('sub');
+    const body = await new Promise<Buffer>((resolve) => {
+      const chunks: Buffer[] = [];
+      const req = http.get(flv('sub'), (res) => res.on('data', (c: Buffer) => chunks.push(c)));
+      req.on('error', () => undefined);
+      setTimeout(() => {
+        req.destroy();
+        resolve(Buffer.concat(chunks));
+      }, dur + 1500);
+    });
+    const eos = readFlv(body).tags.filter((t) => t.type === 9 && t.bytes[12] === 2);
+    expect(eos).toEqual([]);
+  }, 20_000);
+
+  it('drops a viewer that stops reading', async () => {
+    const { srv, t, engine } = await served();
+    engine.limits.flvBufferBytes = 64 * 1024;
+    const sock = net.connect(srv.port, '127.0.0.1');
+    sock.write(`GET /flv?port=1935&app=bcs&stream=channel0_main.bcs&token=${t} HTTP/1.1\r\nHost: x\r\n\r\n`);
+    sock.pause();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(engine.counters.activeStreams).toBe(1);
+    await expect.poll(() => engine.counters.activeStreams, { timeout: 10_000 }).toBe(0);
+    sock.destroy();
   }, 20_000);
 
   it('counts active streams and drops them on request', async () => {

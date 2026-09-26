@@ -107,6 +107,14 @@ describe('Events', () => {
     expect(sd.all()[0].files.sub.name).toContain('RecS0A_20261101_');
   });
 
+  it('stop() finishes the recording in progress', () => {
+    const { sd, events } = setup('2026-09-26T11:52:21Z');
+    events.trigger('motion', 30);
+    vi.advanceTimersByTime(4_000);
+    events.stop();
+    expect(sd.all()[0].end).toBe('065225');
+  });
+
   it('keeps recent events', () => {
     const { events } = setup('2026-09-26T11:52:21Z');
     events.trigger('motion', 1);

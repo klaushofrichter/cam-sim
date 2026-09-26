@@ -117,6 +117,33 @@ describe('SettingsStore', () => {
     expect(sink.lines.join('')).toContain('settings_file_invalid');
   });
 
+  it('fills a well-formed but incomplete or wrong-shape file from factory settings', () => {
+    for (const text of ['{}', '42', '{"NetPort":{"httpEnable":1},"Rec":"x"}']) {
+      const f = join(dir, 'settings.json');
+      writeFileSync(f, text);
+      const sink = logSink();
+      const s = new SettingsStore({ name: 'Den', file: f, log: sink.log });
+      expect(s.running.Rec.enable).toBe(1);
+      expect(s.running.AiAlarm.people.ai_type).toBe('people');
+      expect(sink.lines.join('')).toContain('settings_file_invalid');
+    }
+  });
+
+  it('keeps the valid parts of a partial file', () => {
+    const f = join(dir, 'settings.json');
+    writeFileSync(f, JSON.stringify({ Isp: { dayNight: 'Color' } }));
+    const s = new SettingsStore({ name: 'Den', file: f, log: logSink().log });
+    expect(s.running.Isp.dayNight).toBe('Color');
+    expect(s.running.Isp.rotation).toBe(0);
+  });
+
+  it('a partial SetNetPort never switches the web ports off after a reboot', () => {
+    const s = make();
+    s.set('SetNetPort', { NetPort: { rtmpEnable: 0 } }, ok);
+    s.applySavedOnReboot();
+    expect(s.running.NetPort).toMatchObject({ httpEnable: 1, httpsEnable: 1, rtmpEnable: 0 });
+  });
+
   it('resets to factory', () => {
     const s = make();
     s.set('SetIsp', { Isp: { dayNight: 'Color' } }, ok);

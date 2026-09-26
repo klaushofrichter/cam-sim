@@ -152,6 +152,7 @@ function zeroed(o: unknown): unknown {
 
 function overlay(target: Obj, patch: Obj): Obj {
   for (const [k, v] of Object.entries(patch)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
     if (v && typeof v === 'object' && !Array.isArray(v) && target[k] && typeof target[k] === 'object') overlay(target[k], v);
     else target[k] = v;
   }
@@ -170,5 +171,8 @@ export function resetDefaults(): Settings {
   overlay(z.Isp, { dayNight: 'Auto', antiFlicker: 'Off', rotation: 1, mirroring: 1 });
   overlay(z.IrLights, { state: 'Auto' });
   overlay(z.Osd, { osdChannel: { pos: 'Upper Left' }, osdTime: { pos: 'Upper Left' } });
+  // Not measured, and zero values would switch every port off after a
+  // reboot, leaving no way back in: keep the factory ports.
+  z.NetPort = { ...DEFAULT_NET_PORT };
   return z;
 }

@@ -57,3 +57,29 @@ describe('createCamSim', () => {
     expect((await request(sim.controlApp).get('/sim/api/state').set('Authorization', 'Bearer tok')).body.name).toBe('Cam');
   });
 });
+
+describe('control port TLS', () => {
+  it("'on' serves the camera's certificate and follows imports", async () => {
+    const tls = await import('tls');
+    const { generate } = await import('selfsigned');
+    const sim = await make({ controlToken: 'tok', controlTls: 'on' });
+    const ports = await sim.listen({ http: 0, https: 0, control: 0 }, '127.0.0.1');
+    const cn = () => new Promise<string>((resolve, reject) => {
+      const s = tls.connect({ host: '127.0.0.1', port: ports.control, rejectUnauthorized: false }, () => {
+        resolve(String(s.getPeerCertificate().subject?.CN));
+        s.end();
+      });
+      s.on('error', reject);
+    });
+    expect(await cn()).toBe('CERTIFICATE');
+    const p = await generate([{ name: 'commonName', value: 'cam2.skylar.technology' }], { keySize: 2048 });
+    expect(sim.engine.importCertificate(p.cert, p.private)).toBeNull();
+    expect(await cn()).toBe('cam2.skylar.technology');
+  });
+
+  it("'auto' stays plain HTTP without a configured certificate", async () => {
+    const sim = await make({ controlToken: 'tok' });
+    const ports = await sim.listen({ http: 0, https: 0, control: 0 }, '127.0.0.1');
+    expect((await fetch(`http://127.0.0.1:${ports.control}/healthz`)).status).toBe(200);
+  });
+});

@@ -141,7 +141,7 @@ const HANDLERS: Record<string, Handler> = {
 
 function setCommand(c: Ctx): Entry {
   const e = c.engine;
-  e.counters.setCalls.push(c.cmd);
+  e.counters.noteSet(c.cmd);
   const failing = e.faults.consume('settings.fail', c.cmd);
   if (failing) return fail(c.cmd, failing.rspCode ?? -67);
   if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });

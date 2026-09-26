@@ -1,3 +1,5 @@
+const LIST_CAP = 1000;
+
 // What tests read back through /sim/api/state (the cams mock's /__state and more).
 export class Counters {
   logins = 0;
@@ -12,6 +14,18 @@ export class Counters {
   searches = 0;
   setCalls: string[] = [];
   reboots = 0;
+
+  // Lists keep only their most recent entries, so a long-running simulator
+  // doesn't grow without bound.
+  noteDownload(start: string): void {
+    this.downloadOrder.push(start);
+    if (this.downloadOrder.length > LIST_CAP) this.downloadOrder.splice(0, this.downloadOrder.length - LIST_CAP);
+  }
+
+  noteSet(cmd: string): void {
+    this.setCalls.push(cmd);
+    if (this.setCalls.length > LIST_CAP) this.setCalls.splice(0, this.setCalls.length - LIST_CAP);
+  }
 
   reset(): void {
     // Active counts describe open connections; they are not history.

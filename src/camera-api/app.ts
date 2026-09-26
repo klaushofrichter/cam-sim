@@ -5,6 +5,10 @@ import { download, snap, flv, NOT_LOGGED_IN_GET_BODY } from './media-routes';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Replies are JSON sent as text/html, as the firmware does; a command name
+// is only echoed back when it is a plain identifier.
+const cmdName = (v: unknown): string => (typeof v === 'string' && /^[A-Za-z0-9]{1,64}$/.test(v) ? v : 'Unknown');
+
 // The Reolink-compatible camera API, as served on the camera's HTTP or HTTPS
 // port. Everything the firmware does is on; faults come from engine.faults.
 export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }): express.Express {
@@ -45,12 +49,12 @@ export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }
 
   // The camera accepts any content type for its JSON commands.
   app.post('/cgi-bin/api.cgi', express.json({ type: () => true, limit: '1mb' }), async (req: Request, res: Response) => {
-    const qcmd = typeof req.query.cmd === 'string' ? req.query.cmd : '';
+    const qcmd = typeof req.query.cmd === 'string' ? cmdName(req.query.cmd) : '';
     const body: any[] = Array.isArray(req.body) ? req.body : [];
     const token = typeof req.query.token === 'string' ? req.query.token : '';
     const out: Entry[] = [];
     for (const item of body.length ? body : [{}]) {
-      const cmd = typeof item?.cmd === 'string' ? item.cmd : qcmd;
+      const cmd = item?.cmd !== undefined ? cmdName(item.cmd) : qcmd || 'Unknown';
       const param = item?.param;
       if (cmd === 'Login') {
         e.counters.loginAttempts++;
@@ -90,8 +94,7 @@ export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }
   // Unparseable JSON bodies.
   app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) return next(err);
-    const cmd = typeof req.query.cmd === 'string' ? req.query.cmd : 'Unknown';
-    reply(res, [fail(cmd, -4)]);
+    reply(res, [fail(cmdName(req.query.cmd), -4)]);
   });
 
   return app;

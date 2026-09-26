@@ -57,6 +57,17 @@ describe('Faults', () => {
 });
 
 describe('Counters', () => {
+  it('keeps only the most recent entries of its lists', () => {
+    const c = new Counters();
+    for (let i = 0; i < 1500; i++) {
+      c.noteDownload(String(i));
+      c.noteSet(`Set${i}`);
+    }
+    expect(c.downloadOrder).toHaveLength(1000);
+    expect(c.downloadOrder[999]).toBe('1499');
+    expect(c.setCalls).toHaveLength(1000);
+  });
+
   it('resets', () => {
     const c = new Counters();
     c.logins = 3;
