@@ -29,6 +29,7 @@ export interface CamSimOptions {
   faults?: FaultSpec[];
   seedClips?: 'demo' | SeedClip[];
   autoEvents?: CamSimConfig['autoEvents'];
+  reboot?: { ms?: number; dropsConnection?: boolean };
   tlsCertFile?: string;
   tlsKeyFile?: string;
   clock?: Clock;
@@ -80,6 +81,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
 export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = configFromOptions(opts)): Promise<CamSim> {
   const engine = await createEngine(config, { clock: opts.clock, log: opts.log });
   if (Array.isArray(opts.seedClips)) engine.sd.seed(opts.seedClips);
+  if (opts.reboot) engine.rebootDefaults = { ...opts.reboot };
   const cameraApp = createCameraApp(engine, { port: 'http' });
   const controlApp = createControlApp(engine);
   let camera: Listeners | undefined;

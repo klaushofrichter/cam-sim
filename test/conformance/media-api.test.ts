@@ -144,6 +144,23 @@ describe('camera API: Reboot', () => {
     expect((await post(app, 'GetDevInfo', {}, t2)).reply.value.DevInfo.serial).not.toBe(serial);
   });
 
+  it('rebootDefaults fix the Reboot command\'s timing and reply', async () => {
+    const { app, t, srv, engine } = await served();
+    engine.rebootDefaults = { ms: 80, dropsConnection: false };
+    for (let i = 0; i < 4; i++) {
+      const t2 = i === 0 ? t : await login(app);
+      expect((await post(app, 'Reboot', {}, t2)).reply).toEqual({ cmd: 'Reboot', code: 0, value: { rspCode: 200 } });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(engine.offline()).toBe(true);
+      await new Promise((r) => setTimeout(r, 100));
+      expect(engine.offline()).toBe(false);
+    }
+    engine.rebootDefaults = { ms: 50, dropsConnection: true };
+    const t3 = await login(app);
+    await expect(post(app, 'Reboot', {}, t3)).rejects.toThrow();
+    void srv;
+  });
+
   it('reboot action parameters: timing and a dropped reply', async () => {
     const { t, srv, engine } = await served();
     const p = engine.reboot({ ms: 100, dropsConnection: true });

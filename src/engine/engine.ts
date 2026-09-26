@@ -47,6 +47,9 @@ export class Engine {
   readonly rng: Rng;
   serial: string;
   rebooting = false;
+  // How the Reboot command behaves; unset: the speed's timing and a 50/50
+  // chance of dropping the connection before answering (as the firmware does).
+  rebootDefaults: { ms?: number; dropsConnection?: boolean } = {};
   // The web server restarts after a certificate change (about 10 s on the camera).
   certRestarting = false;
   readonly certs: Certificates;

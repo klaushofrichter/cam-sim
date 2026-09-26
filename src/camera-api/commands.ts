@@ -126,14 +126,15 @@ const HANDLERS: Record<string, Handler> = {
   },
   Reboot: (c) => {
     const e = c.engine;
-    const drops = e.rng.next() < 0.5;
+    const ms = e.rebootDefaults.ms;
+    const drops = e.rebootDefaults.dropsConnection ?? e.rng.next() < 0.5;
     // The firmware may go down before answering.
     if (drops) {
-      void e.reboot({ dropsConnection: true });
+      void e.reboot({ ms, dropsConnection: true });
       c.req.socket.destroy();
       return 'destroyed';
     }
-    c.res.on('finish', () => void e.reboot({ dropsConnection: false }));
+    c.res.on('finish', () => void e.reboot({ ms, dropsConnection: false }));
     return ok(c.cmd, { rspCode: 200 });
   },
 };
