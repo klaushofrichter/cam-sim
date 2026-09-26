@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to release anything but production
+        if: github.ref != 'refs/heads/production'
+        run: |
+          echo "::error::releases run from production only (got ${GITHUB_REF})"
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate the version
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          DATE=$(TZ=America/Chicago date +%Y.%m.%d)
+          # Own assignment so a gh failure fails the step instead of reading as
+          # "no releases today" and reusing a shipped version.
+          RELEASES=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 --json tagName -q '.[].tagName')
+          TODAY=$(printf '%s\n' "$RELEASES" | grep -c "^v${DATE}\." || true)
+          VERSION="${DATE}.$((TODAY + 1))"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build timestamp
+        id: built
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            APP_VERSION=${{ steps.ver.outputs.version }}
+            BUILD_DATE=${{ steps.built.outputs.at }}
+          tags: |
+            ghcr.io/klaushofrichter/cam-sim:v${{ steps.ver.outputs.version }}
+            ghcr.io/klaushofrichter/cam-sim:latest
+
+      # Tag and notes only: no release assets (spec 6.1, nothing but code is published).
+      - name: Tag the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG already released - skipping."; exit 0
+          fi
+          : > /tmp/notes.md
+          awk '/^## \[?Unreleased\]?/ { grab = 1; next } grab && /^## / { exit } grab { print }' CHANGELOG.md \
+            | sed '/^[[:space:]]*$/d' > /tmp/curated.md
+          if [ -s /tmp/curated.md ]; then cat /tmp/curated.md >> /tmp/notes.md; printf '\n' >> /tmp/notes.md; fi
+          PREV=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || true)
+          printf '### Changes\n\n' >> /tmp/notes.md
+          if [ -n "$PREV" ] && git rev-parse "$PREV" >/dev/null 2>&1; then
+            git log --no-merges --pretty='- %s' "${PREV}..HEAD" >> /tmp/notes.md
+          else
+            git log --no-merges --pretty='- %s' -30 >> /tmp/notes.md
+          fi
+          printf '\nImage: `ghcr.io/klaushofrichter/cam-sim:%s` (linux/amd64, linux/arm64)\n' "$TAG" >> /tmp/notes.md
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file /tmp/notes.md
+          echo "Released $TAG"
