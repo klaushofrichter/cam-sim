@@ -12,3 +12,4 @@ fixtures/generated/
 *.jpg
 *.h265
 *.aac
+reference/
