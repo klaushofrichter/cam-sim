@@ -6,10 +6,11 @@ import { createCameraApp } from '../src/camera-api/app';
 import { loadConfig, type CamSimConfig } from '../src/config';
 import { createLogger } from '../src/log';
 import type { Clock } from '../src/engine/clock';
+import type pino from 'pino';
 
 export const USERS = 'admin:admin:admin-pw;cams:admin:cams-pw';
 
-export async function makeEngine(env: Record<string, string> = {}, deps: { clock?: Clock } = {}): Promise<Engine> {
+export async function makeEngine(env: Record<string, string> = {}, deps: { clock?: Clock; log?: pino.Logger } = {}): Promise<Engine> {
   const config: CamSimConfig = loadConfig({ CAMSIM_USERS: USERS, CAMSIM_SEED: '1', ...env });
   return createEngine(config, { log: createLogger('silent'), ...deps });
 }

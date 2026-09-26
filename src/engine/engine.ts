@@ -15,6 +15,7 @@ import type { MediaSource } from '../media/source';
 import { ensureFixtures, defaultFixtureDir, FixtureMedia } from '../media/fixtures';
 import { createLogger } from '../log';
 import { Certificates, type CertState } from '../tls/certs';
+import { RequestLog } from './request-log';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
 const TIMINGS = {
@@ -38,6 +39,7 @@ export class Engine {
   readonly bus = new EventEmitter();
   readonly faults = new Faults();
   readonly counters = new Counters();
+  readonly requests = new RequestLog();
   readonly sessions: Sessions;
   readonly settings: SettingsStore;
   readonly sd: SdCard;
@@ -142,7 +144,36 @@ export class Engine {
   }
 
   recordRequest(r: RequestRecord): void {
+    this.requests.add(r);
+    this.log.debug(r, 'camera_request');
     this.bus.emit('request', r);
+  }
+
+  // Back to a known state between tests. Every part defaults to on.
+  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean } = {}): void {
+    const all = Object.values(what).every((v) => v === undefined);
+    if (all || what.faults) this.faults.clearAll();
+    if (all || what.settings) this.settings.resetFactory();
+    if (all || what.recordings) this.sd.clear();
+    if (all || what.counters) this.counters.reset();
+    this.bus.emit('state', { reset: true });
+  }
+
+  state() {
+    return {
+      name: this.config.name,
+      serial: this.serial,
+      model: 'RLC-1224A',
+      firmVer: this.config.firmVer,
+      offline: this.offline(),
+      rebooting: this.rebooting,
+      faults: this.faults.list(),
+      events: this.events.recent(20),
+      sd: { usedMb: this.sd.usedMb(), capacityMb: this.config.sdMb, recordings: this.sd.all().length },
+      counters: { ...this.counters.snapshot(), activeSessions: this.sessions.count() },
+      certificate: { source: this.certificate.source, enable: this.certificate.enable },
+      settings: this.settings.running,
+    };
   }
 
   stop(): void {
