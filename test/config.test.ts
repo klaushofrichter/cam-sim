@@ -82,6 +82,11 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, CAMSIM_HTTP_PORT: 'x' })).toThrow(/CAMSIM_HTTP_PORT/);
   });
 
+  it('refuses features that arrive in later plans', () => {
+    expect(() => loadConfig({ ...base, CAMSIM_MEDIA: 'video' })).toThrow(/CAMSIM_MEDIA=video/);
+    expect(() => loadConfig({ ...base, CAMSIM_WEB_UI: 'true' })).toThrow(/CAMSIM_WEB_UI/);
+  });
+
   it('uses CAMSIM_SEED when set', () => {
     expect(loadConfig({ ...base, CAMSIM_SEED: '42' }).seed).toBe(42);
   });
