@@ -14,6 +14,7 @@ import { Counters } from './counters';
 import type { MediaSource } from '../media/source';
 import { ensureFixtures, defaultFixtureDir, FixtureMedia } from '../media/fixtures';
 import { createLogger } from '../log';
+import { Certificates, type CertState } from '../tls/certs';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
 const TIMINGS = {
@@ -44,6 +45,9 @@ export class Engine {
   readonly rng: Rng;
   serial: string;
   rebooting = false;
+  // The web server restarts after a certificate change (about 10 s on the camera).
+  certRestarting = false;
+  readonly certs: Certificates;
   // Device-wide: the firmware serializes these across all sessions.
   search = { busy: false, spoiled: false };
   readonly activeFlv = new Set<Response>();
@@ -56,6 +60,7 @@ export class Engine {
     readonly media: MediaSource,
   ) {
     this.rng = createRng(config.seed);
+    this.certs = new Certificates({ certFile: config.tlsCertFile, keyFile: config.tlsKeyFile, dataDir: config.dataDir });
     this.serial = this.newSerial();
     this.sessions = new Sessions(config.users, clock);
     this.settings = new SettingsStore({ name: config.name, file: config.dataDir && join(config.dataDir, 'settings.json'), log });
@@ -83,7 +88,33 @@ export class Engine {
   }
 
   offline(): boolean {
-    return this.rebooting || !!this.faults.active('offline');
+    return this.rebooting || this.certRestarting || !!this.faults.active('offline');
+  }
+
+  get certificate(): CertState {
+    return this.certs.state;
+  }
+
+  // CertificateClear and a successful ImportCertificate restart the camera's
+  // web server: sessions end, and clients must log in again.
+  private async certRestart(): Promise<void> {
+    this.bus.emit('cert', this.certs.state);
+    this.sessions.revokeAll();
+    this.certRestarting = true;
+    await new Promise((r) => setTimeout(r, this.timings.certRestartMs));
+    this.certRestarting = false;
+  }
+
+  clearCertificate(): void {
+    this.certs.clear();
+    void this.certRestart();
+  }
+
+  importCertificate(cert: string, key: string): number | null {
+    const r = this.certs.import(cert, key);
+    if (r === 'ignored') return null;
+    if (r === null) void this.certRestart();
+    return r;
   }
 
   // Reboot: offline for `ms`, then a new serial, no sessions, and the saved
@@ -124,5 +155,7 @@ export class Engine {
 export async function createEngine(config: CamSimConfig, deps: { clock?: Clock; media?: MediaSource; log?: pino.Logger } = {}): Promise<Engine> {
   const log = deps.log ?? createLogger(config.logLevel);
   const media = deps.media ?? new FixtureMedia(await ensureFixtures(config.fixtureDir ?? defaultFixtureDir(), log));
-  return new Engine(config, deps.clock ?? systemClock, log, media);
+  const engine = new Engine(config, deps.clock ?? systemClock, log, media);
+  await engine.certs.load();
+  return engine;
 }

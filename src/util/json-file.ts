@@ -6,11 +6,15 @@ import { dirname } from 'path';
 // fsync, then rename over the target. A crash leaves the old file or the new
 // one, never half of either.
 export function writeJsonAtomic(file: string, value: unknown): void {
+  writeFileAtomic(file, JSON.stringify(value));
+}
+
+export function writeFileAtomic(file: string, text: string): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
   const fd = openSync(tmp, 'w', 0o600);
   try {
-    writeSync(fd, JSON.stringify(value));
+    writeSync(fd, text);
     fsyncSync(fd);
   } finally {
     closeSync(fd);

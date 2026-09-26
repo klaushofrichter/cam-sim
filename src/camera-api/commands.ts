@@ -3,6 +3,7 @@ import type { Engine } from '../engine/engine';
 import type { SessionInfo } from '../engine/sessions';
 import { isSetCommand } from '../engine/settings';
 import { timeValue } from '../engine/clock';
+import { validPair } from '../tls/certs';
 import { devInfo, ENC, ABILITY, IR_LIGHTS_EXTRA, AI_TYPES, type AiType } from '../profile/rlc1224a';
 
 // Error details as the firmware words them (measured where noted).
@@ -107,6 +108,21 @@ const HANDLERS: Record<string, Handler> = {
     const name = String(c.param?.filename ?? '');
     const known = c.engine.sd.all().some((r) => [r.files.sub.name, r.files.main.name].some((n) => n === name || n.endsWith(`/${name}`)));
     return known ? ok(c.cmd, { downloadTask: c.engine.activeDownloads.size }) : fail(c.cmd, -4);
+  },
+  GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certificate.enable, keyName: 'server.key' } }),
+  CertificateClear: (c) => {
+    c.res.on('finish', () => c.engine.clearCertificate());
+    return ok(c.cmd, { rspCode: 200 });
+  },
+  ImportCertificate: (c) => {
+    const ic = c.param?.importCertificate ?? {};
+    const pem = (x: any) => (typeof x?.content === 'string' ? Buffer.from(x.content, 'base64').toString('utf8') : '');
+    const cert = pem(ic.crt), key = pem(ic.key);
+    // Validate now, apply after the reply is sent (the web server restarts).
+    if (c.engine.certificate.enable === 1) return ok(c.cmd, { rspCode: 200 });
+    if (!validPair(cert, key)) return fail(c.cmd, -4);
+    c.res.on('finish', () => c.engine.importCertificate(cert, key));
+    return ok(c.cmd, { rspCode: 200 });
   },
   Reboot: (c) => {
     const e = c.engine;
