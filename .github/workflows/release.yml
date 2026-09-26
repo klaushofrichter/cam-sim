@@ -62,7 +62,24 @@ jobs:
             ghcr.io/klaushofrichter/cam-sim:v${{ steps.ver.outputs.version }}
             ghcr.io/klaushofrichter/cam-sim:latest
 
-      # Tag and notes only: no release assets (spec 6.1, nothing but code is published).
+      # The npm package (code only, no media: fixtures are generated at run
+      # time) as a release asset, so cams can install cam-sim without git.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Pack the npm package
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts
+          npm run build
+          npm pack --ignore-scripts
+          mv cam-sim-*.tgz "cam-sim-v${VERSION}.tgz"
+          if tar -tzf "cam-sim-v${VERSION}.tgz" | grep -Ei '\.(mp4|flv|jpe?g|png|h26[45]|aac)$'; then
+            echo "::error::media in the package"; exit 1
+          fi
+
       - name: Tag the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -85,5 +102,6 @@ jobs:
             git log --no-merges --pretty='- %s' -30 >> /tmp/notes.md
           fi
           printf '\nImage: `ghcr.io/klaushofrichter/cam-sim:%s` (linux/amd64, linux/arm64)\n' "$TAG" >> /tmp/notes.md
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file /tmp/notes.md
+          printf '\nnpm: `"cam-sim": "https://github.com/%s/releases/download/%s/cam-sim-%s.tgz"`\n' "$GITHUB_REPOSITORY" "$TAG" "$TAG" >> /tmp/notes.md
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file /tmp/notes.md "cam-sim-${TAG}.tgz"
           echo "Released $TAG"
