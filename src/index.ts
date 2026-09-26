@@ -14,6 +14,8 @@ import type { SeedClip, Trigger } from './engine/sdcard';
 import type pino from 'pino';
 
 export { DEMO_CLIPS } from './engine/sdcard';
+// For test runners: build the fixtures once before workers start (globalSetup).
+export { ensureFixtures, defaultFixtureDir } from './media/fixtures';
 export type { FaultSpec, SeedClip, Trigger, User, Engine, CamSimConfig };
 
 export interface CamSimOptions {
