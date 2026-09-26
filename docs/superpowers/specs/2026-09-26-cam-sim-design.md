@@ -81,7 +81,7 @@ One container is one camera. Several cameras means several containers.
  cams / gateway ───▶│ Camera API (HTTPS + HTTP)   ──┐                                      │
                     │   JSON cmds, Snap, FLV,       │                                      │
                     │   Search, Download            ├──▶  Camera engine                    │
- VLC / gateway ────▶│ RTSP (MediaMTX)             ──┤     identity, users, sessions,       │
+ VLC / gateway ────▶│ RTSP (MediaMTX), ONVIF      ──┤     identity, users, sessions,       │
                     │                               │     settings, SD card, events,       │
  CI / scripts ─────▶│ Control API (bearer token)  ──┤     faults, counters                 │
  browser ──────────▶│ Web UI (optional)           ──┘            │                         │
@@ -128,8 +128,9 @@ given as `*_FILE` pointing at a mounted file, which wins over the plain variable
 | `CAMSIM_HTTPS_PORT` | `8443` | camera HTTPS (the Service maps 443) |
 | `CAMSIM_HTTP_PORT` | `8080` | camera HTTP (maps 80) |
 | `CAMSIM_RTSP_PORT` | `8554` | RTSP (maps 554) |
+| `CAMSIM_ONVIF_PORT` | `8000` | ONVIF events (maps 8000) |
 | `CAMSIM_CONTROL_PORT` | `9443` | control API + web UI; TLS with the same certificate when one is set |
-| `CAMSIM_FTP_*` | — | FTP upload target, see section 11 |
+| `CAMSIM_FTP_*` | — | FTP upload target, see section 11.3 |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level |
 
 The container runs as a non-root user, hence the high ports. `GetNetPort`
@@ -246,7 +247,8 @@ so pollers see events the way they do on the camera.
 - Snap serves a bundled JPEG; FLV serves a bundled short FLV in a loop.
 - Recordings are bundled tiny MP4s renamed to the firmware pattern.
 - Events and seeding work, and produce the same names and Search results.
-- RTSP and FTP are unavailable.
+- RTSP and FTP are unavailable. `GetMdState`/`GetAiState` and ONVIF events
+  work, since they need no media.
 
 This is the mode for unit tests and fast CI jobs. The video mode is for
 end-to-end and manual tests.
@@ -494,7 +496,7 @@ kube-setup owns the manifests; this section is what cam-sim needs from them.
 
 - Namespace `cam-sim`, one Deployment per camera (`cam2` first), one replica,
   a PVC for `/data`, and a read-only volume for the private video library.
-- A Service exposing 443, 80 and 554 inside the cluster (plus 9443 for the
+- A Service exposing 443, 80, 554 and 8000 inside the cluster (plus 9443 for the
   control port). cams reaches cam2 at the Service address with TLS servername
   `cam2.skylar.technology`, the same way it reaches cam1 by IP.
 - **DNS and certificate like cam1:** a Squarespace A record for
@@ -524,7 +526,7 @@ kube-setup owns the manifests; this section is what cam-sim needs from them.
   - `src/control-api/`: control API, SSE, health;
   - `src/media/`: library preparation, live sources, FLV writer, ring, clip
     writer, fixture media;
-  - `src/rtsp/`, `src/ftp/`: later phases;
+  - `src/rtsp/`, `src/onvif/`, `src/ftp/`: later phases;
   - `web/`: Svelte UI;
   - `test/`, `e2e/`: vitest and Playwright;
   - `scripts/sync-secrets.sh`, `compose.yaml`, `Dockerfile`, `openapi.yaml`.
