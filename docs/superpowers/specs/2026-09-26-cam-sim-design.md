@@ -45,12 +45,11 @@ use. Anything beyond that is optional.
 | ONVIF events (PullPoint) on port 8000 | — | ✅ | 5 |
 | FTP/FTPS clip upload | — | ✅ (clip intake) | 6 |
 | Camera webhook (HTTP push) | — | if the real camera has it | only once confirmed on the real camera |
-| Reolink "Baichuan" push on port 9000 | — | possible | only if the gateway chooses it (section 18) |
 
 ### Non-goals
 
-- The Reolink cloud relay and the mobile app's use of port 9000. (Baichuan
-  event push is an open question, section 18.)
+- Reolink's proprietary "Baichuan" protocol on port 9000 (mobile app, event
+  push) and the cloud relay. The gateway gets events through ONVIF or polling.
 - Copying Reolink's web UI code or look. The cam-sim UI is our own.
 - Other Reolink models. The design keeps model-specific values in one profile
   so a second profile could be added later, but only the RLC-1224A is built.
@@ -172,17 +171,40 @@ so pollers see events the way they do on the camera.
 
 ### 6.1 Video library
 
-- **Built in:** three short, freely licensed clips (a person walking, a car,
-  an empty scene), small enough to keep the image under ~300 MB.
-- **Mounted:** any video files in `CAMSIM_LIBRARY_DIR`. Den footage stays in
-  this private mount, not in the public repo.
-- **Preparation:** each source is converted once, cached under
+**The clips come from the real camera.** Staged scenes are recorded on the
+RLC-1224A itself, so the library has the camera's own encodings, lens, light
+and noise, and no licensing questions.
+
+- **Capture:** `scripts/capture-clip.sh <name> <seconds>` pulls the main and
+  sub streams **at the same time over RTSP** with `ffmpeg -c copy` (no
+  re-encode), because the camera's Download is broken and the FLV main stream
+  (codec id 12) can't be read by ffmpeg. It reads the camera credentials from
+  `~/Development/reolink/.env`, never prints them, and logs out when done.
+  - The camera's OSD is **turned off for the capture** (whole-object `SetOsd`,
+    restored afterwards), so cam-sim's own OSD doesn't sit on top of the
+    camera's.
+  - Scenes (Klaus stages them): empty scene by day, person walking, vehicle,
+    pet, night with IR, and a spotlight switching on. 20–30 s each.
+- **Where the clips live:**
+  - **Library clips** are published as a versioned GitHub release asset
+    (`library-vN`) of the cam-sim repo, downloaded when the image is built
+    and cached in CI. They're too big for plain git, and Git LFS bandwidth
+    would run out in CI.
+  - **Fixture clips** (a few seconds of sub stream, a few hundred KB, cut from
+    the library) are committed in the repo for fixture mode and unit tests.
+  - Klaus decides for each clip whether it's fit to publish. Anything that
+    shouldn't be public goes in a private mount instead (below).
+- **Mounted:** any video files in `CAMSIM_LIBRARY_DIR`, read-only, for private
+  or extra footage.
+- **Preparation:** each source is prepared once, cached under
   `/data/library/<id>/`:
   - `main.mp4`: H.265, 4512×2512, 20 fps, ~8 Mbit/s, AAC, keyframe every 2 s;
   - `sub.mp4`: H.264, 896×512, 10 fps, ~1 Mbit/s, AAC, keyframe every 2 s;
   - `poster.jpg`, and metadata (duration, source name, hash).
-  Sources without audio get silent AAC. Preparation is resumable and runs one
-  file at a time; a video is selectable once its cache is complete.
+  Clips captured from the camera already match and are **copied, not
+  converted**. Other sources are converted; without audio they get silent
+  AAC. Preparation is resumable and runs one file at a time; a video is
+  selectable once its cache is complete.
 - `GET /sim/api/videos` lists entries and their preparation state.
 
 ### 6.2 Live sources
@@ -406,11 +428,10 @@ Like the real camera, cam-sim is an FTP **client** only.
   when selected; `moov` first) and a `.jpg`.
 - Faults: `ftp.fail`, `ftp.delayMs`.
 
-### 11.4 Webhook and Baichuan push
+### 11.4 Webhook
 
-Not built until the real camera is shown to support a webhook, or the
-gateway decides to use Baichuan push (section 18). The engine's event model
-already carries everything either would need.
+Not built until the real camera is shown to support a webhook. The engine's
+event model already carries everything it would need.
 
 ## 12. Replacing the cams mock camera
 
@@ -466,7 +487,8 @@ repository secrets are for jobs that talk to the deployed cam2.
 - Logs contain command names and codes, never URLs with tokens, passwords, or
   the control token. A test asserts this.
 - Request logs in `/sim/api/requests` redact tokens and passwords.
-- The image contains no secrets and no Den footage.
+- The image contains no secrets. The library clips in it are only ones Klaus
+  has cleared for publishing (section 6.1).
 
 ## 14. Deployment
 
@@ -590,10 +612,8 @@ Phases 5 and 6 can move ahead of 3 and 4 if gateway work starts first.
 
 - The web UI route in the cluster (LAN-only ingress or port-forward), decided
   in phase 4 with kube-setup.
-- Which freely licensed clips to bundle, decided in phase 2.
-- How the gateway receives events (webhook, ONVIF, Baichuan push or
-  polling). cam-sim builds ONVIF and polling; webhook and Baichuan follow the
-  gateway's decision.
+- Whether the real camera has an HTTP webhook; if it does, cam-sim adds one
+  (section 11.4).
 - Whether the gateway pulls RTMP instead of RTSP; if so, an RTMP endpoint is
   added to phase 5.
 - Whether cams should show that a camera is simulated (the serial starts with
