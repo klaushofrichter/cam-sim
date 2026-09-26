@@ -20,7 +20,7 @@
 - Control API: `Authorization: Bearer <token>` only, constant-time compare, token never accepted from a URL. No token configured → control API routes answer 404 (disabled), `/healthz` still works.
 - Never log or store tokens, passwords or full camera URLs. Request logs keep `cmd`, method, path (no query), status, duration.
 - **No media and no camera-captured content is committed, released or uploaded as a CI artifact.** Fixtures are generated at first use from ffmpeg test patterns (`testsrc2`, `sine`). `reference/` stays gitignored.
-- GitHub repo `klaushofrichter/cam-sim` is created **private**. CodeQL runs only once it is public.
+- GitHub repo `klaushofrichter/cam-sim` is **public** from the start, with the CodeQL gate from the first PR.
 - Commit messages end with the attribution lines from the session's system reminder.
 
 ## Review Focus
@@ -132,7 +132,7 @@ export function createCamSim(): never { throw new Error('not implemented'); }
 
 - [ ] **Step 4: Run** `npm test && npm run build` — expect PASS and `dist/src/index.js`.
 
-- [ ] **Step 5: CI** `.github/workflows/pr-checks.yml`: on `pull_request` to `main`, top-level `permissions: contents: read`, job `test` (checkout, setup-node 26, `npm ci`, ensure ffmpeg like cams, `npm test`, `npm run build`, `npm audit --audit-level=high`). A `codeql` job copied from cams' `production-checks.yml` with `if: ${{ !github.event.repository.private }}` and an empty `.github/codeql-accepted.tsv`.
+- [ ] **Step 5: CI** `.github/workflows/pr-checks.yml`: on `pull_request` to `main`, top-level `permissions: contents: read`, job `test` (checkout, setup-node 26, `npm ci`, ensure ffmpeg like cams, `npm test`, `npm run build`, `npm audit --audit-level=high`). A `codeql` job copied from cams' `production-checks.yml` with an empty `.github/codeql-accepted.tsv`.
 
 - [ ] **Step 6: .gitignore / .dockerignore** — keep existing entries; add `dist/`, `coverage/`. `.dockerignore`: `node_modules`, `dist`, `.git`, `.env*`, `reference`, `library`, `.superpowers`, `test-results`.
 
@@ -140,7 +140,7 @@ export function createCamSim(): never { throw new Error('not implemented'); }
 
 - [ ] **Step 8: Commit** `chore: scaffold cam-sim`
 
-- [ ] **Step 9: GitHub repo** — `gh repo create klaushofrichter/cam-sim --private --source . --push`. Branch protection on `main` like cams (PR required, `test` check required). Confirm with `git ls-files | grep -Ei '\.(mp4|flv|jpg|h26[45]|aac)$'` printing nothing before the push.
+- [ ] **Step 9: GitHub repo** — `gh repo create klaushofrichter/cam-sim --public --source . --push`. Branch protection on `main` like cams (PR required, `test` check required). Confirm with `git ls-files | grep -Ei '\.(mp4|flv|jpg|h26[45]|aac)$'` printing nothing before the push.
 
 ---
 
@@ -556,4 +556,4 @@ GITHUB_REPO=klaushofrichter/cam-sim
 - [ ] Final whole-branch review (most capable model).
 - [ ] PR to `main`, merge when green; PR `main` → `production` → release `vYYYY.MM.DD.1`.
 - [ ] Update the spec: section 12 (process instead of container in cams e2e), section 17 (phase 1 done).
-- [ ] Tell Klaus: the repo is private and ready for his review before going public; `reference/` awaits his review; he can run `scripts/sync-secrets.sh` once `.env` exists.
+- [ ] Tell Klaus: `reference/` awaits his review; he can run `scripts/sync-secrets.sh` once `.env` exists.

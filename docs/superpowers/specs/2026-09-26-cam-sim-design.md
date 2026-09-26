@@ -537,13 +537,17 @@ kube-setup owns the manifests; this section is what cam-sim needs from them.
   LAN-only ingress or `kubectl port-forward`); deciding which is left to the
   cluster plan.
 - Secrets from `cam-sim-secrets` (section 13.2).
+- **Every cluster-deployed simulator gets the same treatment as cam2:** its own
+  `camN.skylar.technology` A record, a valid Let's Encrypt certificate through
+  cert-manager, and the push CronJob. kube-setup adds certificate monitoring
+  (the same Grafana alerts as cam1) once cam2 is deployed.
 - Resource guidance: one camera in video mode ≈ 1 CPU (sub re-encode) and
   512 MB RAM.
 
 ## 15. Repository
 
-- `~/Development/cam-sim`, pushed to `klaushofrichter/cam-sim`, created
-  **private** when Plan 1 starts. Klaus makes it public after reviewing it.
+- `~/Development/cam-sim`, pushed to the **public** repo `klaushofrichter/cam-sim`
+  from the start (decided 2026-09-26). The media rule in section 6.1 still applies.
 - Same conventions as cams: feature branch → PR to `main` → PR to
   `production` → release workflow; CodeQL gate with an accepted-exceptions
   file; CHANGELOG; docs in plain English.
