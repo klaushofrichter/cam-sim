@@ -94,7 +94,7 @@ One container is one camera. Several cameras means several containers.
                                          /data volume: settings, SD card, certificate, library cache
 ```
 
-- **Language and stack:** Node 24 + TypeScript + Express 5 (like cams). Svelte 5
+- **Language and stack:** Node 26 + TypeScript 7 + Express 5 (like cams). Svelte 5
   + Vite for the web UI. vitest and Playwright for tests. ffmpeg for all media
   work. MediaMTX, as a child process, for RTSP.
 - **Camera engine:** pure TypeScript, no I/O of its own beyond the `/data`
@@ -190,10 +190,16 @@ and noise, and no licensing questions.
     (`library-vN`) of the cam-sim repo, downloaded when the image is built
     and cached in CI. They're too big for plain git, and Git LFS bandwidth
     would run out in CI.
-  - **Fixture clips** (a few seconds of sub stream, a few hundred KB, cut from
-    the library) are committed in the repo for fixture mode and unit tests.
-  - Klaus decides for each clip whether it's fit to publish. Anything that
-    shouldn't be public goes in a private mount instead (below).
+  - **Fixture media** for fixture mode and unit tests (a JPEG, sub and main
+    FLV, sub and main MP4, a few seconds each) is **generated** by
+    `scripts/make-fixtures.sh` from ffmpeg test patterns when the package is
+    built, not committed. Once Klaus has reviewed real clips, short excerpts
+    may replace the test patterns.
+  - **Nothing captured from the camera, and no media file of any kind, is
+    uploaded to GitHub (commit, release asset or CI artifact) until Klaus has
+    reviewed it.** Captured clips stay in a local, gitignored `library/`
+    folder until then. Anything that shouldn't be public goes in a private
+    mount instead (below).
 - **Mounted:** any video files in `CAMSIM_LIBRARY_DIR`, read-only, for private
   or extra footage.
 - **Preparation:** each source is prepared once, cached under
@@ -507,7 +513,7 @@ the web UI on, for local multi-camera work.
 
 - Multi-arch (`amd64`, `arm64`), so it runs on the Mac, in the cluster and on
   a Raspberry Pi.
-- Base: Node 24 slim with ffmpeg and MediaMTX; non-root user; health check on
+- Base: Node 26 Alpine with ffmpeg (and MediaMTX from phase 5); non-root user; health check on
   `/healthz`.
 - Published to `ghcr.io/klaushofrichter/cam-sim` with calendar versions
   (`vYYYY.MM.DD.N`), like cams.
@@ -536,8 +542,8 @@ kube-setup owns the manifests; this section is what cam-sim needs from them.
 
 ## 15. Repository
 
-- `~/Development/cam-sim`, to become the public repo `klaushofrichter/cam-sim`
-  (created when Plan 1 starts, after Klaus's go-ahead).
+- `~/Development/cam-sim`, pushed to `klaushofrichter/cam-sim`, created
+  **private** when Plan 1 starts. Klaus makes it public after reviewing it.
 - Same conventions as cams: feature branch → PR to `main` → PR to
   `production` → release workflow; CodeQL gate with an accepted-exceptions
   file; CHANGELOG; docs in plain English.

@@ -5,3 +5,10 @@ node_modules/
 dist/
 .superpowers/
 /data/
+library/
+fixtures/generated/
+*.mp4
+*.flv
+*.jpg
+*.h265
+*.aac
