@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -79,6 +79,20 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
     expect(st).toMatchObject({ codec_name: 'hevc', width: 1280 });
     expect(Number(st.nb_read_frames)).toBe(120);
   });
+
+  it('makes 12 s clips, long enough for players to skip 10 s', () => {
+    for (const p of [paths.clipSub, paths.clipMain]) {
+      const d = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', p]).toString());
+      expect(d).toBeGreaterThanOrEqual(11.9);
+    }
+  });
+
+  it('encodes once when several processes ask at the same time', async () => {
+    const fresh = join(mkdtempSync(join(tmpdir(), 'camsim-fx-')), 'fixtures');
+    const results = await Promise.all([1, 2, 3].map(() => ensureFixtures(fresh, createLogger('silent'))));
+    expect(new Set(results.map((r) => r.dir)).size).toBe(1);
+    expect(readdirSync(join(fresh, '..')).filter((n) => n.includes('.tmp-'))).toEqual([]);
+  }, 120_000);
 
   it('does not regenerate existing fixtures', async () => {
     const before = statSync(paths.subFlv).mtimeMs;

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixture clips are 12 s (players skip 10 s), built with fast presets under a
+  cross-process lock; `ensureFixtures` and `defaultFixtureDir` are exported so
+  test runners can build them once in a global setup.
+
+## v2026.09.26.1
+
 First release: the headless core (Plan 1).
 
 - A simulated Reolink RLC-1224A (firmware v3.2.0.6011_2607012059) on HTTP and
