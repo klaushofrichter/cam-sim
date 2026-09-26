@@ -1,0 +1,169 @@
+openapi: 3.1.0
+info:
+  title: cam-sim control API
+  version: '1'
+  description: >
+    Controls a simulated Reolink RLC-1224A camera: events, recordings, faults,
+    actions and state. Every /sim/api route needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`;
+    a token in the URL is refused. Without a configured token the API answers 404.
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        detail: { type: string }
+    Fault:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          enum: [downloads.refuse, downloads.dropFirst, downloads.dropMidway, downloads.delayMs, flv.reset, flv.delayMs, search.delayMs, settings.fail, settings.ignore, settings.strictPartial, offline, latencyMs, snap.fail]
+        count: { type: integer, minimum: 1, description: on for the next N matching requests only }
+        ms: { type: integer, minimum: 0 }
+        cmds: { type: array, items: { type: string } }
+        rspCode: { type: integer }
+    SeedClip:
+      type: object
+      required: [daysAgo, start, end, triggers]
+      properties:
+        daysAgo: { type: integer, minimum: 0, maximum: 365 }
+        start: { type: string, pattern: '^\d{6}$', description: HHMMSS camera-local }
+        end: { type: string, pattern: '^\d{6}$' }
+        mainEnd: { type: string, pattern: '^\d{6}$' }
+        triggers: { type: array, items: { type: string, enum: [motion, person, vehicle, pet] } }
+security:
+  - bearer: []
+paths:
+  /healthz:
+    get:
+      summary: Liveness and readiness (no auth, no details)
+      security: []
+      responses:
+        '200': { description: up }
+  /sim/api/state:
+    get:
+      summary: Identity, faults, recent events, SD card, counters and running settings
+      responses:
+        '200': { description: state }
+        '401': { description: missing or wrong token }
+  /sim/api/videos:
+    get:
+      summary: Video library (Plan 2)
+      responses:
+        '501': { description: not in this version }
+  /sim/api/video:
+    put:
+      summary: Select the video (Plan 2)
+      responses:
+        '501': { description: not in this version }
+  /sim/api/events:
+    get:
+      summary: Recent events, newest first
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, maximum: 500 } }
+      responses:
+        '200': { description: events }
+    post:
+      summary: Trigger an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, durationS]
+              properties:
+                type: { type: string, enum: [motion, person, vehicle, pet] }
+                durationS: { type: integer, minimum: 1, maximum: 3600 }
+      responses:
+        '201': { description: the event and the recording it starts or extends (null when not recorded) }
+        '400': { description: invalid input, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /sim/api/recordings/seed:
+    post:
+      summary: Add past recordings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clips:
+                  oneOf:
+                    - { type: string, enum: [demo] }
+                    - { type: array, items: { $ref: '#/components/schemas/SeedClip' } }
+      responses:
+        '201': { description: added }
+        '400': { description: invalid input }
+  /sim/api/recordings:
+    delete:
+      summary: Empty the SD card
+      responses:
+        '204': { description: emptied }
+  /sim/api/faults:
+    get:
+      summary: Active faults
+      responses:
+        '200': { description: faults, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Fault' } } } } }
+    delete:
+      summary: Clear all faults
+      responses:
+        '204': { description: cleared }
+  /sim/api/faults/{name}:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Switch a fault on (body holds its parameters)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Fault' }
+      responses:
+        '200': { description: the active fault }
+        '400': { description: unknown fault or missing parameter }
+    delete:
+      summary: Switch a fault off
+      responses:
+        '204': { description: cleared }
+  /sim/api/actions/{name}:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string, enum: [tokens.revoke, reboot, flv.dropActive, downloads.dropActive] } }
+    post:
+      summary: One-shot action; reboot takes {ms, dropsConnection}
+      responses:
+        '202': { description: reboot started }
+        '204': { description: done }
+        '400': { description: unknown action }
+  /sim/api/reset:
+    post:
+      summary: Back to a known state; an empty body resets everything
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settings: { type: boolean }
+                recordings: { type: boolean }
+                counters: { type: boolean }
+                faults: { type: boolean }
+      responses:
+        '204': { description: reset }
+  /sim/api/requests:
+    get:
+      summary: Recent camera API requests (no query strings, no secrets)
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, maximum: 500 } }
+      responses:
+        '200': { description: requests }
+  /sim/api/stream:
+    get:
+      summary: Server-Sent Events (state, event, request, fault)
+      responses:
+        '200': { description: text/event-stream }

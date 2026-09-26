@@ -13,3 +13,6 @@ fixtures/generated/
 *.h265
 *.aac
 reference/
+dist/
+coverage/
+test-results/

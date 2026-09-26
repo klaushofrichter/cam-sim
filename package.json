@@ -1,0 +1,39 @@
+{
+  "name": "cam-sim",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Simulator for the Reolink RLC-1224A camera: its HTTP API, quirks and faults, for testing cams and the camera gateway.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "bin": {
+    "cam-sim": "dist/src/cli.js"
+  },
+  "files": [
+    "dist/src",
+    "openapi.yaml"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json",
+    "start": "node dist/src/cli.js",
+    "dev": "tsx --env-file-if-exists=.env src/cli.ts",
+    "test": "vitest run",
+    "lint:types": "tsc --noEmit -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "pino": "^10.3.1",
+    "selfsigned": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.3",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

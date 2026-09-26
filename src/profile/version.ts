@@ -1,0 +1,1 @@
+export const FIRMWARE_VERSION = 'v3.2.0.6011_2607012059';

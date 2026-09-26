@@ -1,0 +1,52 @@
+name: cams compatibility
+
+# cams' own unit and e2e suites, run against this cam-sim build. A cam-sim
+# change that breaks cams fails here (spec section 16).
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+    inputs:
+      cams_ref:
+        description: cams branch or tag to test
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  cams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cam-sim
+      - uses: actions/checkout@v7
+        with:
+          repository: klaushofrichter/cams
+          ref: ${{ inputs.cams_ref || 'main' }}
+          path: cams
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+      - name: Ensure ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+      - name: Build cam-sim
+        working-directory: cam-sim
+        run: npm ci --ignore-scripts && npm run build
+      - name: Install cams with this cam-sim
+        working-directory: cams
+        run: npm ci && npm i -D --no-save ../cam-sim
+      - working-directory: cams
+        run: npm test
+      - working-directory: cams
+        run: npx playwright install --with-deps chromium && npm run build
+      - working-directory: cams
+        run: npm run test:e2e
+        env:
+          CI: 'true'
+      # No trace or screenshot upload: they would carry camera pictures once
+      # cam-sim plays real footage (spec 6.1). Read the job log instead.
