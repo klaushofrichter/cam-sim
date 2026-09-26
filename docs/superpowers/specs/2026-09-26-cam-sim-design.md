@@ -23,9 +23,34 @@ It exists for:
 It **replaces the cams mock camera** (`cams/test/mock-camera/server.ts`) in
 steps: first the e2e suite, then the unit tests (section 12).
 
+### Minimum function
+
+cam-sim must at least provide everything **cams uses today** and everything
+the **camera gateway** (`~/Development/reolink/camera-gateway-design.md`) will
+use. Anything beyond that is optional.
+
+| Interface | cams | gateway | Phase |
+|---|---|---|---|
+| Login, tokens, the four rejection shapes | ✅ | ✅ | 1 |
+| Device info, time, storage, `GetAbility`, `GetNetPort` | ✅ | ✅ | 1 |
+| Settings Get/Set with whole-object semantics (Rec, MdAlarm, AiAlarm, Isp, IrLights, WhiteLed, Osd) | ✅ | ✅ | 1 |
+| `Reboot` | ✅ | — | 1 |
+| `Search` (one at a time) | ✅ | ✅ | 1 |
+| `Download` | ✅ | — (replaced by FTP) | 1 |
+| `Snap` | ✅ | occasional | 1 |
+| HTTPS FLV live, sub and main (codec id 12) | ✅ | ✅ (HEVC viewers) | 1 fixture, 2 video |
+| Event state polling `GetMdState` / `GetAiState` | — | ✅ (fallback) | 1 |
+| Certificate import (the push CronJob) | — (cluster job) | — | 1 |
+| RTSP sub and main | — | ✅ (go2rtc, frame grabber) | 5 |
+| ONVIF events (PullPoint) on port 8000 | — | ✅ | 5 |
+| FTP/FTPS clip upload | — | ✅ (clip intake) | 6 |
+| Camera webhook (HTTP push) | — | if the real camera has it | only once confirmed on the real camera |
+| Reolink "Baichuan" push on port 9000 | — | possible | only if the gateway chooses it (section 18) |
+
 ### Non-goals
 
-- Reolink's port 9000 "Baichuan" protocol and the cloud relay (the mobile app).
+- The Reolink cloud relay and the mobile app's use of port 9000. (Baichuan
+  event push is an open question, section 18.)
 - Copying Reolink's web UI code or look. The cam-sim UI is our own.
 - Other Reolink models. The design keeps model-specific values in one profile
   so a second profile could be added later, but only the RLC-1224A is built.
@@ -347,16 +372,43 @@ Off by default (`CAMSIM_WEB_UI=true` turns it on). Served on the control port.
   does not use the camera API, so it doesn't create camera sessions or
   change counters.
 
-## 11. FTP upload (later phase)
+## 11. Gateway interfaces (later phases)
+
+### 11.1 RTSP (phase 5)
+
+MediaMTX, fed from the live sources, serves `rtsp://…:554/h264Preview_01_main`
+and `h264Preview_01_sub` (the real camera's paths, including the misleading
+`h264` in the main path), with the camera's user/password authentication.
+Faults: `rtsp.reset`, `rtsp.refuse`.
+
+### 11.2 ONVIF events (phase 5)
+
+On the ONVIF port (8000; container 8000 → high port like the others), the
+subset the gateway needs for events: `GetCapabilities`/`GetServices`,
+`CreatePullPointSubscription`, `PullMessages`, `Renew`, `Unsubscribe`, with
+WS-UsernameToken authentication. Event topics and message shapes (motion,
+and the AI people/vehicle/dog_cat topics) are copied from a **capture of the
+real camera** made before this phase is built; the spec does not guess them.
+Media and PTZ services are out of scope.
+
+### 11.3 FTP upload (phase 6)
 
 Like the real camera, cam-sim is an FTP **client** only.
 
 - Configured through `SetFtpV20` (or `CAMSIM_FTP_*` at start): server, port,
-  user, password, `remoteDir`, `ftpSubStream`, schedule. `TestFtp` really
-  connects.
-- After each recording it uploads `<Name>_00_YYYYMMDDHHMMSS.mp4` (main
-  stream, or sub with `ftpSubStream`, `moov` first) and a `.jpg`.
+  user, password, `remoteDir`, `onlyFtps` (default FTPS, as on the camera;
+  plain FTP when 0), `ftpSubStream`/`streamType`, schedule. `TestFtp` really
+  connects. Partial writes reset keys, as for all settings.
+- After each recording it uploads
+  `<remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.mp4` (main stream, or sub
+  when selected; `moov` first) and a `.jpg`.
 - Faults: `ftp.fail`, `ftp.delayMs`.
+
+### 11.4 Webhook and Baichuan push
+
+Not built until the real camera is shown to support a webhook, or the
+gateway decides to use Baichuan push (section 18). The engine's event model
+already carries everything either would need.
 
 ## 12. Replacing the cams mock camera
 
@@ -479,10 +531,20 @@ kube-setup owns the manifests; this section is what cam-sim needs from them.
 
 ## 16. Testing
 
+cam-sim has **its own complete test suite**; it does not depend on cams or
+the gateway to prove it works. Every interface in the minimum-function table
+(section 1) is covered by cam-sim's own tests before it counts as done. The
+cams suite (below) is an additional compatibility check, not a substitute.
+
 - **Firmware conformance tests:** one test per row of sections 5 and 7, run
   against the in-process engine. The same suite can run against a real camera
   (read-only commands only, opt-in, credentials from the environment) to catch
   drift between cam-sim and the firmware.
+- **Client-perspective tests:** for each interface, a test that uses it the
+  way its consumer does: cams' request patterns (token renewal, retries after
+  each rejection shape, whole-object writes), and the gateway's (RTSP pull
+  with ffmpeg, ONVIF PullPoint loop, `GetMdState` polling, FTPS intake into a
+  test FTP server).
 - **Media tests:** FLV tag headers for main (codec id 12) and sub; recording
   names and trigger bits; Download starts with `ftyp mp42`; Search sizes.
 - **Control API tests:** auth required, every fault, reset, SSE.
@@ -517,13 +579,20 @@ Each phase ends with a release and something usable.
 3. **Web UI.**
 4. **cam2 in the cluster:** image deployment (with kube-setup), certificate
    push, cams configured with cam2 as a second camera.
-5. **RTSP** via MediaMTX.
-6. **FTP upload.**
+5. **Gateway streaming and events:** RTSP via MediaMTX, ONVIF PullPoint events.
+6. **FTP/FTPS upload.**
+
+Phases 5 and 6 can move ahead of 3 and 4 if gateway work starts first.
 
 ## 18. Open questions
 
 - The web UI route in the cluster (LAN-only ingress or port-forward), decided
   in phase 4 with kube-setup.
 - Which freely licensed clips to bundle, decided in phase 2.
+- How the gateway receives events (webhook, ONVIF, Baichuan push or
+  polling). cam-sim builds ONVIF and polling; webhook and Baichuan follow the
+  gateway's decision.
+- Whether the gateway pulls RTMP instead of RTSP; if so, an RTMP endpoint is
+  added to phase 5.
 - Whether cams should show that a camera is simulated (the serial starts with
   `SIM`); not needed now.
