@@ -32,6 +32,13 @@ jobs:
             echo "::error::media files are not allowed in this repository"; exit 1
           fi
 
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Builds the image and checks login, live FLV, an event, Search and Download.
+      - run: scripts/container-smoke.sh
+
   codeql:
     runs-on: ubuntu-latest
     permissions:
