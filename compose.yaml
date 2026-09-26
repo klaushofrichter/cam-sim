@@ -1,0 +1,33 @@
+# Three simulated cameras for local multi-camera work. Values come from .env
+# (see .env.example); only the variables named here reach the containers.
+x-sim: &sim
+  build: .
+  image: cam-sim:local
+  restart: unless-stopped
+  environment: &env
+    CAMSIM_USERS: ${CAMSIM_USERS:?set CAMSIM_USERS in .env}
+    CAMSIM_CONTROL_TOKEN: ${CAMSIM_CONTROL_TOKEN:?set CAMSIM_CONTROL_TOKEN in .env}
+    CAMSIM_SEED_CLIPS: demo
+    CAMSIM_AUTO_EVENTS: motion:6/h,person:2/h,vehicle:1/h
+
+services:
+  cam2:
+    <<: *sim
+    environment: { <<: *env, CAMSIM_NAME: cam2 }
+    ports: ["127.0.0.1:8442:8443", "127.0.0.1:8082:8080", "127.0.0.1:9442:9443"]
+    volumes: [cam2-data:/data]
+  cam3:
+    <<: *sim
+    environment: { <<: *env, CAMSIM_NAME: cam3 }
+    ports: ["127.0.0.1:8443:8443", "127.0.0.1:8083:8080", "127.0.0.1:9443:9443"]
+    volumes: [cam3-data:/data]
+  cam4:
+    <<: *sim
+    environment: { <<: *env, CAMSIM_NAME: cam4 }
+    ports: ["127.0.0.1:8444:8443", "127.0.0.1:8084:8080", "127.0.0.1:9444:9443"]
+    volumes: [cam4-data:/data]
+
+volumes:
+  cam2-data:
+  cam3-data:
+  cam4-data:
