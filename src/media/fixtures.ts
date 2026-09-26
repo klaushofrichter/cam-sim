@@ -11,7 +11,7 @@ import type { MediaSource, Stream } from './source';
 const run = promisify(execFile);
 
 // Bump when the generated files change, so caches are rebuilt.
-export const FIXTURE_VERSION = 1;
+export const FIXTURE_VERSION = 2;
 
 export interface FixturePaths {
   dir: string;
@@ -52,6 +52,11 @@ const SUB = 'testsrc2=size=896x512:rate=10';
 const MAIN = 'testsrc2=size=1280x720:rate=20';
 const TONE = 'sine=frequency=440:sample_rate=16000';
 const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
+// Fast presets: fixtures build in seconds even on small CI runners.
+const X264 = ['-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p'];
+const X265 = ['-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p'];
+// Clips are 12 s, like the recordings cams' player tests skip through.
+const CLIP_S = '12';
 
 async function ffmpeg(args: string[]): Promise<void> {
   await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024 });
@@ -94,29 +99,65 @@ async function generate(dir: string): Promise<void> {
   const p = pathsIn(dir);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-frames:v', '1', p.snapshot]);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', '6',
-    '-c:v', 'libx264', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-g', '20', '-bf', '0',
+    ...X264, '-profile:v', 'high', '-g', '20', '-bf', '0',
     '-c:a', 'aac', '-f', 'flv', p.subFlv]);
   const h265 = join(dir, 'main.h265');
   const aac = join(dir, 'main.aac');
-  await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-t', '6', '-c:v', 'libx265', '-pix_fmt', 'yuv420p',
+  await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-t', '6', ...X265,
     '-x265-params', 'keyint=40:min-keyint=40:bframes=0:aud=1:repeat-headers=1:log-level=error', '-f', 'hevc', h265]);
   await ffmpeg(['-f', 'lavfi', '-i', TONE, '-t', '6', '-c:a', 'aac', '-f', 'adts', aac]);
   writeFileSync(p.mainFlv, composeMainFlv(readFileSync(h265), readFileSync(aac), 20));
   rmSync(h265);
   rmSync(aac);
-  await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', '4',
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-g', '20', '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipSub]);
-  await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-f', 'lavfi', '-i', TONE, '-t', '4',
-    '-c:v', 'libx265', '-pix_fmt', 'yuv420p', '-tag:v', 'hvc1', '-x265-params', 'keyint=40:log-level=error',
+  await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
+    ...X264, '-g', '20', '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipSub]);
+  await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
+    ...X265, '-tag:v', 'hvc1', '-x265-params', 'keyint=40:log-level=error',
     '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipMain]);
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ version: FIXTURE_VERSION }));
 }
 
-// Generates the test-pattern fixtures once per directory. Generation runs in
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const LOCK_STALE_MS = 180_000;
+
+// A lock directory next to the fixtures (mkdir is atomic across processes),
+// so parallel test workers wait for one encode instead of all encoding.
+async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+  const lock = `${dir}.lock`;
+  mkdirSync(join(dir, '..'), { recursive: true });
+  for (;;) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch {
+      if (complete(dir)) return undefined as T;
+      try {
+        if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { recursive: true, force: true });
+      } catch {
+        // the lock went away between the calls
+      }
+      await sleep(200);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+// Generates the test-pattern fixtures once per directory: under a lock, into
 // a private temp directory that is renamed into place, so parallel test
-// workers can call this at the same time: the first rename wins.
+// workers and processes can all call this at the same time.
 export async function ensureFixtures(dir: string, log: pino.Logger): Promise<FixturePaths> {
   if (complete(dir)) return pathsIn(dir);
+  await withLock(dir, () => build(dir, log));
+  if (!complete(dir)) throw new Error(`fixtures in ${dir} are incomplete`);
+  return pathsIn(dir);
+}
+
+async function build(dir: string, log: pino.Logger): Promise<void> {
+  if (complete(dir)) return;
   const tmp = `${dir}.tmp-${randomBytes(4).toString('hex')}`;
   mkdirSync(tmp, { recursive: true });
   log.info({ dir }, 'fixtures_generating');
@@ -134,7 +175,6 @@ export async function ensureFixtures(dir: string, log: pino.Logger): Promise<Fix
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
-  return pathsIn(dir);
 }
 
 export class FixtureMedia implements MediaSource {
