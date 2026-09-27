@@ -33,6 +33,10 @@ export function createControlApp(engine: Engine): express.Express {
 
   app.get('/healthz', (_req, res) => void res.json({ ok: true }));
 
+  // A generous ceiling for everything on the control port but /healthz (the UI polls
+  // little; SSE and live video are single long requests).
+  app.use(rateLimit({ windowMs: 60_000, limit: 1200, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'rate_limited' } }));
+
   // Web UI sessions: the control token, pasted once, is exchanged for a
   // signed HttpOnly cookie. Writes with the cookie need X-CamSim-UI (a header
   // a cross-site form can't send).
@@ -57,9 +61,6 @@ export function createControlApp(engine: Engine): express.Express {
   session.get('/session', (req, res) => void res.json({ loggedIn: sessions.verify(cookieOf(req)) }));
   app.use('/sim', session);
 
-  // A generous ceiling for everything else on the control port (the UI polls
-  // little; SSE and live video are single long requests).
-  app.use(rateLimit({ windowMs: 60_000, limit: 1200, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'rate_limited' } }));
   const api = express.Router();
   api.use((req: Request, res: Response, next: NextFunction) => {
     if (!e.config.controlToken) return void res.status(404).json({ error: 'not_found' });
