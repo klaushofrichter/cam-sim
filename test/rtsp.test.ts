@@ -147,6 +147,24 @@ describe.skipIf(!mediamtx)('RTSP lifecycle', () => {
     expect(await probe(`rtsp://cams:cams-pw@127.0.0.1:${svc.port()}/h264Preview_01_sub`)).toMatchObject({ codec: 'h264' });
   }, 60_000);
 
+  it('keeps connected readers under rtsp.refuse (only new readers are refused)', async () => {
+    const engine = await makeEngine();
+    const svc = new RtspService(engine, { port: 0, host: '127.0.0.1', mediamtx: mediamtx! });
+    services.push(svc);
+    await svc.start();
+    const url = `rtsp://cams:cams-pw@127.0.0.1:${svc.port()}/h264Preview_01_sub`;
+    const reader = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-i', url, '-f', 'null', '-']);
+    let exited = false;
+    reader.once('exit', () => { exited = true; });
+    await new Promise((r) => setTimeout(r, 1500));
+    engine.faults.set({ name: 'rtsp.refuse' });
+    expect((await probe(url)).error).toBeDefined();
+    await new Promise((r) => setTimeout(r, 3000));
+    expect(exited).toBe(false);
+    reader.kill('SIGKILL');
+    await svc.stop();
+  }, 60_000);
+
   it('cuts connected readers when the camera goes offline, and under rtsp.reset', async () => {
     for (const fault of ['offline', 'rtsp.reset'] as const) {
       const engine = await makeEngine();
