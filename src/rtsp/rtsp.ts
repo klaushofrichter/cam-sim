@@ -1,7 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import http from 'http';
-import { randomBytes, createHash, timingSafeEqual } from 'crypto';
+import { randomBytes } from 'crypto';
+import { safeEqual as same } from '../util/safe-equal';
 import { tmpdir } from 'os';
 import { join, delimiter } from 'path';
 import net, { type AddressInfo } from 'net';
@@ -19,8 +20,6 @@ export function findMediaMtx(): string | undefined {
   const devDist = join(__dirname, '..', '..', '..', 'tools', 'mediamtx');
   return existsSync(devDist) ? devDist : undefined;
 }
-
-const same = (a: string, b: string) => timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
 
 // RTSP like the camera: MediaMTX serves the two paths, ffmpeg publishes the
 // stream copies into them, and MediaMTX asks us (HTTP auth) whether a reader
