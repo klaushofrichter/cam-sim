@@ -82,7 +82,8 @@ describe('FTP upload', () => {
     ]);
     const mp4 = readFileSync(join(s.root, 'cams/den/2026/09/26/Den_00_20260926065221.mp4'));
     expect(mp4.length).toBe(engine.media.clipSize('main'));
-    expect(engine.counters.ftpUploads).toBe(1);
+    // The server shows the files a moment before the client's upload returns.
+    await expect.poll(() => engine.counters.ftpUploads).toBe(1);
   });
 
   it('uploads the sub clip with streamType 1, and over FTPS with onlyFtps 1', async () => {
