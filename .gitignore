@@ -15,3 +15,4 @@ fixtures/generated/
 dist/
 coverage/
 test-results/
+playwright-report

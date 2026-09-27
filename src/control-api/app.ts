@@ -7,13 +7,24 @@ import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
 import { devInfo, ENC, AI_TYPES } from '../profile/rlc1224a';
-import { createReadStream } from 'fs';
+import { createReadStream, existsSync } from 'fs';
+import { join } from 'path';
 import { createSessionSigner, readCookie, SESSION_COOKIE, SESSION_MS } from './session';
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
 
 // The simulator's control surface: bearer token only, never reachable from
 // the camera ports. Without a configured token it is switched off (404).
+// dist/web next to the compiled server (dist/src/control-api → dist/web), or,
+// when running from source, the repository's dist/web. The source web/
+// folder (with vite.config.mts) is never served.
+function findWebDir(): string | undefined {
+  for (const dir of [process.env.CAMSIM_WEB_DIR, join(__dirname, '..', '..', 'web'), join(__dirname, '..', '..', 'dist', 'web')]) {
+    if (dir && existsSync(join(dir, 'index.html')) && !existsSync(join(dir, 'vite.config.mts'))) return dir;
+  }
+  return undefined;
+}
+
 export function createControlApp(engine: Engine): express.Express {
   const e = engine;
   const app = express();
@@ -211,6 +222,20 @@ export function createControlApp(engine: Engine): express.Express {
   api.get('/stream', (req, res) => sse(e, req, res));
 
   app.use('/sim/api', api);
+
+  // The web UI (CAMSIM_WEB_UI=true): the built app from dist/web. Its pages
+  // need a session for every API call; the files themselves are public.
+  const webDir = findWebDir();
+  if (e.config.webUi && e.config.controlToken) {
+    if (!webDir) e.log.warn('web_ui_not_built');
+    else {
+      app.use('/assets', express.static(join(webDir, 'assets'), { immutable: true, maxAge: '1y', index: false }));
+      app.get(/^\/(?!sim\/|healthz).*/, (_req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.sendFile(join(webDir, 'index.html'));
+      });
+    }
+  }
   app.use((err: Error & { type?: string }, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) return next(err);
     if (err.type === 'entity.parse.failed') return void res.status(400).json({ error: 'invalid', detail: 'body is not JSON' });

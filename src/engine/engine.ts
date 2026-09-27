@@ -203,6 +203,7 @@ export class Engine {
       serial: this.serial,
       model: 'RLC-1224A',
       firmVer: this.config.firmVer,
+      tz: this.config.tz,
       offline: this.offline(),
       power: this.power,
       rebooting: this.rebooting,

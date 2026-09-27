@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Web UI (Plan 3, `CAMSIM_WEB_UI=true`): token sign-in with a session cookie;
+  Live (sub and main, snapshot, event triggers), Playback (calendar,
+  recordings, playback, downloads), Settings (whole-object writes with the
+  camera's validation) and Simulator (power, events, faults, actions, reset,
+  counters, live log). The control API gains the routes it uses (media,
+  recordings, settings, users) and accepts the session cookie, with the
+  `X-CamSim-UI` header required for writes.
+- `scripts/cam-ui.sh`: finds a camera in local Docker or the cluster and opens
+  its UI.
+- The captured RLC-1224A reference replies are in the repository.
+
 - cam2 runs in the cluster (Plan 4): `cam2.skylar.technology` with a Let's
   Encrypt certificate pushed daily like cam1's, and cams shows it next to Den.
   The release workflow now deploys it (pinned by digest in kube-setup) before

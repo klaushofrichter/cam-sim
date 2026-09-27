@@ -7,3 +7,4 @@ library
 test-results
 coverage
 reference
+playwright-report

@@ -32,6 +32,26 @@ jobs:
             echo "::error::media files are not allowed in this repository"; exit 1
           fi
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+      - name: Ensure ffmpeg (fixtures)
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+      - run: npm run build
+      - run: npm run check
+      # Chrome (not the bundled Chromium): it plays H.264/AAC, as users' browsers do.
+      - run: google-chrome --version
+      # No trace/screenshot upload: once real footage plays they would carry camera pictures.
+      - run: npm run test:e2e
+        env:
+          CI: 'true'
+
   container:
     runs-on: ubuntu-latest
     steps:

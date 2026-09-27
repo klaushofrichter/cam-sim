@@ -12,15 +12,20 @@
   },
   "files": [
     "dist/src",
+    "dist/web",
     "openapi.yaml"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && vite build --config web/vite.config.mts",
     "prepare": "tsc -p tsconfig.json",
     "start": "node dist/src/cli.js",
     "dev": "tsx --env-file-if-exists=.env src/cli.ts",
     "test": "vitest run",
-    "lint:types": "tsc --noEmit -p tsconfig.check.json"
+    "lint:types": "tsc --noEmit -p tsconfig.check.json",
+    "build:web": "vite build --config web/vite.config.mts",
+    "dev:web": "vite --config web/vite.config.mts",
+    "check": "tsc --noEmit -p web/tsconfig.json",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "express": "^5.2.1",
