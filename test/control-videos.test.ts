@@ -82,7 +82,7 @@ describe('control API: videos', () => {
   it('prepares the library folder at start and selects CAMSIM_VIDEO once ready', async () => {
     const sim = await createCamSim({ users: [{ name: 'admin', password: 'pw', level: 'admin' }], libraryDir: src, video: 'yard', mainSize: '640x360', dataDir: mkdtempSync(join(tmpdir(), 'camsim-ctlvid-data-')) });
     try {
-      await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0 }, '127.0.0.1');
+      await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
       expect(sim.engine.videoId).toBe('test-pattern');
       await expect.poll(() => sim.engine.videoId, { timeout: 30_000 }).toBe('yard');
       expect(sim.engine.library!.list().map((v) => v.id)).toEqual(['test-pattern', 'bad', 'yard']);
