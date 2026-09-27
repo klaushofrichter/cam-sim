@@ -8,9 +8,13 @@ import { generate } from 'selfsigned';
 import { makeEngine, makeCamera, post, login } from './helpers';
 import { FtpUploader } from '../src/ftp/uploader';
 import { loadConfig } from '../src/config';
+import { createCamSim } from '../src/index';
+import { createControlApp } from '../src/control-api/app';
+import { listen } from './helpers';
 
 const closers: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
+  vi.useRealTimers();
   while (closers.length) await closers.pop()!();
 });
 
@@ -155,7 +159,6 @@ describe('CAMSIM_FTP_* at start', () => {
 describe('FTP end to end', () => {
   it('a simulator started with CAMSIM_FTP_* uploads a triggered recording by itself', async () => {
     const s = await ftpServer();
-    const { createCamSim } = await import('../src/index');
     const config = loadConfig({ CAMSIM_USERS: 'u:admin:p', CAMSIM_NAME: 'Gate', CAMSIM_FTP_SERVER: '127.0.0.1', CAMSIM_FTP_PORT: String(s.port), CAMSIM_FTP_USER: 'cam', CAMSIM_FTP_PASSWORD: 'pw', CAMSIM_FTP_DIR: 'in', CAMSIM_FTP_TLS: 'false', CAMSIM_LOG_LEVEL: 'silent' });
     const sim = await createCamSim({ users: config.users }, config);
     closers.push(() => sim.close());
@@ -164,4 +167,59 @@ describe('FTP end to end', () => {
     await expect.poll(() => files(s.root).filter((f) => f.startsWith('in/')).length, { timeout: 15_000 }).toBe(2);
     expect(files(s.root)[0]).toMatch(/^in\/\d{4}\/\d{2}\/\d{2}\/Gate_00_\d{14}\.jpg$/);
   }, 20_000);
+});
+
+describe('FTP fixes from review', () => {
+  it('reports each upload on the SSE feed', async () => {
+    const s = await ftpServer();
+    const engine = await makeEngine({ CAMSIM_CONTROL_TOKEN: 'tok' });
+    const up = new FtpUploader(engine);
+    closers.push(() => up.stop());
+    engine.settings.set('SetFtpV20', { Ftp: ftpObject(engine, { port: s.port }) }, { strictPartial: true });
+    const srv = await listen(createControlApp(engine));
+    closers.push(srv.close);
+    const ac = new AbortController();
+    const res = await fetch(`${srv.url}/sim/api/stream`, { headers: { Authorization: 'Bearer tok' }, signal: ac.signal });
+    const reader = res.body!.getReader();
+    const { recording } = engine.events.trigger('motion', 1);
+    await up.uploadRecording(engine.sd.byId(recording!.id)!);
+    let text = '';
+    while (!/event: ftp\n/.test(text)) text += new TextDecoder().decode((await reader.read()).value);
+    ac.abort();
+    expect(text).toMatch(/event: ftp\ndata: \{"file":"cams\/den\/\d{4}\/\d{2}\/\d{2}\/Cam_00_\d{14}\.mp4","ok":true/);
+  });
+
+  it('a counted ftp.fail fails only the next N uploads', async () => {
+    const s = await ftpServer();
+    const engine = await makeEngine();
+    const up = new FtpUploader(engine);
+    closers.push(() => up.stop());
+    engine.settings.set('SetFtpV20', { Ftp: ftpObject(engine, { port: s.port }) }, { strictPartial: true });
+    engine.faults.set({ name: 'ftp.fail', count: 1 });
+    const { recording } = engine.events.trigger('motion', 1);
+    const rec = engine.sd.byId(recording!.id)!;
+    await up.uploadRecording(rec);
+    await up.uploadRecording(rec);
+    expect([engine.counters.ftpFailures, engine.counters.ftpUploads]).toEqual([1, 1]);
+  });
+
+  it('keeps at most 20 uploads waiting, and stop() drops the rest', async () => {
+    const engine = await makeEngine();
+    const up = new FtpUploader(engine);
+    closers.push(() => up.stop());
+    engine.settings.set('SetFtpV20', { Ftp: ftpObject(engine, { port: 1 }) }, { strictPartial: true });
+    engine.faults.set({ name: 'ftp.delayMs', ms: 200 });
+    const { recording } = engine.events.trigger('motion', 1);
+    const rec = engine.sd.byId(recording!.id)!;
+    for (let i = 0; i < 30; i++) engine.events.emit('recording', rec);
+    expect(up.pending()).toBe(20);
+    expect(engine.counters.ftpDropped).toBe(10);
+    up.stop();
+    expect(up.pending()).toBe(0);
+  });
+
+  it('refuses a camera name that cannot be a file name', () => {
+    expect(() => loadConfig({ CAMSIM_USERS: 'a:admin:b', CAMSIM_NAME: 'Front/Door' })).toThrow(/CAMSIM_NAME/);
+    expect(loadConfig({ CAMSIM_USERS: 'a:admin:b', CAMSIM_NAME: 'Front Door 2' }).name).toBe('Front Door 2');
+  });
 });

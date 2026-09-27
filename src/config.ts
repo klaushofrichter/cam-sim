@@ -119,8 +119,15 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     };
   }
 
+  // The name becomes part of uploaded file names (<Name>_00_…): no path
+  // separators, dot segments or control characters.
+  const name = env.CAMSIM_NAME || 'Cam';
+  if (/[\/\\]|^\.\.?$|\p{C}/u.test(name) || name.length > 31) {
+    throw new ConfigError('CAMSIM_NAME must be at most 31 characters, without / \\ or control characters');
+  }
+
   return {
-    name: env.CAMSIM_NAME || 'Cam',
+    name,
     ftp,
     users,
     controlToken: secret('CAMSIM_CONTROL_TOKEN'),

@@ -336,9 +336,17 @@ the FTP schedule allows is uploaded:
 - FTPS (explicit TLS, certificate not verified) when `onlyFtps` is 1, the
   camera's default; plain FTP when 0.
 - One upload at a time. A failure is logged and counted (`ftpFailures`), not
-  retried.
+  retried. At most 20 wait; more are dropped and counted (`ftpDropped`).
+- Each upload is reported on the SSE feed as an `ftp` event
+  (`{file, ok, error?}`).
+- Uploads already waiting continue through a power-off or reboot, and the
+  recording that a power-off closes isn't uploaded. Neither is measured on the
+  camera.
+- The FTP password is stored in the data folder's settings file in plain text,
+  as the camera keeps it in its configuration.
 
-Faults `ftp.fail` and `ftp.delayMs` apply to uploads and `TestFtp`.
+`ftp.fail` makes uploads and `TestFtp` fail (with `count`, only the next N);
+`ftp.delayMs` delays uploads.
 
 ### What differs from the real camera
 
@@ -465,7 +473,7 @@ matching requests.
 | `offline` | | every camera connection is destroyed (the camera stays powered) |
 | `latencyMs` | `ms` | delay every camera request |
 | `snap.fail` | | Snap answers 500 |
-| `ftp.fail` | | FTP uploads and `TestFtp` fail (`-454`) |
+| `ftp.fail` | `count` optional | FTP uploads and `TestFtp` fail (`-454`) |
 | `ftp.delayMs` | `ms` | wait before each FTP upload |
 
 ```sh
