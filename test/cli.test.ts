@@ -26,15 +26,16 @@ function run(env: Record<string, string>) {
 
 describe('cli', () => {
   it('starts, answers /healthz, and exits 0 on SIGTERM', async () => {
-    const [http, https, control] = [await freePort(), await freePort(), await freePort()];
-    const p = run({ CAMSIM_USERS: 'u:admin:p', CAMSIM_HTTP_PORT: String(http), CAMSIM_HTTPS_PORT: String(https), CAMSIM_CONTROL_PORT: String(control) });
+    const [http, https, control, rtsp] = [await freePort(), await freePort(), await freePort(), await freePort()];
+    const p = run({ CAMSIM_USERS: 'u:admin:p', CAMSIM_HTTP_PORT: String(http), CAMSIM_HTTPS_PORT: String(https), CAMSIM_CONTROL_PORT: String(control), CAMSIM_RTSP_PORT: String(rtsp) });
     let ok = false;
     for (let i = 0; i < 100 && !ok; i++) {
       await new Promise((r) => setTimeout(r, 100));
       ok = await fetch(`http://127.0.0.1:${control}/healthz`).then((r) => r.status === 200, () => false);
     }
     expect(ok).toBe(true);
-    expect(p.out()).toContain('cam_sim_listening');
+    // Logged once every listener is up, RTSP included (a second or two later).
+    await expect.poll(() => p.out(), { timeout: 15_000 }).toContain('cam_sim_listening');
     p.child.kill('SIGTERM');
     expect(await p.exited).toBe(0);
   }, 30_000);

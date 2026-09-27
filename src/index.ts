@@ -7,6 +7,7 @@ import { createCameraApp } from './camera-api/app';
 import { createControlApp } from './control-api/app';
 import { startListeners, type Listeners } from './camera-api/listeners';
 import { FtpUploader } from './ftp/uploader';
+import { RtspService, findMediaMtx } from './rtsp/rtsp';
 import { FIRMWARE_VERSION } from './profile/version';
 import type { CamSimConfig, User } from './config';
 import type { Clock } from './engine/clock';
@@ -46,6 +47,7 @@ export interface Ports {
   http: number;
   https: number;
   control: number;
+  rtsp: number;
 }
 
 export interface CamSim {
@@ -76,7 +78,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     seed: o.seed ?? Date.now() % 2 ** 31,
     tlsCertFile: o.tlsCertFile,
     tlsKeyFile: o.tlsKeyFile,
-    ports: { https: 8443, http: 8080, control: 9443 },
+    ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554 },
     logLevel: o.logLevel ?? 'silent',
   };
 }
@@ -93,6 +95,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   const ftp = new FtpUploader(engine);
   let camera: Listeners | undefined;
   let control: http.Server | https.Server | undefined;
+  let rtsp: RtspService | undefined;
 
   return {
     engine,
@@ -116,11 +119,15 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         srv.once('error', reject);
         srv.listen(p.control, host, () => resolve((srv.address() as AddressInfo).port));
       });
+      // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
+      rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
+      await rtsp.start();
       if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
-      return { ...camera.ports, control: controlPort };
+      return { ...camera.ports, control: controlPort, rtsp: rtsp.port() };
     },
     async close() {
       ftp.stop();
+      await rtsp?.stop();
       engine.stop();
       await camera?.close();
       const srv = control;
