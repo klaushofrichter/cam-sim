@@ -5,6 +5,7 @@ import { FAULT_NAMES, ACTION_NAMES, FaultError, type FaultName } from '../engine
 import { TRIGGERS, type Trigger } from '../engine/types';
 import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
+import { createSessionSigner, readCookie, SESSION_COOKIE, SESSION_MS } from './session';
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
 
@@ -17,13 +18,36 @@ export function createControlApp(engine: Engine): express.Express {
 
   app.get('/healthz', (_req, res) => void res.json({ ok: true }));
 
+  // Web UI sessions: the control token, pasted once, is exchanged for a
+  // signed HttpOnly cookie. Writes with the cookie need X-CamSim-UI (a header
+  // a cross-site form can't send).
+  const sessions = createSessionSigner();
+  const tokenMatches = (t: unknown) => typeof t === 'string' && !!e.config.controlToken && timingSafeEqual(digest(t), digest(e.config.controlToken));
+  const cookieOf = (req: Request) => readCookie(req.get('cookie'), SESSION_COOKIE);
+  const cookieFlags = (req: Request) => `Path=/; HttpOnly; SameSite=Strict${req.secure ? '; Secure' : ''}`;
+  const session = express.Router();
+  session.use((_req, res, next) => (e.config.controlToken ? next() : void res.status(404).json({ error: 'not_found' })));
+  session.use(express.json({ limit: '4kb' }));
+  session.post('/login', (req, res) => {
+    if (!tokenMatches(req.body?.token)) return void res.status(401).json({ error: 'unauthorized' });
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${sessions.issue()}; Max-Age=${SESSION_MS / 1000}; ${cookieFlags(req)}`);
+    res.status(204).end();
+  });
+  session.post('/logout', (req, res) => {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Max-Age=0; ${cookieFlags(req)}`);
+    res.status(204).end();
+  });
+  session.get('/session', (req, res) => void res.json({ loggedIn: sessions.verify(cookieOf(req)) }));
+  app.use('/sim', session);
+
   const api = express.Router();
   api.use((req: Request, res: Response, next: NextFunction) => {
-    const expected = e.config.controlToken;
-    if (!expected) return void res.status(404).json({ error: 'not_found' });
+    if (!e.config.controlToken) return void res.status(404).json({ error: 'not_found' });
     if (req.query.token !== undefined || req.query.access_token !== undefined) return void res.status(400).json({ error: 'token_in_url' });
     const m = /^Bearer (.+)$/.exec(req.get('authorization') ?? '');
-    if (!m || !timingSafeEqual(digest(m[1]), digest(expected))) return void res.status(401).json({ error: 'unauthorized' });
+    if (m) return tokenMatches(m[1]) ? next() : void res.status(401).json({ error: 'unauthorized' });
+    if (!sessions.verify(cookieOf(req))) return void res.status(401).json({ error: 'unauthorized' });
+    if (!['GET', 'HEAD'].includes(req.method) && req.get('x-camsim-ui') !== '1') return void res.status(403).json({ error: 'csrf' });
     next();
   });
   api.use(express.json({ limit: '256kb' }));

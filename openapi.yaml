@@ -4,8 +4,10 @@ info:
   version: '1'
   description: >
     Controls a simulated Reolink RLC-1224A camera: events, recordings, faults,
-    actions and state. Every /sim/api route needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`;
-    a token in the URL is refused. Without a configured token the API answers 404.
+    actions and state. Every /sim/api route needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`,
+    or the web UI's session cookie (from /sim/login); with the cookie, writes also need the
+    header `X-CamSim-UI: 1`. A token in the URL is refused. Without a configured token the API
+    answers 404.
 components:
   securitySchemes:
     bearer:
@@ -46,6 +48,30 @@ paths:
       security: []
       responses:
         '200': { description: up }
+  /sim/login:
+    post:
+      summary: Web UI login - exchanges the control token for a session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [token], properties: { token: { type: string } } }
+      responses:
+        '204': { description: 'logged in; Set-Cookie camsim_session (HttpOnly, SameSite=Strict, 12 h)' }
+        '401': { description: wrong token }
+  /sim/logout:
+    post:
+      summary: Web UI logout - clears the session cookie
+      security: []
+      responses:
+        '204': { description: logged out }
+  /sim/session:
+    get:
+      summary: Whether the request carries a valid session cookie
+      security: []
+      responses:
+        '200': { description: '{ loggedIn: boolean }' }
   /sim/api/state:
     get:
       summary: Identity, faults, recent events, SD card, counters and running settings
