@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `rtsp.refuse` only turns new RTSP readers away; connected readers keep
+  watching (`rtsp.reset`, offline and RTSP off still cut them).
+
 ## v2026.09.27.2
 
 - Named test states (#23): `POST /sim/api/actions/clear` (content only) and

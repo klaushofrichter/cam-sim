@@ -21,7 +21,7 @@
     { name: 'snap.fail', label: 'Snap answers 500', params: [] },
     { name: 'ftp.fail', label: 'FTP uploads and TestFtp fail (-454)', params: [] },
     { name: 'ftp.delayMs', label: 'Wait before each FTP upload', params: ['ms'] },
-    { name: 'rtsp.refuse', label: 'RTSP refuses every reader', params: [] },
+    { name: 'rtsp.refuse', label: 'RTSP refuses new readers', params: [] },
     { name: 'rtsp.reset', label: 'RTSP cuts connected readers and refuses new ones', params: [] },
   ];
   let params = $state<Record<string, { ms: number; count: number; cmds: string; rspCode: number }>>(
