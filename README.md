@@ -20,7 +20,7 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** released (latest v2026.09.27.2): the headless core (Plan 1), the
+**Status:** released (latest v2026.09.27.3): the headless core (Plan 1), the
 [video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
 `cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
