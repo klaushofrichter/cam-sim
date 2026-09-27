@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- README checked against the code and brought up to date (status, Docker
+  ports, cam2 on the LAN and its library, secrets, CI), with screenshots of
+  the Live and Simulator pages. The Live page no longer says the video library
+  is still to come.
+
+## v2026.09.26.4 – v2026.09.27.1
+
 - ONVIF (Plan 5): device service (`GetDeviceInformation`, `GetCapabilities`,
   `GetServices`) and PullPoint events on `CAMSIM_ONVIF_PORT` (8000), as
   captured from the camera: WS-UsernameToken sign-in, `Initialized` state on

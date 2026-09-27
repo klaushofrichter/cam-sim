@@ -33,10 +33,11 @@ jobs:
       # `ip`, which has no fixed version.
       - run: npm audit --omit=dev --audit-level=high
       - run: npm audit --audit-level=high || echo "::warning::dev-only dependencies have audit findings (see above)"
-      # No media of any kind may be committed (spec 6.1).
+      # No media may be committed (spec 6.1), except the README screenshots in
+      # docs/screenshots/ (PNG only), which Klaus approved.
       - name: No media files in the repository
         run: |
-          if git ls-files | grep -Ei '\.(mp4|flv|jpe?g|png|h26[45]|aac|mov|mkv)$'; then
+          if git ls-files | grep -Ev '^docs/screenshots/[^/]+\.png$' | grep -Ei '\.(mp4|flv|jpe?g|png|h26[45]|aac|mov|mkv)$'; then
             echo "::error::media files are not allowed in this repository"; exit 1
           fi
 
