@@ -9,6 +9,7 @@ import { startListeners, type Listeners } from './camera-api/listeners';
 import { FtpUploader } from './ftp/uploader';
 import { RtspService, findMediaMtx } from './rtsp/rtsp';
 import { Library } from './media/library';
+import { createOnvifApp, type OnvifApp } from './onvif/server';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { FIRMWARE_VERSION } from './profile/version';
@@ -55,6 +56,7 @@ export interface Ports {
   https: number;
   control: number;
   rtsp: number;
+  onvif: number;
 }
 
 export interface CamSim {
@@ -85,7 +87,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     seed: o.seed ?? Date.now() % 2 ** 31,
     tlsCertFile: o.tlsCertFile,
     tlsKeyFile: o.tlsKeyFile,
-    ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554 },
+    ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000 },
     logLevel: o.logLevel ?? 'silent',
     mainSize: o.mainSize ?? '4512x2512',
     maxVideoS: o.maxVideoS ?? 60,
@@ -110,6 +112,8 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   let camera: Listeners | undefined;
   let control: http.Server | https.Server | undefined;
   let rtsp: RtspService | undefined;
+  let onvif: http.Server | undefined;
+  let onvifApp: OnvifApp | undefined;
 
   return {
     engine,
@@ -133,6 +137,14 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         srv.once('error', reject);
         srv.listen(p.control, host, () => resolve((srv.address() as AddressInfo).port));
       });
+      // ONVIF (device and event services), plain HTTP as on the camera.
+      onvifApp = createOnvifApp(engine);
+      const o = http.createServer(onvifApp);
+      onvif = o;
+      const onvifPort = await new Promise<number>((resolve, reject) => {
+        o.once('error', reject);
+        o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
+      });
       // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
@@ -141,17 +153,18 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         const why = config.video ? library.select(config.video) : null;
         if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
       });
-      return { ...camera.ports, control: controlPort, rtsp: rtsp.port() };
+      return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort };
     },
     async close() {
       ftp.stop();
       library.stop();
       await preparing?.catch(() => undefined);
       await rtsp?.stop();
+      onvifApp?.stop();
       engine.stop();
       await camera?.close();
-      const srv = control;
-      if (srv) {
+      for (const srv of [control, onvif]) {
+        if (!srv) continue;
         srv.closeAllConnections();
         await new Promise<void>((r) => srv.close(() => r()));
       }

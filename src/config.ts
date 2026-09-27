@@ -30,7 +30,7 @@ export interface CamSimConfig {
   seed: number;
   tlsCertFile?: string;
   tlsKeyFile?: string;
-  ports: { https: number; http: number; control: number; rtsp: number };
+  ports: { https: number; http: number; control: number; rtsp: number; onvif: number };
   logLevel: string;
   // Main-stream size of converted library videos (the camera's 4512x2512).
   mainSize: string;
@@ -172,6 +172,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
       http: port('CAMSIM_HTTP_PORT', 8080),
       control: port('CAMSIM_CONTROL_PORT', 9443),
       rtsp: port('CAMSIM_RTSP_PORT', 8554),
+      onvif: port('CAMSIM_ONVIF_PORT', 8000),
     },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
     mainSize: mainSize(env.CAMSIM_MAIN_SIZE),

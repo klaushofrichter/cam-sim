@@ -21,7 +21,7 @@ One container is one camera. It runs headless by default; an optional
 **Status:** the headless core (Plan 1), the web UI (Plan 3), `cam2` in the
 cluster (Plan 4, see [below](#cam2-in-the-cluster)) and FTP upload (Plan 6) are
 released, and RTSP (Plan 5) is ready. The [video library](#video-library)
-(Plan 2) is ready; captured clips and ONVIF events (the rest of Plan 5) follow;
+(Plan 2) and ONVIF events (Plan 5) are ready; captured clips follow;
 see the [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md).
 Without a library, pictures, live video and recordings are an ffmpeg
 **test pattern**.
@@ -99,6 +99,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_HTTP_PORT` | `8080` | camera HTTP |
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
 | `CAMSIM_RTSP_PORT` | `8554` | [RTSP](#rtsp) (the camera's 554) |
+| `CAMSIM_ONVIF_PORT` | `8000` | [ONVIF](#onvif), plain HTTP like the camera |
 | `CAMSIM_MEDIAMTX` | `mediamtx` on `PATH` | the MediaMTX binary that serves RTSP; the image includes it |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
@@ -187,7 +188,7 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 | HTTP | 8080 | 80 | the whole API |
 | RTMP | — | 1935 | behind `/flv`, as on the camera |
 | RTSP | 8554 | 554 | `h264Preview_01_main` / `_sub`, see [RTSP](#rtsp) |
-| ONVIF | — (Plan 5) | 8000 | |
+| ONVIF | 8000 | 8000 | device and event services (PullPoint), see [ONVIF](#onvif) |
 
 `GetNetPort` reports the camera's ports, not the container's. `SetNetPort`
 switches services the way the camera does:
@@ -382,6 +383,41 @@ development.
 - **Picture:** the selected video's clips, looped and copied, not re-encoded.
 - **Without MediaMTX,** the simulator starts without RTSP and logs
   `rtsp_unavailable_no_mediamtx`.
+
+### ONVIF
+
+The camera's ONVIF device and event services on `CAMSIM_ONVIF_PORT` (8000),
+plain HTTP, SOAP 1.2, as captured from the real camera (redacted replies in
+[reference/rlc-1224a/onvif](reference/rlc-1224a/onvif)):
+
+- **Sign-in:** WS-UsernameToken in every request, with the camera users.
+  PasswordDigest and PasswordText both work, and `Created` must be within
+  5 minutes. Otherwise the fault is `ter:NotAuthorized`.
+- **Device service** (`/onvif/device_service`): `GetDeviceInformation`,
+  `GetCapabilities`, `GetServices`.
+- **Event service** (`/onvif/event_service`): `GetEventProperties` and
+  `CreatePullPointSubscription`. A subscription answers with its manager
+  address `/onvif/PullSubManager?Idx=<n>`, which takes `PullMessages` (a long
+  poll, at most 60 s), `Renew` and `Unsubscribe`. There are at most 16
+  subscriptions, each living at most 24 h without renewal.
+- **Topics:**
+  - `RuleEngine/CellMotionDetector/Motion` (`IsMotion`);
+  - `MyRuleDetector/{FaceDetect, PeopleDetect, VehicleDetect,
+    Non_Motor_VehicleDetect, DogCatDetect, Visitor, Package}` (`State`);
+  - `VideoSource/MotionAlarm` (`State`).
+
+  A new subscription first gets every topic as `Initialized`. Simulated
+  events then send `Changed` at their start and end: motion drives both
+  motion topics, person `PeopleDetect`, vehicle `VehicleDetect`, pet
+  `DogCatDetect`.
+- **Subscriptions live in memory,** as on the camera. Power-off, a reboot or
+  switching ONVIF off ends them all, and waiting `PullMessages` connections
+  drop, so a client has to subscribe again. A subscription keeps at most
+  1000 unread messages (the oldest go first).
+- **Refused** (the connection drops) while the camera is off or offline, or
+  while `onvifEnable` is 0.
+- **Limits:** request bodies up to 16 KB; 600 requests a minute per client
+  address, then 429.
 
 ### FTP upload
 

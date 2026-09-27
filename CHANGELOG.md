@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- ONVIF (Plan 5): device service (`GetDeviceInformation`, `GetCapabilities`,
+  `GetServices`) and PullPoint events on `CAMSIM_ONVIF_PORT` (8000), as
+  captured from the camera: WS-UsernameToken sign-in, `Initialized` state on
+  subscribe, `Changed` on simulated detections (motion, person, vehicle, pet).
+  The capture is in `reference/rlc-1224a/onvif` (sign-in digests redacted).
+
 - Video library (Plan 2): `CAMSIM_LIBRARY_DIR` videos are prepared after
   start (any video converted to the camera's formats; a captured `main.mp4` +
   `sub.mp4` pair copied) and cached; `CAMSIM_VIDEO`, `PUT /sim/api/video` or

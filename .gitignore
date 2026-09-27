@@ -18,3 +18,5 @@ test-results/
 playwright-report
 tools/
 __pycache__/
+reference-pending/
+tools/

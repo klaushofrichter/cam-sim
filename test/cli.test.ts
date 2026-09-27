@@ -26,8 +26,8 @@ function run(env: Record<string, string>) {
 
 describe('cli', () => {
   it('starts, answers /healthz, and exits 0 on SIGTERM', async () => {
-    const [http, https, control, rtsp] = [await freePort(), await freePort(), await freePort(), await freePort()];
-    const p = run({ CAMSIM_USERS: 'u:admin:p', CAMSIM_HTTP_PORT: String(http), CAMSIM_HTTPS_PORT: String(https), CAMSIM_CONTROL_PORT: String(control), CAMSIM_RTSP_PORT: String(rtsp) });
+    const [http, https, control, rtsp, onvif] = [await freePort(), await freePort(), await freePort(), await freePort(), await freePort()];
+    const p = run({ CAMSIM_USERS: 'u:admin:p', CAMSIM_HTTP_PORT: String(http), CAMSIM_HTTPS_PORT: String(https), CAMSIM_CONTROL_PORT: String(control), CAMSIM_RTSP_PORT: String(rtsp), CAMSIM_ONVIF_PORT: String(onvif) });
     let ok = false;
     for (let i = 0; i < 100 && !ok; i++) {
       await new Promise((r) => setTimeout(r, 100));

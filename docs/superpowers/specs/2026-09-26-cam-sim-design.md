@@ -629,7 +629,8 @@ Each phase ends with a release and something usable.
 3. **Web UI** (released 2026-09-26).
 4. **cam2 in the cluster** (running since 2026-09-26): image deployment (with kube-setup), certificate
    push, cams configured with cam2 as a second camera.
-5. **Gateway streaming and events:** RTSP via MediaMTX, ONVIF PullPoint events.
+5. **Gateway streaming and events:** RTSP via MediaMTX, ONVIF PullPoint events
+   (both built 2026-09-27; the ONVIF capture is in `reference/rlc-1224a/onvif`).
 6. **FTP/FTPS upload** (released 2026-09-27).
 
 Phases 5 and 6 can move ahead of 3 and 4 if gateway work starts first.

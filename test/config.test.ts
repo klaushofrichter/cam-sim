@@ -69,7 +69,7 @@ describe('loadConfig', () => {
       faults: [],
       autoEvents: [],
       firmVer: 'v3.2.0.6011_2607012059',
-      ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554 },
+      ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000 },
       logLevel: 'info',
     });
     expect(c.controlToken).toBeUndefined();
