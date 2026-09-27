@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- FTP upload follows the real camera's session (#25): CWD per folder with MKD
+  when missing, PASV only, the JPEG in a parallel session; TestFtp runs a whole
+  session and stores a `.txt`; recordings start 4 s before the event with
+  `preRec` 1 (pre-record).
 - README checked against the code and brought up to date (status, Docker
   ports, cam2 on the LAN and its library, secrets, CI), with screenshots of
   the Live and Simulator pages. The Live page no longer says the video library

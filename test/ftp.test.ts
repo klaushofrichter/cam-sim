@@ -77,10 +77,10 @@ describe('FTP upload', () => {
     vi.advanceTimersByTime(20_000);
     vi.useRealTimers();
     await expect.poll(() => files(s.root), { timeout: 10_000 }).toEqual([
-      'cams/den/2026/09/26/Den_00_20260926065221.jpg',
-      'cams/den/2026/09/26/Den_00_20260926065221.mp4',
+      'cams/den/2026/09/26/Den_00_20260926065217.jpg',
+      'cams/den/2026/09/26/Den_00_20260926065217.mp4',
     ]);
-    const mp4 = readFileSync(join(s.root, 'cams/den/2026/09/26/Den_00_20260926065221.mp4'));
+    const mp4 = readFileSync(join(s.root, 'cams/den/2026/09/26/Den_00_20260926065217.mp4'));
     expect(mp4.length).toBe(engine.media.clipSize('main'));
     // The server shows the files a moment before the client's upload returns.
     await expect.poll(() => engine.counters.ftpUploads).toBe(1);
