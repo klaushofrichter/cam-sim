@@ -19,7 +19,7 @@ export default defineConfig({
     video: 'off',
   },
   webServer: {
-    command: 'node dist/src/cli.js',
+    command: 'node e2e/make-library.mjs && node dist/src/cli.js',
     port: UI_PORT,
     reuseExistingServer: !process.env.CI,
     env: SIM_ENV,

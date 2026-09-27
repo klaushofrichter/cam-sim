@@ -40,9 +40,17 @@ export class Events extends EventEmitter {
   trigger(type: Trigger, durationS: number): { recording: Recording | null } {
     const now = this.o.clock.now();
     const types: Trigger[] = type === 'motion' ? ['motion'] : [type, 'motion'];
+    // Detection state per type; 'detect' fires on each on/off transition
+    // (ONVIF events and GetMdState/GetAiState follow the same state).
     for (const t of types) {
-      this.active.set(t, (this.active.get(t) ?? 0) + 1);
-      setTimeout(() => this.active.set(t, Math.max(0, (this.active.get(t) ?? 1) - 1)), durationS * 1000);
+      const n = this.active.get(t) ?? 0;
+      this.active.set(t, n + 1);
+      if (n === 0) this.emit('detect', { type: t, state: true });
+      setTimeout(() => {
+        const left = Math.max(0, (this.active.get(t) ?? 1) - 1);
+        this.active.set(t, left);
+        if (left === 0) this.emit('detect', { type: t, state: false });
+      }, durationS * 1000);
     }
 
     let recording: Recording | null = null;

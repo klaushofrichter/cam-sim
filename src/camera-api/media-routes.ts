@@ -53,8 +53,9 @@ export async function download(engine: Engine, req: Request, res: Response): Pro
   if (delay) await sleep(delay);
   if (res.destroyed || res.writableEnded) return;
 
-  const path = e.media.clipPath(found.stream);
-  const size = e.media.clipSize(found.stream);
+  const media = e.mediaFor(found.rec);
+  const path = media.clipPath(found.stream);
+  const size = media.clipSize(found.stream);
   const cutAt = e.faults.active('downloads.dropMidway') ? Math.floor(size / 2) : Infinity;
   const bps = e.timings.downloadBytesPerS;
   let sent = 0;
@@ -117,11 +118,18 @@ export async function flv(engine: Engine, req: Request, res: Response): Promise<
 // is false for the web UI's viewer, which isn't a camera client.
 export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main', opts: { count: boolean }): void {
   const e = engine;
-  const { header, tags: all } = e.media.liveFlv(stream);
-  const tags = all.filter((t) => !isEndOfSequence(t));
-  const loopMs = e.media.durationMs(stream);
-  const loopTags = tags.filter((t) => t.type !== 18 && !isConfig(t));
-  const canLoop = loopMs > 0 && loopTags.length > 0;
+  // The source can change mid-stream (a library video is selected): the
+  // next pump sends the new video's config tags and continues from there,
+  // with timestamps still rising.
+  const load = (media: typeof e.media, first: boolean) => {
+    const { header, tags: all } = media.liveFlv(stream);
+    const tags = all.filter((t) => !isEndOfSequence(t) && (first || t.type !== 18));
+    const loopMs = media.durationMs(stream);
+    const loopTags = tags.filter((t) => t.type !== 18 && !isConfig(t));
+    return { media, header, tags, loopMs, loopTags, canLoop: loopMs > 0 && loopTags.length > 0 };
+  };
+  let src = load(e.media, true);
+  const { header } = src;
 
   if (opts.count) {
     e.counters.activeStreams++;
@@ -131,20 +139,34 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
   const began = Date.now();
   let pass = 0;
   let next = 0;
+  let base = 0;
   const pump = () => {
     const due = Date.now() - began;
+    if (e.media !== src.media) {
+      try {
+        src = load(e.media, false);
+      } catch (err) {
+        // The new video's files are unreadable: end this stream, not the process.
+        e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
+        res.destroy();
+        return;
+      }
+      base = due;
+      pass = 0;
+      next = 0;
+    }
     for (;;) {
-      const list = pass === 0 ? tags : loopTags;
+      const list = pass === 0 ? src.tags : src.loopTags;
       if (next >= list.length) {
-        if (!canLoop) return; // nothing to repeat: stay open, silent
+        if (!src.canLoop) return; // nothing to repeat: stay open, silent
         pass++;
         next = 0;
         continue;
       }
       const t = list[next];
-      const at = t.ms + pass * loopMs;
+      const at = base + t.ms + pass * src.loopMs;
       if (at > due) break;
-      res.write(shifted(t, pass * loopMs));
+      res.write(shifted(t, base + pass * src.loopMs));
       next++;
       // A viewer that stops reading is dropped, like a camera does, rather
       // than buffering without bound.

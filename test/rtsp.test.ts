@@ -5,6 +5,10 @@ import net from 'net';
 import { spawn } from 'child_process';
 import { makeEngine } from './helpers';
 import { RtspService, findMediaMtx } from '../src/rtsp/rtsp';
+import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { Library } from '../src/media/library';
 
 const run = promisify(execFile);
 const mediamtx = findMediaMtx();
@@ -51,6 +55,19 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     expect(await probe(url('h264Preview_01_sub'))).toMatchObject({ codec: 'h264', width: 896 });
     expect(await probe(url('h264Preview_01_main'))).toMatchObject({ codec: 'hevc' });
   }, 60_000);
+
+  it('switches both paths to a newly selected video', async () => {
+    const { engine, url } = await start();
+    const src = mkdtempSync(join(tmpdir(), 'camsim-rtsp-src-'));
+    await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=15', '-t', '3', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(src, 'a.mp4')]);
+    engine.config.mainSize = '640x360';
+    const lib = new Library(engine, { sourceDir: src, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-rtsp-cache-')) });
+    await lib.prepareAll();
+    const before = await probe(url('h264Preview_01_main'));
+    expect(before.width).not.toBe(640);
+    expect(lib.select('a')).toBeNull();
+    await expect.poll(async () => (await probe(url('h264Preview_01_main'))).width, { timeout: 20_000, interval: 1000 }).toBe(640);
+  }, 90_000);
 
   it('requires a camera user', async () => {
     const { url } = await start();

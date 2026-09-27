@@ -115,8 +115,9 @@ given as `*_FILE` pointing at a mounted file, which wins over the plain variable
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API and web UI. **Without it the control surface is disabled**, never open |
 | `CAMSIM_WEB_UI` | `false` | serve the web UI on the control port |
 | `CAMSIM_MEDIA` | `video` | `video` (ffmpeg pipeline) or `fixture` (no ffmpeg, bundled bytes) |
-| `CAMSIM_VIDEO` | first library entry | video that plays at start |
-| `CAMSIM_LIBRARY_DIR` | `/videos` | extra source videos, mounted read-only |
+| `CAMSIM_VIDEO` | `test-pattern` | video that plays once it is ready (as built) |
+| `CAMSIM_LIBRARY_DIR` | — | source videos, mounted read-only |
+| `CAMSIM_MAIN_SIZE` | `4512x2512` | main-stream size of converted videos (as built) |
 | `CAMSIM_DATA_DIR` | `/data` | persistent state |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone, drives `GetTime` and file names |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
@@ -213,6 +214,12 @@ and noise, and no licensing questions.
   AAC. Preparation is resumable and runs one file at a time; a video is
   selectable once its cache is complete.
 - `GET /sim/api/videos` lists entries and their preparation state.
+- **As built (2026-09-27):** the cache holds the same files as the fixture
+  (`snapshot.jpg`, `sub.flv`, `main.flv` with codec id 12, `clip-sub.mp4`,
+  `clip-main.mp4`, `meta.json`), so a library video plugs in wherever the test
+  pattern did. The test pattern is always entry `test-pattern`. Converted
+  mains are scaled to fit `CAMSIM_MAIN_SIZE` with bars. Each recording stores
+  the video it was made from; downloads and FTP uploads serve that video.
 
 ### 6.2 Live sources
 
@@ -614,11 +621,16 @@ Each phase ends with a release and something usable.
    switched over.
 2. **Video:** library preparation, live sources with OSD, FLV writer
    (codec id 12), Snap from video, pre-record ring, real recordings, seeding
-   from video, `CAMSIM_SPEED=real`.
+   from video, `CAMSIM_SPEED=real`. **First part built 2026-09-27:** library
+   preparation and selection (API, UI, live FLV, RTSP, snapshots, recordings
+   keep their video). Open: captured clips (need Klaus's staged scenes and
+   review), cam-sim's own OSD, the pre-record ring, recordings cut from the
+   video instead of one clip per stream.
 3. **Web UI** (released 2026-09-26).
 4. **cam2 in the cluster** (running since 2026-09-26): image deployment (with kube-setup), certificate
    push, cams configured with cam2 as a second camera.
-5. **Gateway streaming and events:** RTSP via MediaMTX, ONVIF PullPoint events.
+5. **Gateway streaming and events:** RTSP via MediaMTX, ONVIF PullPoint events
+   (both built 2026-09-27; the ONVIF capture is in `reference/rlc-1224a/onvif`).
 6. **FTP/FTPS upload** (released 2026-09-27).
 
 Phases 5 and 6 can move ahead of 3 and 4 if gateway work starts first.

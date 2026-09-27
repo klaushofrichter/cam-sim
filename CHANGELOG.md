@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- ONVIF (Plan 5): device service (`GetDeviceInformation`, `GetCapabilities`,
+  `GetServices`) and PullPoint events on `CAMSIM_ONVIF_PORT` (8000), as
+  captured from the camera: WS-UsernameToken sign-in, `Initialized` state on
+  subscribe, `Changed` on simulated detections (motion, person, vehicle, pet).
+  The capture is in `reference/rlc-1224a/onvif` (sign-in digests redacted).
+
+- Video library (Plan 2): `CAMSIM_LIBRARY_DIR` videos are prepared after
+  start (any video converted to the camera's formats; a captured `main.mp4` +
+  `sub.mp4` pair copied) and cached; `CAMSIM_VIDEO`, `PUT /sim/api/video` or
+  the Simulator page's picker selects one. Live FLV switches at once, RTSP
+  within a second, snapshots and new recordings follow; a recording keeps the
+  video it was made from. `GET /sim/api/videos`, `/videos/{id}/poster`,
+  `reset {video}`, SSE `video`, `state.video`, and `CAMSIM_MAIN_SIZE`.
+
 - RTSP (Plan 5): `h264Preview_01_main` / `_sub` on `CAMSIM_RTSP_PORT` (8554)
   through MediaMTX (in the image), signed in with the camera users; refused
   when RTSP is off, the camera is offline or off, or under `rtsp.refuse`.

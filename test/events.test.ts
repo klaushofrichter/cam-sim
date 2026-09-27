@@ -115,6 +115,19 @@ describe('Events', () => {
     expect(sd.all()[0].end).toBe('065225');
   });
 
+  it('emits detection state changes, once per type', () => {
+    const { events } = setup('2026-09-26T11:52:21Z');
+    const seen: string[] = [];
+    events.on('detect', (d: { type: string; state: boolean }) => seen.push(`${d.type}:${d.state}`));
+    events.trigger('person', 5);
+    events.trigger('person', 2); // overlaps: no second "on"
+    expect(seen).toEqual(['person:true', 'motion:true']);
+    vi.advanceTimersByTime(2_000);
+    expect(seen).toHaveLength(2);
+    vi.advanceTimersByTime(3_000);
+    expect(seen).toEqual(['person:true', 'motion:true', 'person:false', 'motion:false']);
+  });
+
   it('keeps recent events', () => {
     const { events } = setup('2026-09-26T11:52:21Z');
     events.trigger('motion', 1);

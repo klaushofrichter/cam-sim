@@ -42,8 +42,9 @@ describe('createCamSim', () => {
 
   it('listens on real ports and releases them on close', async () => {
     const sim = await make({ controlToken: 'tok' });
-    const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0 }, '127.0.0.1');
+    const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
     expect(ports.http).toBeGreaterThan(0);
+    expect(ports.onvif).toBeGreaterThan(0);
     const res = await fetch(`http://127.0.0.1:${ports.control}/sim/api/state`, { headers: { Authorization: 'Bearer tok' } });
     expect(res.status).toBe(200);
     expect((await fetch(`http://127.0.0.1:${ports.http}/cgi-bin/api.cgi?cmd=Snap`)).status).toBe(200);
@@ -63,7 +64,7 @@ describe('control port TLS', () => {
     const tls = await import('tls');
     const { generate } = await import('selfsigned');
     const sim = await make({ controlToken: 'tok', controlTls: 'on' });
-    const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0 }, '127.0.0.1');
+    const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
     const cn = () => new Promise<string>((resolve, reject) => {
       const s = tls.connect({ host: '127.0.0.1', port: ports.control, rejectUnauthorized: false }, () => {
         resolve(String(s.getPeerCertificate().subject?.CN));
@@ -79,7 +80,7 @@ describe('control port TLS', () => {
 
   it("'auto' stays plain HTTP without a configured certificate", async () => {
     const sim = await make({ controlToken: 'tok' });
-    const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0 }, '127.0.0.1');
+    const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
     expect((await fetch(`http://127.0.0.1:${ports.control}/healthz`)).status).toBe(200);
   });
 });

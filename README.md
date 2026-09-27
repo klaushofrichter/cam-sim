@@ -20,15 +20,16 @@ One container is one camera. It runs headless by default; an optional
 
 **Status:** the headless core (Plan 1), the web UI (Plan 3), `cam2` in the
 cluster (Plan 4, see [below](#cam2-in-the-cluster)) and FTP upload (Plan 6) are
-released, and RTSP (Plan 5) is ready. Real video (Plan 2) and ONVIF events
-(the rest of Plan 5) follow; see the
-[design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md). Until
-Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
+released, and RTSP (Plan 5) is ready. The [video library](#video-library)
+(Plan 2) and ONVIF events (Plan 5) are ready; captured clips follow;
+see the [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md).
+Without a library, pictures, live video and recordings are an ffmpeg
+**test pattern**.
 
 ## Contents
 
 - [Quick start](#quick-start)
-- [Configuration](#configuration)
+- [Configuration](#configuration) · [Video library](#video-library)
 - [Simulated camera API](#simulated-camera-api)
 - [Control API](#control-api)
 - [Web UI](#web-ui)
@@ -98,14 +99,52 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_HTTP_PORT` | `8080` | camera HTTP |
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
 | `CAMSIM_RTSP_PORT` | `8554` | [RTSP](#rtsp) (the camera's 554) |
+| `CAMSIM_ONVIF_PORT` | `8000` | [ONVIF](#onvif), plain HTTP like the camera |
 | `CAMSIM_MEDIAMTX` | `mediamtx` on `PATH` | the MediaMTX binary that serves RTSP; the image includes it |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
 | `CAMSIM_FTP_SERVER`, `_PORT`, `_USER`, `_PASSWORD` / `_FILE`, `_DIR`, `_TLS`, `_STREAM` | — | [FTP upload](#ftp-upload) configured and switched on at start: port default 21, `_TLS` `true` (FTPS, the camera's default) or `false`, `_STREAM` `main` (default) or `sub` |
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
+| `CAMSIM_LIBRARY_DIR` | — | a folder of videos to offer besides the test pattern (see [Video library](#video-library)) |
+| `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
+| `CAMSIM_MAIN_SIZE` | `4512x2512` | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
+| `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
-`CAMSIM_MEDIA=video` (Plan 2) is refused until it exists.
+`CAMSIM_MEDIA=video` from the first design is refused; use the library.
+
+### Video library
+
+`CAMSIM_LIBRARY_DIR` holds the videos the camera can show besides the test
+pattern. Each entry's id is its name in lowercase with dashes (`Garden
+Walk.mp4` → `garden-walk`); long names are shortened with a hash, and a name
+that collides (also with `test-pattern`) gets `-2`, `-3`, …:
+
+- **Any video file** (`.mp4`, `.mov`, `.mkv`, `.m4v`, `.avi`, `.webm`) is
+  converted to the camera's formats: main H.265 at `CAMSIM_MAIN_SIZE`, 20 fps;
+  sub H.264 896×512, 10 fps; AAC 16 kHz (silent when the source has no sound).
+  The picture is scaled to fit, with bars.
+- **A folder with `main.mp4` and `sub.mp4`** is a clip captured from the real
+  camera (H.265 main, H.264 sub). It is copied, not re-encoded.
+
+After start the videos are prepared one at a time in the background, then
+cached in `<CAMSIM_DATA_DIR>/library` (or the temp folder), one folder per
+source version and settings, so instances can share it. Sources are cut to
+`CAMSIM_MAX_VIDEO_S`. After a restart cached videos are ready at once, and a
+removed source's cached copy still serves its recordings. A source changed
+while the simulator runs is picked up at the next start. `GET /sim/api/videos` shows each one's state. Selecting a video
+(`CAMSIM_VIDEO`, `PUT /sim/api/video`, or the web UI's Simulator page) switches
+live FLV at once, RTSP within a second (readers reconnect), snapshots, and new
+recordings. A recording keeps the video it was made from, so its size and
+download stay the same.
+
+Library videos are yours: the folder is mounted, never built into the image
+or committed.
+
+**Capturing from the real camera:** `scripts/capture-clip.py <name> <seconds>`
+records main and sub over RTSP (no re-encode) into `library/<name>/`, with the
+camera's OSD switched off for the capture and restored afterwards.
+`--check` only signs in and reads the OSD. It uses `~/Development/reolink/.env`.
 
 ## Simulated camera API
 
@@ -149,7 +188,7 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 | HTTP | 8080 | 80 | the whole API |
 | RTMP | — | 1935 | behind `/flv`, as on the camera |
 | RTSP | 8554 | 554 | `h264Preview_01_main` / `_sub`, see [RTSP](#rtsp) |
-| ONVIF | — (Plan 5) | 8000 | |
+| ONVIF | 8000 | 8000 | device and event services (PullPoint), see [ONVIF](#onvif) |
 
 `GetNetPort` reports the camera's ports, not the container's. `SetNetPort`
 switches services the way the camera does:
@@ -341,10 +380,44 @@ development.
   cut when any of these starts, and on reboot.
 - **Port:** `CAMSIM_RTSP_PORT`; 0 picks a free port (in process), reported by
   `listen()`. MediaMTX needs a writable temporary folder.
-- **Picture:** until Plan 2 the streams are the test-pattern clips, looped and
-  copied, not re-encoded.
+- **Picture:** the selected video's clips, looped and copied, not re-encoded.
 - **Without MediaMTX,** the simulator starts without RTSP and logs
   `rtsp_unavailable_no_mediamtx`.
+
+### ONVIF
+
+The camera's ONVIF device and event services on `CAMSIM_ONVIF_PORT` (8000),
+plain HTTP, SOAP 1.2, as captured from the real camera (redacted replies in
+[reference/rlc-1224a/onvif](reference/rlc-1224a/onvif)):
+
+- **Sign-in:** WS-UsernameToken in every request, with the camera users.
+  PasswordDigest and PasswordText both work, and `Created` must be within
+  5 minutes. Otherwise the fault is `ter:NotAuthorized`.
+- **Device service** (`/onvif/device_service`): `GetDeviceInformation`,
+  `GetCapabilities`, `GetServices`.
+- **Event service** (`/onvif/event_service`): `GetEventProperties` and
+  `CreatePullPointSubscription`. A subscription answers with its manager
+  address `/onvif/PullSubManager?Idx=<n>`, which takes `PullMessages` (a long
+  poll, at most 60 s), `Renew` and `Unsubscribe`. There are at most 16
+  subscriptions, each living at most 24 h without renewal.
+- **Topics:**
+  - `RuleEngine/CellMotionDetector/Motion` (`IsMotion`);
+  - `MyRuleDetector/{FaceDetect, PeopleDetect, VehicleDetect,
+    Non_Motor_VehicleDetect, DogCatDetect, Visitor, Package}` (`State`);
+  - `VideoSource/MotionAlarm` (`State`).
+
+  A new subscription first gets every topic as `Initialized`. Simulated
+  events then send `Changed` at their start and end: motion drives both
+  motion topics, person `PeopleDetect`, vehicle `VehicleDetect`, pet
+  `DogCatDetect`.
+- **Subscriptions live in memory,** as on the camera. Power-off, a reboot or
+  switching ONVIF off ends them all, and waiting `PullMessages` connections
+  drop, so a client has to subscribe again. A subscription keeps at most
+  1000 unread messages (the oldest go first).
+- **Refused** (the connection drops) while the camera is off or offline, or
+  while `onvifEnable` is 0.
+- **Limits:** request bodies up to 16 KB; 600 requests a minute per client
+  address, then 429.
 
 ### FTP upload
 
@@ -373,8 +446,9 @@ the FTP schedule allows is uploaded:
 
 ### What differs from the real camera
 
-- **Pictures:** they're test patterns until Plan 2. The main stream's fixture
-  is 1280×720, while `GetEnc` still reports 4512×2512.
+- **Pictures:** without a library they're a test pattern. The test pattern's
+  main stream is 1280×720 (and a converted video's is `CAMSIM_MAIN_SIZE`),
+  while `GetEnc` always reports 4512×2512.
 - **Recordings:** they start at the event, not a few seconds before. An event
   during a recording extends it instead of starting an overlapping clip.
 - **Not measured on the real camera, so chosen:**
@@ -406,7 +480,7 @@ C=http://127.0.0.1:9443/sim/api
 ```json
 {
   "name": "Cam", "serial": "SIM3F0A…", "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059",
-  "offline": false, "power": "on", "rebooting": false,
+  "offline": false, "power": "on", "rebooting": false, "video": "test-pattern",
   "faults": [], "events": [],
   "sd": { "usedMb": 8, "capacityMb": 4096, "recordings": 6 },
   "counters": { "logins": 1, "loginAttempts": 1, "activeSessions": 1, "devInfoCalls": 0,
@@ -506,15 +580,32 @@ ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'
 ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
 ```
 
+### Videos
+
+- `GET /sim/api/videos` →
+  `{"selected":"test-pattern","videos":[{"id":"test-pattern","name":"Test pattern","state":"ready","converted":true}, {"id":"garden-walk","name":"Garden Walk","state":"ready","converted":true,"durationS":12}]}`.
+  `state` is `pending`, `preparing`, `ready` or `failed` (with `error`);
+  `converted` is false for a captured pair.
+- `PUT /sim/api/video` with `{"id":"garden-walk"}` → 200 `{"selected":"garden-walk"}`;
+  404 for an unknown id, 409 while it isn't ready.
+- `GET /sim/api/videos/{id}/poster` → a JPEG still of a ready video.
+
+```sh
+ctl $C/videos
+ctl -X PUT $C/video -d '{"id":"garden-walk"}'
+```
+
 ### Reset, request log, live feed
 
-- `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true}`
-  answers 204. An empty body resets all four.
+- `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true}`
+  answers 204 (`video` goes back to the test pattern). An empty body resets
+  all five.
 - `GET /sim/api/requests?limit=100` lists recent camera API requests: time,
   port, method, path **without the query**, command, status and duration.
   Tokens and passwords never appear.
 - `GET /sim/api/stream` is Server-Sent Events: `state` (sent first, then on
-  every change), `event`, `request` and `fault`, each with an `id:`.
+  every change), `event`, `request`, `fault`, `ftp` and `video`, each with
+  an `id:`.
 
 ### From the cams mock camera
 

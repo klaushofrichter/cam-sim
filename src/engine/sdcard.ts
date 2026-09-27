@@ -15,6 +15,8 @@ export interface Recording {
   mainEnd: string | null;
   triggers: Trigger[];
   dst: boolean;
+  // The library video it was recorded from ('test-pattern' when unset).
+  video?: string;
   files: Record<Stream, { name: string; size: number }>;
 }
 
@@ -66,6 +68,7 @@ const TRIGGER_SET = new Set(['motion', 'person', 'vehicle', 'pet']);
 function validRecord(r: any): boolean {
   return !!r && typeof r === 'object' && typeof r.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && HMS.test(r.start) &&
     (r.end === null || HMS.test(r.end)) && (r.mainEnd === null || HMS.test(r.mainEnd)) && typeof r.dst === 'boolean' &&
+    (r.video === undefined || (typeof r.video === 'string' && r.video.length <= 64)) &&
     Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => TRIGGER_SET.has(String(t)));
 }
 // A recording that was still open when the simulator stopped gets the
@@ -94,7 +97,9 @@ function stepBackDate(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-type Stored = Omit<Recording, 'files'>;
+// `sizes` is kept per recording (the clip sizes when it was made), so names
+// don't change when the selected video changes.
+type Stored = Omit<Recording, 'files'> & { sizes?: Record<Stream, number> };
 
 // The simulated SD card: an index of recordings, named like the firmware.
 // In fixture mode every recording's content is the same fixture clip.
@@ -103,7 +108,7 @@ export class SdCard {
   private seq = 0;
   private readonly file?: string;
 
-  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> }) {
+  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string }) {
     if (opts.dir) {
       this.file = join(opts.dir, 'index.json');
       try {
@@ -128,13 +133,20 @@ export class SdCard {
     }
   }
 
+  private currentSizes(): Record<Stream, number> {
+    const f = this.opts.fixtureSizes;
+    return typeof f === 'function' ? f() : f;
+  }
+
   private withFiles(r: Stored): Recording {
     const f = (s: Stream) => {
       const end = s === 'main' ? (r.mainEnd ?? r.end) : r.end;
-      const size = this.opts.fixtureSizes[s];
+      const size = (r.sizes ?? this.currentSizes())[s];
       return { name: fileName(s, r.date, r.dst, r.start, end ?? '000000', r.triggers, size), size };
     };
-    return { ...r, triggers: [...r.triggers], files: { sub: f('sub'), main: f('main') } };
+    const { sizes: _sizes, ...rest } = r;
+    void _sizes;
+    return { ...rest, triggers: [...r.triggers], files: { sub: f('sub'), main: f('main') } };
   }
 
   all(): Recording[] {
@@ -151,6 +163,8 @@ export class SdCard {
       id: `r${++this.seq}-${rec.date}-${rec.start}`,
       date: rec.date, start: rec.start, end: rec.end ?? null, mainEnd: rec.mainEnd ?? rec.end ?? null,
       triggers: [...new Set(rec.triggers)], dst: rec.dst,
+      sizes: { ...this.currentSizes() },
+      video: this.opts.currentVideo?.() ?? 'test-pattern',
     };
     this.recs.push(r);
     this.recs.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
@@ -212,7 +226,10 @@ export class SdCard {
   }
 
   private usedBytes(): number {
-    return this.recs.length * (this.opts.fixtureSizes.sub + this.opts.fixtureSizes.main);
+    return this.recs.reduce((n, r) => {
+      const z = r.sizes ?? this.currentSizes();
+      return n + z.sub + z.main;
+    }, 0);
   }
 
   // Firmware: capacity is the card size in MB, `size` is the FREE space in MB.

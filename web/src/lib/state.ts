@@ -15,6 +15,7 @@ export interface SimState {
   sd: { usedMb: number; capacityMb: number; recordings: number };
   counters: Record<string, number | string[]>;
   certificate: { source: string; enable: number };
+  video: string;
 }
 
 export interface RequestRecord {
@@ -29,7 +30,7 @@ export interface RequestRecord {
 
 export const simState = writable<SimState | null>(null);
 // Everything the feed delivered, newest first, capped.
-export const feed = writable<Array<{ kind: 'request' | 'event' | 'fault' | 'state'; at: string; data: unknown }>>([]);
+export const feed = writable<Array<{ kind: 'request' | 'event' | 'fault' | 'state' | 'video'; at: string; data: unknown }>>([]);
 
 let source: EventSource | null = null;
 let refresh: (() => void) | null = null;
@@ -38,13 +39,13 @@ export function connectFeed(reload: () => void): void {
   refresh = reload;
   if (source) return;
   source = new EventSource('/sim/api/stream', { withCredentials: true });
-  const push = (kind: 'request' | 'event' | 'fault' | 'state') => (ev: MessageEvent) => {
+  const push = (kind: 'request' | 'event' | 'fault' | 'state' | 'video') => (ev: MessageEvent) => {
     const data = JSON.parse(ev.data);
     if (kind === 'state' && data && typeof data === 'object' && 'serial' in data) simState.set(data as SimState);
     feed.update((list) => [{ kind, at: new Date().toISOString(), data }, ...list].slice(0, 200));
     if (kind !== 'request') refresh?.();
   };
-  for (const k of ['request', 'event', 'fault', 'state'] as const) source.addEventListener(k, push(k));
+  for (const k of ['request', 'event', 'fault', 'state', 'video'] as const) source.addEventListener(k, push(k));
 }
 
 export function disconnectFeed(): void {
