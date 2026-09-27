@@ -3,25 +3,30 @@
 # Kubernetes Secret. Generates missing values (and placeholders) in .env first.
 # Prints key names only, never values. Klaus runs this; agents don't.
 #
-#   scripts/sync-secrets.sh [--dry-run] [--only github|kube] [--rotate KEY | --rotate CAMSIM_USERS:<user>]... [--env-file PATH]
+#   scripts/sync-secrets.sh [--dry-run] [--only github|kube] [--gh-login] [--rotate KEY | --rotate CAMSIM_USERS:<user>]... [--env-file PATH]
 #
-# Synced:  GitHub  CAMSIM_CONTROL_TOKEN, CAMSIM_USERS, GITHUB_KUBE_SETUP_PAT (when set)
-#          Kube    CAMSIM_CONTROL_TOKEN, CAMSIM_USERS (Secret $KUBE_SECRET in $KUBE_NAMESPACE)
-# Never synced: REOLINK_PASSWORD, CAMSIM_GITHUB_PAT (used as GH_TOKEN for gh, when set).
+# Synced:  GitHub  CAMSIM_CONTROL_TOKEN, CAMSIM_USERS, and GITHUB_KUBE_SETUP_PAT as KUBE_SETUP_DEPLOY_TOKEN
+#                  (GitHub refuses secret names starting with GITHUB_)
+#          Kube    CAMSIM_CONTROL_TOKEN, CAMSIM_USERS (Secret $KUBE_SECRET in $KUBE_NAMESPACE), and the
+#                  admin user's credentials as username/password (Secret $KUBE_CAMERA_SECRET, for the
+#                  certificate push CronJob, like cam1-camera-credentials)
+# Never synced: REOLINK_PASSWORD, CAMSIM_GITHUB_PAT (used as GH_TOKEN for gh unless --gh-login).
 set -euo pipefail
 umask 077
 
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
 DRY=0
 ONLY=all
+GH_LOGIN=0
 ROTATE=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
+    --gh-login) GH_LOGIN=1 ;;
     --only) ONLY="$2"; shift ;;
     --rotate) ROTATE+=("$2"); shift ;;
     --env-file) ENV_FILE="$2"; shift ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "sync-secrets: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -86,11 +91,13 @@ if [ "$changed" = 1 ] && [ "$DRY" = 0 ]; then put CAMSIM_USERS "$users"; fi
 REPO=$(get GITHUB_REPO); REPO=${REPO:-klaushofrichter/cam-sim}
 NS=$(get KUBE_NAMESPACE); NS=${NS:-cam-sim}
 SECRET=$(get KUBE_SECRET); SECRET=${SECRET:-cam-sim-secrets}
+CAMERA_SECRET=$(get KUBE_CAMERA_SECRET); CAMERA_SECRET=${CAMERA_SECRET:-cam2-camera-credentials}
 CONTEXT=$(get KUBE_CONTEXT)
 
 # 3. GitHub Actions secrets, values on stdin.
 if [ "$ONLY" != kube ]; then
   pat=$(get CAMSIM_GITHUB_PAT)
+  [ "$GH_LOGIN" = 1 ] && pat=""
   gh_set() {
     say "set github secret $1"
     [ "$DRY" = 1 ] && return 0
@@ -100,7 +107,7 @@ if [ "$ONLY" != kube ]; then
   gh_set CAMSIM_CONTROL_TOKEN "$token"
   gh_set CAMSIM_USERS "$users"
   kube_pat=$(get GITHUB_KUBE_SETUP_PAT)
-  if [ -n "$kube_pat" ]; then gh_set GITHUB_KUBE_SETUP_PAT "$kube_pat"; fi
+  if [ -n "$kube_pat" ]; then gh_set KUBE_SETUP_DEPLOY_TOKEN "$kube_pat"; fi
 fi
 
 # 4. Kubernetes Secret with the CAMSIM_ values only.
@@ -113,5 +120,20 @@ if [ "$ONLY" != github ]; then
     printf 'CAMSIM_CONTROL_TOKEN=%s\nCAMSIM_USERS=%s\n' "$token" "$users" > "$tmp"
     kubectl --context "$CONTEXT" -n "$NS" create secret generic "$SECRET" --from-env-file="$tmp" --dry-run=client -o yaml \
       | kubectl --context "$CONTEXT" apply -f - >/dev/null
+  fi
+  admin_pw=""
+  IFS=';' read -r -a entries <<< "$users"
+  for e in "${entries[@]}"; do
+    [ "${e%%:*}" = admin ] && admin_pw=${e#*:*:}
+  done
+  if [ -n "$admin_pw" ]; then
+    say "apply kubernetes secret $CAMERA_SECRET in $NS (context $CONTEXT): username, password"
+    if [ "$DRY" = 0 ]; then
+      ctmp=$(mktemp)
+      trap 'rm -f "$tmp" "$ctmp"' EXIT
+      printf 'username=admin\npassword=%s\n' "$admin_pw" > "$ctmp"
+      kubectl --context "$CONTEXT" -n "$NS" create secret generic "$CAMERA_SECRET" --from-env-file="$ctmp" --dry-run=client -o yaml \
+        | kubectl --context "$CONTEXT" apply -f - >/dev/null
+    fi
   fi
 fi
