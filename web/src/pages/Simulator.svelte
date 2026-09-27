@@ -18,6 +18,8 @@
     { name: 'offline', label: 'Offline: every camera connection is dropped', params: [] },
     { name: 'latencyMs', label: 'Delay every camera request', params: ['ms'] },
     { name: 'snap.fail', label: 'Snap answers 500', params: [] },
+    { name: 'ftp.fail', label: 'FTP uploads and TestFtp fail (-454)', params: [] },
+    { name: 'ftp.delayMs', label: 'Wait before each FTP upload', params: ['ms'] },
   ];
   let params = $state<Record<string, { ms: number; count: number; cmds: string; rspCode: number }>>(
     Object.fromEntries(FAULTS.map((f) => [f.name, { ms: 1000, count: 1, cmds: 'SetWhiteLed', rspCode: -67 }])),

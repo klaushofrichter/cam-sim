@@ -32,6 +32,8 @@ export interface CamSimConfig {
   tlsKeyFile?: string;
   ports: { https: number; http: number; control: number };
   logLevel: string;
+  // CAMSIM_FTP_*: FTP upload configured and enabled at start.
+  ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
 }
 
 // Messages name the variable, never its value (values may be secrets).
@@ -104,8 +106,22 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
   // Plan 1 is headless and fixture-only; fail loudly rather than ignore.
   if (env.CAMSIM_MEDIA === 'video') throw new ConfigError('CAMSIM_MEDIA=video is not available yet (Plan 2); use fixture');
 
+  let ftp: CamSimConfig['ftp'];
+  if (env.CAMSIM_FTP_SERVER) {
+    ftp = {
+      server: env.CAMSIM_FTP_SERVER,
+      port: int('CAMSIM_FTP_PORT', 21, 1, 65535),
+      userName: env.CAMSIM_FTP_USER || '',
+      password: secret('CAMSIM_FTP_PASSWORD') ?? '',
+      remoteDir: env.CAMSIM_FTP_DIR || '',
+      onlyFtps: oneOf('CAMSIM_FTP_TLS', ['true', 'false'] as const, 'true') === 'true' ? 1 : 0,
+      streamType: oneOf('CAMSIM_FTP_STREAM', ['main', 'sub'] as const, 'main') === 'sub' ? 1 : 0,
+    };
+  }
+
   return {
     name: env.CAMSIM_NAME || 'Cam',
+    ftp,
     users,
     controlToken: secret('CAMSIM_CONTROL_TOKEN'),
     webUi: env.CAMSIM_WEB_UI === 'true',

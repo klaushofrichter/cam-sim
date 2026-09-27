@@ -18,9 +18,9 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** the headless core (Plan 1), the web UI (Plan 3) and `cam2` in the
-cluster (Plan 4, see [below](#cam2-in-the-cluster)) are released. Real video
-(Plan 2), RTSP and ONVIF events (Plan 5) and FTP upload (Plan 6) follow; see the
+**Status:** the headless core (Plan 1), the web UI (Plan 3), `cam2` in the
+cluster (Plan 4, see [below](#cam2-in-the-cluster)) and FTP upload (Plan 6) are
+released. Real video (Plan 2) and RTSP and ONVIF events (Plan 5) follow; see the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md). Until
 Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
 
@@ -98,6 +98,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
+| `CAMSIM_FTP_SERVER`, `_PORT`, `_USER`, `_PASSWORD` / `_FILE`, `_DIR`, `_TLS`, `_STREAM` | — | [FTP upload](#ftp-upload) configured and switched on at start: port default 21, `_TLS` `true` (FTPS, the camera's default) or `false`, `_STREAM` `main` (default) or `sub` |
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
@@ -215,14 +216,14 @@ post Logout
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
 | | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | positions `Upper Left` … `Lower Right`; name ≤ 31 bytes |
-| FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | stored only, until Plan 6; `server: ""` answers `-4` |
+| FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
+| | `TestFtp` | `{Ftp:{<the whole object>}}` | connects and logs in, saves nothing: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |
 | | `CertificateClear` | `{}` | back to the factory certificate; sessions end; offline ~10 s (real speed) |
 | | `ImportCertificate` | `{importCertificate:{crt:{size,name,content},key:{…}}}` | `content` is base64 PEM. **Importing over an installed certificate answers 200 and changes nothing**, as on the camera; clear first. A key that doesn't match answers `-4` |
 
 Not supported, as on this firmware: `GetFtp` and `TestFtpV20` (`-9`). For now,
-`TestFtp` (Plan 6) and `CheckFirmware` (its reply isn't captured yet) also
-answer `-9`.
+`CheckFirmware` (its reply isn't captured yet) also answers `-9`.
 
 ### Settings: always write the whole object
 
@@ -321,6 +322,23 @@ the camera.
 - `user=…&password=…` instead of a token answers 404.
 - A name that isn't on the card, including any `..` path, resets the
   connection.
+
+### FTP upload
+
+Like the camera, the simulator is an FTP **client**. With `Ftp.enable: 1`
+(set by `SetFtpV20` or `CAMSIM_FTP_*`), each finished recording whose triggers
+the FTP schedule allows is uploaded:
+
+- `<remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.mp4`, with the start time in
+  camera-local time and the date folders when `autoDir` is 1, plus a `.jpg`
+  with the same name. No trigger information, as on the camera.
+- The main-stream clip by default; `streamType: 1` sends the sub clip.
+- FTPS (explicit TLS, certificate not verified) when `onlyFtps` is 1, the
+  camera's default; plain FTP when 0.
+- One upload at a time. A failure is logged and counted (`ftpFailures`), not
+  retried.
+
+Faults `ftp.fail` and `ftp.delayMs` apply to uploads and `TestFtp`.
 
 ### What differs from the real camera
 
@@ -447,6 +465,8 @@ matching requests.
 | `offline` | | every camera connection is destroyed (the camera stays powered) |
 | `latencyMs` | `ms` | delay every camera request |
 | `snap.fail` | | Snap answers 500 |
+| `ftp.fail` | | FTP uploads and `TestFtp` fail (`-454`) |
+| `ftp.delayMs` | `ms` | wait before each FTP upload |
 
 ```sh
 ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'

@@ -14,6 +14,8 @@ export class Counters {
   searches = 0;
   setCalls: string[] = [];
   reboots = 0;
+  ftpUploads = 0;
+  ftpFailures = 0;
 
   // Lists keep only their most recent entries, so a long-running simulator
   // doesn't grow without bound.
@@ -29,7 +31,7 @@ export class Counters {
 
   reset(): void {
     // Active counts describe open connections; they are not history.
-    Object.assign(this, { logins: 0, loginAttempts: 0, devInfoCalls: 0, streamsOpened: 0, downloads: 0, droppedDownloads: 0, downloadOrder: [], searches: 0, setCalls: [], reboots: 0 });
+    Object.assign(this, { logins: 0, loginAttempts: 0, devInfoCalls: 0, streamsOpened: 0, downloads: 0, droppedDownloads: 0, downloadOrder: [], searches: 0, setCalls: [], reboots: 0, ftpUploads: 0, ftpFailures: 0 });
   }
 
   snapshot() {
