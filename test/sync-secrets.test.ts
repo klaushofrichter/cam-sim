@@ -114,6 +114,13 @@ describe('sync-secrets.sh', () => {
     expect(read('kubectl.argv')).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaa');
   });
 
+  it('ignores inline comments after a value', () => {
+    write(BASE.replace('GITHUB_KUBE_SETUP_PAT=ghp_kube', 'GITHUB_KUBE_SETUP_PAT=ghp_kube   # for kube-setup'));
+    expect(run('--only', 'github').status).toBe(0);
+    expect(read('gh.stdin')).toContain('ghp_kube');
+    expect(read('gh.stdin')).not.toContain('kube-setup');
+  });
+
   it('requires KUBE_CONTEXT for the Kubernetes part', () => {
     write(BASE.replace('KUBE_CONTEXT=test-ctx\n', ''));
     const r = run('--only', 'kube');
