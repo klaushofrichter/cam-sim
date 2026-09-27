@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The sub stream (test pattern and library videos) has a keyframe every 4 s,
+  as on the camera and in its `GetEnc` gop (#24); the fixture and library
+  caches rebuild once.
 - README checked against the code and brought up to date (status, Docker
   ports, cam2 on the LAN and its library, secrets, CI), with screenshots of
   the Live and Simulator pages. The Live page no longer says the video library
