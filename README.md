@@ -473,8 +473,8 @@ the FTP schedule allows is uploaded:
 - **Pictures:** without a library they're a test pattern. The test pattern's
   main stream is 1280×720 (and a converted video's is `CAMSIM_MAIN_SIZE`),
   while `GetEnc` always reports 4512×2512.
-- **Recordings:** they start at the event, not a few seconds before. An event
-  during a recording extends it instead of starting an overlapping clip.
+- **Recordings:** an event during a recording extends it instead of starting
+  an overlapping clip. (Pre-record, 4 s, is simulated.)
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -538,6 +538,8 @@ C=http://127.0.0.1:9443/sim/api
 | `tokens.revoke` | — | 204 | every session ends |
 | `flv.dropActive` | — | 204 | open live streams are cut |
 | `downloads.dropActive` | — | 204 | downloads in flight are cut |
+| `clear` | — | 204 | a known, empty content: recordings, the recent event list and counters are cleared; settings, the certificate and sessions stay |
+| `factory-reset` | `{"ms":1000}` (optional) | 202 | the factory state: settings, faults, the video (test pattern), the certificate (the factory self-signed one) and the content are reset, waiting FTP uploads are dropped, then a reboot (sessions and ONVIF subscriptions end). 409 while off or booting |
 
 ```sh
 ctl -X POST $C/actions/power-off

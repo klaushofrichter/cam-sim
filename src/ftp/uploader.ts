@@ -93,8 +93,14 @@ export class FtpUploader {
     queueMicrotask(() => void this.work());
   };
 
+  // A factory reset drops what is waiting (an upload in flight finishes).
+  private readonly onFactoryReset = () => {
+    this.queue.length = 0;
+  };
+
   constructor(private readonly engine: Engine) {
     engine.events.on('recording', this.onRecording);
+    engine.bus.on('factory-reset', this.onFactoryReset);
   }
 
   pending(): number {
@@ -106,6 +112,7 @@ export class FtpUploader {
     this.stopped = true;
     this.queue.length = 0;
     this.engine.events.off('recording', this.onRecording);
+    this.engine.bus.off('factory-reset', this.onFactoryReset);
   }
 
   private async work(): Promise<void> {

@@ -236,6 +236,32 @@ export class Engine {
     this.bus.emit('state', { reset: true });
   }
 
+  // Named states for tests (#23). clear: the content (recordings, the event
+  // list, counters); settings, certificate and sessions stay.
+  clear(): void {
+    this.sd.clear();
+    this.events.clearRecent();
+    this.counters.reset();
+    this.bus.emit('state', { reset: true });
+  }
+
+  // factory-reset: everything back to the factory state (settings, faults,
+  // video, the factory certificate, content), pending FTP uploads dropped
+  // (listeners of 'factory-reset'), then a reboot, which ends all sessions
+  // and ONVIF subscriptions. False when the camera isn't on.
+  factoryReset(opts: { ms?: number } = {}): boolean {
+    if (this.power !== 'on' || this.rebooting) return false;
+    this.reset();
+    this.events.clearRecent();
+    if (this.certs.state.enable !== 0 || this.certs.state.source !== 'factory') {
+      this.certs.clear();
+      this.bus.emit('cert', this.certs.state);
+    }
+    this.bus.emit('factory-reset', {});
+    void this.reboot({ ms: opts.ms });
+    return true;
+  }
+
   state() {
     return {
       name: this.config.name,

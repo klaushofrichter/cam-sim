@@ -189,11 +189,14 @@ paths:
         '204': { description: cleared }
   /sim/api/actions/{name}:
     parameters:
-      - { name: name, in: path, required: true, schema: { type: string, enum: [tokens.revoke, reboot, power-off, power-on, flv.dropActive, downloads.dropActive] } }
+      - { name: name, in: path, required: true, schema: { type: string, enum: [tokens.revoke, reboot, power-off, power-on, flv.dropActive, downloads.dropActive, clear, factory-reset] } }
     post:
       summary: >
         One-shot action. reboot takes {ms, dropsConnection}; power-on takes {ms} (boot time).
         power-off drops every connection and ends sessions until power-on.
+        clear empties recordings, the event list and counters (settings, certificate and sessions stay).
+        factory-reset returns settings, faults, video, certificate and content to the factory state,
+        drops waiting FTP uploads, then reboots (takes {ms}); 409 while not on.
       requestBody:
         content:
           application/json:

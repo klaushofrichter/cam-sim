@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Named test states (#23): `POST /sim/api/actions/clear` (content only) and
+  `POST /sim/api/actions/factory-reset` (everything back to the factory state,
+  then a reboot), with buttons on the Simulator page.
 - The sub stream (test pattern and library videos) has a keyframe every 4 s,
   as on the camera and in its `GetEnc` gop (#24); the fixture and library
   caches rebuild once.

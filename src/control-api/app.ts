@@ -151,12 +151,20 @@ export function createControlApp(engine: Engine): express.Express {
     if (name === 'flv.dropActive') e.dropFlv();
     if (name === 'downloads.dropActive') e.dropDownloads();
     const ms = req.body?.ms;
-    if ((name === 'reboot' || name === 'power-on') && ms !== undefined && !(Number.isInteger(ms) && ms >= 0 && ms <= 600_000)) {
+    if ((name === 'reboot' || name === 'power-on' || name === 'factory-reset') && ms !== undefined && !(Number.isInteger(ms) && ms >= 0 && ms <= 600_000)) {
       return bad(res, 'ms must be an integer from 0 to 600000');
     }
     if (name === 'reboot') {
       if (e.power !== 'on') return void res.status(409).json({ error: 'powered_off' });
       void e.reboot({ ms, dropsConnection: req.body?.dropsConnection === true });
+      return void res.status(202).end();
+    }
+    if (name === 'clear') {
+      e.clear();
+      return void res.status(204).end();
+    }
+    if (name === 'factory-reset') {
+      if (!e.factoryReset({ ms })) return void res.status(409).json({ error: e.power === 'on' ? 'busy' : 'powered_off' });
       return void res.status(202).end();
     }
     if (name === 'power-off') {

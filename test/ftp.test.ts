@@ -204,6 +204,21 @@ describe('FTP fixes from review', () => {
     expect([engine.counters.ftpFailures, engine.counters.ftpUploads]).toEqual([1, 1]);
   });
 
+  // #23: a factory reset drops the uploads that are waiting.
+  it('a factory reset empties the upload queue', async () => {
+    const engine = await makeEngine();
+    const up = new FtpUploader(engine);
+    closers.push(() => up.stop());
+    engine.settings.set('SetFtpV20', { Ftp: ftpObject(engine, { port: 1 }) }, { strictPartial: true });
+    engine.faults.set({ name: 'ftp.delayMs', ms: 200 });
+    const { recording } = engine.events.trigger('motion', 1);
+    const rec = engine.sd.byId(recording!.id)!;
+    for (let i = 0; i < 5; i++) engine.events.emit('recording', rec);
+    expect(up.pending()).toBeGreaterThan(0);
+    expect(engine.factoryReset({ ms: 10 })).toBe(true);
+    expect(up.pending()).toBe(0);
+  });
+
   it('keeps at most 20 uploads waiting, and stop() drops the rest', async () => {
     const engine = await makeEngine();
     const up = new FtpUploader(engine);
