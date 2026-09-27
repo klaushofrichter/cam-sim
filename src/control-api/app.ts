@@ -211,6 +211,7 @@ export function createControlApp(engine: Engine): express.Express {
     if (!body || typeof body !== 'object' || Array.isArray(body)) return bad(res, 'the body must be the whole settings object');
     const r = e.settings.set(cmd, { [key]: body }, { strictPartial: true });
     if (r) return void res.status(400).json({ error: 'invalid', rspCode: r.rspCode });
+    e.bus.emit('settings', { cmd });
     res.json(key === 'AiAlarm' ? e.settings.get('AiAlarm', (body as { ai_type: 'people' }).ai_type) : e.settings.get(key as 'Isp'));
   };
   api.put('/settings/AiAlarm/:type', (req, res) => {

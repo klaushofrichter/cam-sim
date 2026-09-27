@@ -123,7 +123,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
       if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
-      return { ...camera.ports, control: controlPort, rtsp: p.rtsp };
+      return { ...camera.ports, control: controlPort, rtsp: rtsp.port() };
     },
     async close() {
       ftp.stop();

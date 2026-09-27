@@ -75,8 +75,8 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     const b = entry.indexOf(':', a + 1);
     const name = entry.slice(0, a);
     const level = entry.slice(a + 1, b);
-    if (a < 1 || b < 0 || (level !== 'admin' && level !== 'guest')) {
-      throw new ConfigError(`CAMSIM_USERS entry ${i + 1} must be name:admin|guest:password`);
+    if (a < 1 || b < 0 || (level !== 'admin' && level !== 'guest') || b === entry.length - 1) {
+      throw new ConfigError(`CAMSIM_USERS entry ${i + 1} must be name:admin|guest:password (password not empty)`);
     }
     return { name, level, password: entry.slice(b + 1) };
   });

@@ -337,7 +337,10 @@ development.
 - **Sign-in:** a camera user (`CAMSIM_USERS`), Basic authentication, TCP
   transport.
 - **Refused:** while `rtspEnable` is 0, while the camera is offline or powered
-  off, or under the `rtsp.refuse` fault. Power-off and reboot cut the readers.
+  off, or under the `rtsp.refuse` or `rtsp.reset` fault. Connected readers are
+  cut when any of these starts, and on reboot.
+- **Port:** `CAMSIM_RTSP_PORT`; 0 picks a free port (in process), reported by
+  `listen()`. MediaMTX needs a writable temporary folder.
 - **Picture:** until Plan 2 the streams are the test-pattern clips, looped and
   copied, not re-encoded.
 - **Without MediaMTX,** the simulator starts without RTSP and logs
@@ -495,7 +498,8 @@ matching requests.
 | `snap.fail` | | Snap answers 500 |
 | `ftp.fail` | `count` optional | FTP uploads and `TestFtp` fail (`-454`) |
 | `ftp.delayMs` | `ms` | wait before each FTP upload |
-| `rtsp.refuse` | | RTSP refuses every reader |
+| `rtsp.refuse` | | RTSP refuses every new reader |
+| `rtsp.reset` | | RTSP cuts connected readers and refuses new ones |
 
 ```sh
 ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'

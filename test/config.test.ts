@@ -12,6 +12,10 @@ describe('loadConfig', () => {
     ]);
   });
 
+  it('refuses a user without a password', () => {
+    expect(() => loadConfig({ CAMSIM_USERS: 'a:admin:' })).toThrow(/CAMSIM_USERS/);
+  });
+
   it('keeps colons inside a password', () => {
     expect(loadConfig({ CAMSIM_USERS: 'a:guest:x:y' }).users[0].password).toBe('x:y');
   });
