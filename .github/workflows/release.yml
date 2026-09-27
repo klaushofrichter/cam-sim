@@ -10,8 +10,11 @@ permissions:
   packages: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      digest: ${{ steps.push.outputs.digest }}
     steps:
       - name: Refuse to release anything but production
         if: github.ref != 'refs/heads/production'
@@ -51,6 +54,7 @@ jobs:
         run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v7
+        id: push
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -62,6 +66,85 @@ jobs:
             ghcr.io/klaushofrichter/cam-sim:v${{ steps.ver.outputs.version }}
             ghcr.io/klaushofrichter/cam-sim:latest
 
+
+  # cam2 in the cluster (Plan 4): pin the new image by digest in kube-setup's
+  # manifest, apply it, and wait until the Deployment runs it.
+  deploy:
+    needs: build
+    runs-on: [self-hosted, k3s]
+    permissions:
+      contents: read
+    steps:
+      - name: Install kubectl and configure in-cluster access
+        run: |
+          set -euo pipefail
+          if ! command -v kubectl >/dev/null 2>&1; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/kubectl
+          fi
+          SA_DIR=/var/run/secrets/kubernetes.io/serviceaccount
+          kubectl config set-cluster in-cluster --server=https://kubernetes.default.svc --certificate-authority="${SA_DIR}/ca.crt"
+          kubectl config set-credentials deploy-sa --token="$(cat "${SA_DIR}/token")"
+          kubectl config set-context in-cluster --cluster=in-cluster --user=deploy-sa --namespace=cam-sim
+          kubectl config use-context in-cluster
+
+      - name: Update kube-setup manifest and deploy
+        env:
+          KUBE_SETUP_DEPLOY_TOKEN: ${{ secrets.KUBE_SETUP_DEPLOY_TOKEN }}
+          IMAGE: ghcr.io/klaushofrichter/cam-sim@${{ needs.build.outputs.digest }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/kube-setup-deploy
+          git clone "https://x-access-token:${KUBE_SETUP_DEPLOY_TOKEN}@github.com/klaushofrichter/kube-setup.git" /tmp/kube-setup-deploy
+          cd /tmp/kube-setup-deploy
+          M=manifests/cam-sim/cam2-deployment.yaml
+          sed -i "s|image: ghcr.io/klaushofrichter/cam-sim[@:].*|image: ${IMAGE}|" "$M"
+          # A silent no-op sed would commit an unchanged manifest and let git
+          # drift from the cluster while reporting success.
+          grep -q "image: ${IMAGE}$" "$M" || { echo "::error::manifest image line did not update"; exit 1; }
+          git config user.name "cam-sim-deploy-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add "$M"
+          if git diff --cached --quiet; then
+            echo "Manifest already at ${IMAGE}; nothing to commit."
+          else
+            git commit -m "Deploy cam-sim v${VERSION} (cam2)"
+            git push   # push before apply, always
+          fi
+          kubectl apply -f "$M"
+          rm -rf /tmp/kube-setup-deploy
+
+      # The runner may get/watch/patch deployments/cam2 by name only, so
+      # `kubectl rollout status` (which lists) is not allowed: poll instead.
+      - name: Wait for the rollout
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            read -r gen observed updated available <<<"$(kubectl get deployment cam2 -n cam-sim \
+              -o jsonpath='{.metadata.generation} {.status.observedGeneration} {.status.updatedReplicas} {.status.availableReplicas}')"
+            echo "generation=${gen} observed=${observed} updated=${updated:-0} available=${available:-0}"
+            if [ "$gen" = "$observed" ] && [ "${updated:-0}" = 1 ] && [ "${available:-0}" = 1 ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::cam2 did not roll out in 5 minutes"; exit 1
+
+      - name: Smoke-test cam2
+        run: |
+          set -euo pipefail
+          curl -sfk --max-time 10 https://cam2.cam-sim.svc.cluster.local:9443/healthz | grep -q '"ok":true'
+          code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 https://cam2.cam-sim.svc.cluster.local:9443/sim/api/state)
+          [ "$code" = 401 ] || { echo "::error::control API without a token answered ${code}, expected 401"; exit 1; }
+          echo "cam2 healthy; control API requires its token"
+
+  publish:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       # The npm package (code only, no media: fixtures are generated at run
       # time) as a release asset, so cams can install cam-sim without git.
       - uses: actions/setup-node@v7
@@ -69,7 +152,7 @@ jobs:
           node-version: 26
       - name: Pack the npm package
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
           npm ci --ignore-scripts
@@ -83,7 +166,7 @@ jobs:
       - name: Tag the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
