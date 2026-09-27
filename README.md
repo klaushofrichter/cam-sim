@@ -20,7 +20,7 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** released (latest v2026.09.27.2): the headless core (Plan 1), the
+**Status:** released (latest v2026.09.27.3): the headless core (Plan 1), the
 [video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
 `cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
@@ -78,7 +78,7 @@ await sim.close();
 ```
 
 Install it from a release tarball, for example
-`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.2/cam-sim-v2026.09.27.2.tgz"`.
+`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.3/cam-sim-v2026.09.27.3.tgz"`.
 In a vitest `globalSetup`, call `ensureFixtures(defaultFixtureDir(), logger)` so
 the test patterns are built once, not in every worker.
 
@@ -762,7 +762,7 @@ manifests.
   digest in kube-setup's manifest, applies it through the in-cluster runner
   (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
   then tags the release. Releases deploy automatically. cams and cam-proxy
-  each pin a release tarball as a devDependency (now v2026.09.27.2) and need
+  each pin a release tarball as a devDependency (now v2026.09.27.3) and need
   a bump PR after a release; `cams-compat` CI (below) covers cams only, not
   cam-proxy.
 
