@@ -4,8 +4,10 @@ cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
 v3.2.0.6011_2607012059). It speaks the camera's HTTP API, reproduces its
 quirks, and can be made to fail in the ways the real device fails. It exists to
 test software written against the camera, such as
-[cams](https://github.com/klaushofrichter/cams) and the planned camera
-gateway, in CI and with several cameras at once.
+[cams](https://github.com/klaushofrichter/cams) and
+[cam-proxy](https://github.com/klaushofrichter/cam-proxy), the camera
+gateway; both use cam-sim as a dev dependency pinned to a release tarball, in
+CI and with several cameras at once.
 
 Each simulator has two faces:
 
@@ -18,7 +20,7 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** released (latest v2026.09.27.1): the headless core (Plan 1), the
+**Status:** released (latest v2026.09.27.2): the headless core (Plan 1), the
 [video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
 `cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
@@ -76,7 +78,7 @@ await sim.close();
 ```
 
 Install it from a release tarball, for example
-`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.1/cam-sim-v2026.09.27.1.tgz"`.
+`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.2/cam-sim-v2026.09.27.2.tgz"`.
 In a vitest `globalSetup`, call `ensureFixtures(defaultFixtureDir(), logger)` so
 the test patterns are built once, not in every worker.
 
@@ -105,7 +107,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
 | `CAMSIM_RTSP_PORT` | `8554` | [RTSP](#rtsp) (the camera's 554) |
 | `CAMSIM_ONVIF_PORT` | `8000` | [ONVIF](#onvif), plain HTTP like the camera |
-| `CAMSIM_MEDIAMTX` | `mediamtx` on `PATH` | the MediaMTX binary that serves RTSP; the image includes it |
+| `CAMSIM_MEDIAMTX` | `mediamtx` on the PATH, then `tools/mediamtx` | the MediaMTX binary that serves RTSP; the image includes it |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
 | `CAMSIM_FTP_SERVER`, `_PORT`, `_USER`, `_PASSWORD` / `_FILE`, `_DIR`, `_TLS`, `_STREAM` | — | [FTP upload](#ftp-upload) configured and switched on at start: port default 21, `_TLS` `true` (FTPS, the camera's default) or `false`, `_STREAM` `main` (default) or `sub` |
@@ -410,7 +412,9 @@ plain HTTP, SOAP 1.2, as captured from the real camera (redacted replies in
   `CreatePullPointSubscription`. A subscription answers with its manager
   address `/onvif/PullSubManager?Idx=<n>`, which takes `PullMessages` (a long
   poll: `Timeout`, default 5 s, at most 60 s), `Renew` and `Unsubscribe`. There are at most 16
-  subscriptions, each living at most 24 h without renewal.
+  subscriptions; a subscription's lifetime defaults to 60 s when no
+  `InitialTerminationTime` (or, on `Renew`, `TerminationTime`) is given, and is
+  capped at 24 h either way.
 - **Topics:**
   - `RuleEngine/CellMotionDetector/Motion` (`IsMotion`);
   - `MyRuleDetector/{FaceDetect, PeopleDetect, VehicleDetect,
@@ -474,7 +478,11 @@ the FTP schedule allows is uploaded:
   main stream is 1280×720 (and a converted video's is `CAMSIM_MAIN_SIZE`),
   while `GetEnc` always reports 4512×2512.
 - **Recordings:** an event during a recording extends it instead of starting
-  an overlapping clip. (Pre-record, 4 s, is simulated.)
+  an overlapping clip. (Pre-record, 4 s, is simulated.) A recording's file is
+  always the fixed clip (the 12 s fixture, or the library loop) whatever the
+  recording's own duration.
+- **OSD:** `SetOsd` values are stored and validated (positions, name length)
+  but never drawn on the picture.
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -603,7 +611,7 @@ matching requests.
 | `snap.fail` | | Snap answers 500 |
 | `ftp.fail` | `count` optional | FTP uploads and `TestFtp` fail (`-454`) |
 | `ftp.delayMs` | `ms` | wait before each FTP upload |
-| `rtsp.refuse` | | RTSP refuses every new reader |
+| `rtsp.refuse` | | RTSP cuts connected readers and refuses new ones |
 | `rtsp.reset` | | RTSP cuts connected readers and refuses new ones |
 
 ```sh
@@ -675,7 +683,8 @@ The UI has four pages:
   lights, on-screen text and network services. Each of these cards writes
   whole objects through the camera's own validation, so a rejected value
   shows the camera's error code. Device, storage, certificate and users are
-  shown read-only (users change through the camera API).
+  shown read-only (users change through the camera API). FTP has no card;
+  set it with `PUT /sim/api/settings/Ftp`.
 - **Simulator:**
   - power off, power on and reboot;
   - events;
@@ -694,7 +703,8 @@ changes no counters. A settings save in the UI writes the whole object, so the
 saved and running values become equal. That also clears any reset a partial
 camera-API write left waiting for the next reboot.
 
-Each camera's session cookie carries its name (`camsim_session_<name>`), so
+Each camera's session cookie carries its name (`camsim_session_<name>`, the
+name lowercased with anything but letters and digits removed), so
 several simulators on one host stay signed in side by side. Login attempts are
 limited to 20 per 15 minutes per address, and the UI refuses to be shown
 inside another page's frame.
@@ -723,9 +733,13 @@ manifests.
   - the web UI and control API are at https://cam2.skylar.technology/ on the
     LAN only (Traefik; 403 from outside; the ACME challenge path stays open);
   - ONVIF `192.168.1.103:8000` and RTSP `192.168.1.103:554` are open to the
-    LAN (Service `cam2-gateway`), in plain text like the camera, for the
-    gateway;
+    LAN (Service `cam2-gateway`), in plain text like the camera, for
+    cam-proxy;
   - the camera's HTTP(S) ports stay inside the cluster.
+  - cam2 uploads its finished clips by FTP(S) to cam-proxy in the cluster
+    (`cam-proxy.cam-proxy.svc.cluster.local:2121`, sub stream); the setting
+    lives in cam2's persisted settings, set through cam-proxy's
+    camera-ftp-setup, survives restarts, and a factory-reset clears it.
 - **Video library:** PVC `cam2-library`, mounted read-only at `/library`
   (`CAMSIM_LIBRARY_DIR=/library`, `CAMSIM_MAIN_SIZE=1920x1080`). Videos go in
   through Deployment `cam2-library-loader`: scale it to 1, `kubectl cp` the
@@ -747,7 +761,10 @@ manifests.
 - **Deploys:** a release (merge to `production`) builds the image, pins it by
   digest in kube-setup's manifest, applies it through the in-cluster runner
   (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
-  then tags the release. Releases deploy automatically.
+  then tags the release. Releases deploy automatically. cams and cam-proxy
+  each pin a release tarball as a devDependency (now v2026.09.27.2) and need
+  a bump PR after a release; `cams-compat` CI (below) covers cams only, not
+  cam-proxy.
 
 ## Secrets
 

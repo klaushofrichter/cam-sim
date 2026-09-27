@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.09.27.2
+
 - Named test states (#23): `POST /sim/api/actions/clear` (content only) and
   `POST /sim/api/actions/factory-reset` (everything back to the factory state,
   then a reboot), with buttons on the Simulator page.
