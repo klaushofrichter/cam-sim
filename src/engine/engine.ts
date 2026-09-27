@@ -82,6 +82,10 @@ export class Engine {
     });
     this.events = new Events({ clock, tz: config.tz, sd: this.sd, settings: this.settings, rng: this.rng });
     for (const f of config.faults) this.faults.set(f);
+    if (config.ftp) {
+      const r = this.settings.set('SetFtpV20', { Ftp: { ...this.settings.get('Ftp'), ...config.ftp, enable: 1 } }, { strictPartial: true });
+      if (r) this.log.warn({ rspCode: r.rspCode }, 'ftp_config_rejected');
+    }
     if (config.seedClips === 'demo' && this.sd.all().length === 0) this.sd.seed(DEMO_CLIPS);
     this.faults.on('change', () => this.bus.emit('fault', this.faults.list()));
     this.events.on('event', (e) => this.bus.emit('event', e));

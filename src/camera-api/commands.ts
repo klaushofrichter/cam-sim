@@ -4,6 +4,7 @@ import type { SessionInfo } from '../engine/sessions';
 import { isSetCommand } from '../engine/settings';
 import { timeValue } from '../engine/clock';
 import { validPair } from '../tls/certs';
+import { testFtp } from '../ftp/uploader';
 import { devInfo, ENC, ABILITY, IR_LIGHTS_EXTRA, AI_TYPES, type AiType } from '../profile/rlc1224a';
 
 // Error details as the firmware words them (measured where noted).
@@ -108,6 +109,11 @@ const HANDLERS: Record<string, Handler> = {
     const name = String(c.param?.filename ?? '');
     const known = c.engine.sd.all().some((r) => [r.files.sub.name, r.files.main.name].some((n) => n === name || n.endsWith(`/${name}`)));
     return known ? ok(c.cmd, { downloadTask: c.engine.activeDownloads.size }) : fail(c.cmd, -4);
+  },
+  TestFtp: async (c) => {
+    const r = await testFtp(c.engine, c.param?.Ftp);
+    if (r === -454) return { cmd: c.cmd, code: 1, error: { detail: 'ftp connect failed', rspCode: -454 } };
+    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
   },
   GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certificate.enable, keyName: 'server.key' } }),
   CertificateClear: (c) => {

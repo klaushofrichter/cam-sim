@@ -7,6 +7,7 @@ export const FAULT_NAMES = [
   'flv.reset', 'flv.delayMs', 'search.delayMs',
   'settings.fail', 'settings.ignore', 'settings.strictPartial',
   'offline', 'latencyMs', 'snap.fail',
+  'ftp.fail', 'ftp.delayMs',
 ] as const;
 export type FaultName = (typeof FAULT_NAMES)[number];
 
@@ -22,7 +23,7 @@ export interface FaultSpec {
   rspCode?: number;
 }
 
-const NEEDS_MS: FaultName[] = ['downloads.delayMs', 'flv.delayMs', 'search.delayMs', 'latencyMs'];
+const NEEDS_MS: FaultName[] = ['downloads.delayMs', 'flv.delayMs', 'search.delayMs', 'latencyMs', 'ftp.delayMs'];
 const NEEDS_CMDS: FaultName[] = ['settings.fail', 'settings.ignore'];
 
 export class FaultError extends Error {}
