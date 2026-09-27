@@ -152,6 +152,7 @@ function setCommand(c: Ctx): Entry {
   if (failing) return fail(c.cmd, failing.rspCode ?? -67);
   if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
   const r = e.settings.set(c.cmd, c.param, { strictPartial: !!e.faults.active('settings.strictPartial') });
+  if (!r) e.bus.emit('settings', { cmd: c.cmd });
   return r ? fail(c.cmd, r.rspCode) : ok(c.cmd, { rspCode: 200 });
 }
 

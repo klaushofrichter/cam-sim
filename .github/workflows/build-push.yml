@@ -22,6 +22,10 @@ jobs:
       - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
       - name: Ensure ffmpeg (fixtures)
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+      - name: Install MediaMTX (RTSP tests)
+        run: |
+          p=$(scripts/install-mediamtx.sh "$RUNNER_TEMP/mediamtx")
+          echo "CAMSIM_MEDIAMTX=$p" >> "$GITHUB_ENV"
       - run: |
           npm ci --ignore-scripts
           npm test

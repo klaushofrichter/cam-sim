@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- RTSP (Plan 5): `h264Preview_01_main` / `_sub` on `CAMSIM_RTSP_PORT` (8554)
+  through MediaMTX (in the image), signed in with the camera users; refused
+  when RTSP is off, the camera is offline or off, or under `rtsp.refuse`.
+
 - FTP upload (Plan 6): each finished recording goes to an FTP or FTPS server
   as `<remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.mp4` plus a `.jpg`, like
   the camera; `TestFtp` answers as measured on the real camera (`-56` for a

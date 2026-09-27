@@ -14,5 +14,6 @@ export const SIM_ENV: Record<string, string> = {
   CAMSIM_HTTP_PORT: String(CAM_PORT),
   CAMSIM_HTTPS_PORT: '18443',
   CAMSIM_CONTROL_PORT: String(UI_PORT),
+  CAMSIM_RTSP_PORT: '18554',
   CAMSIM_LOG_LEVEL: 'warn',
 };

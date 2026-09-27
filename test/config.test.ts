@@ -12,6 +12,10 @@ describe('loadConfig', () => {
     ]);
   });
 
+  it('refuses a user without a password', () => {
+    expect(() => loadConfig({ CAMSIM_USERS: 'a:admin:' })).toThrow(/CAMSIM_USERS/);
+  });
+
   it('keeps colons inside a password', () => {
     expect(loadConfig({ CAMSIM_USERS: 'a:guest:x:y' }).users[0].password).toBe('x:y');
   });
@@ -55,7 +59,7 @@ describe('loadConfig', () => {
       faults: [],
       autoEvents: [],
       firmVer: 'v3.2.0.6011_2607012059',
-      ports: { https: 8443, http: 8080, control: 9443 },
+      ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554 },
       logLevel: 'info',
     });
     expect(c.controlToken).toBeUndefined();

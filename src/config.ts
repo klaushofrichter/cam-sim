@@ -30,7 +30,7 @@ export interface CamSimConfig {
   seed: number;
   tlsCertFile?: string;
   tlsKeyFile?: string;
-  ports: { https: number; http: number; control: number };
+  ports: { https: number; http: number; control: number; rtsp: number };
   logLevel: string;
   // CAMSIM_FTP_*: FTP upload configured and enabled at start.
   ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
@@ -75,8 +75,8 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     const b = entry.indexOf(':', a + 1);
     const name = entry.slice(0, a);
     const level = entry.slice(a + 1, b);
-    if (a < 1 || b < 0 || (level !== 'admin' && level !== 'guest')) {
-      throw new ConfigError(`CAMSIM_USERS entry ${i + 1} must be name:admin|guest:password`);
+    if (a < 1 || b < 0 || (level !== 'admin' && level !== 'guest') || b === entry.length - 1) {
+      throw new ConfigError(`CAMSIM_USERS entry ${i + 1} must be name:admin|guest:password (password not empty)`);
     }
     return { name, level, password: entry.slice(b + 1) };
   });
@@ -150,6 +150,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
       https: port('CAMSIM_HTTPS_PORT', 8443),
       http: port('CAMSIM_HTTP_PORT', 8080),
       control: port('CAMSIM_CONTROL_PORT', 9443),
+      rtsp: port('CAMSIM_RTSP_PORT', 8554),
     },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
   };
