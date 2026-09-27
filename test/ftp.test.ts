@@ -80,8 +80,10 @@ describe('FTP upload', () => {
       'cams/den/2026/09/26/Den_00_20260926065217.jpg',
       'cams/den/2026/09/26/Den_00_20260926065217.mp4',
     ]);
-    const mp4 = readFileSync(join(s.root, 'cams/den/2026/09/26/Den_00_20260926065217.mp4'));
-    expect(mp4.length).toBe(engine.media.clipSize('main'));
+    // The clip and the JPEG upload in parallel sessions: the file is there
+    // before all of it is.
+    const mp4 = join(s.root, 'cams/den/2026/09/26/Den_00_20260926065217.mp4');
+    await expect.poll(() => readFileSync(mp4).length, { timeout: 10_000 }).toBe(engine.media.clipSize('main'));
     // The server shows the files a moment before the client's upload returns.
     await expect.poll(() => engine.counters.ftpUploads).toBe(1);
   });
