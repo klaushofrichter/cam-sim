@@ -1,0 +1,13 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "Unknown",
+   "code": 1,
+   "error": {
+    "detail": "not support",
+    "rspCode": -9
+   }
+  }
+ ]
+}

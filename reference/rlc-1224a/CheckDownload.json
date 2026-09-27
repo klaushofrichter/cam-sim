@@ -1,0 +1,13 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "CheckDownload",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  }
+ ]
+}

@@ -1,0 +1,33 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetWhiteLed",
+   "code": 0,
+   "value": {
+    "WhiteLed": {
+     "LightingSchedule": {
+      "EndHour": 6,
+      "EndMin": 0,
+      "StartHour": 18,
+      "StartMin": 0
+     },
+     "NewLightAlarm": {
+      "enable": 0,
+      "lightAlarmBright": 100,
+      "lightMode": 1
+     },
+     "bright": 100,
+     "channel": 0,
+     "mode": 1,
+     "state": 0,
+     "wlAiDetectType": {
+      "dog_cat": 1,
+      "people": 1,
+      "vehicle": 1
+     }
+    }
+   }
+  }
+ ]
+}

@@ -12,7 +12,6 @@ fixtures/generated/
 *.jpg
 *.h265
 *.aac
-reference/
 dist/
 coverage/
 test-results/

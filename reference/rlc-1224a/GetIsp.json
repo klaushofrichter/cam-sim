@@ -1,0 +1,55 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetIsp",
+   "code": 0,
+   "value": {
+    "Isp": {
+     "antiFlicker": "60HZ",
+     "backLight": "Off",
+     "bd_day": {
+      "bright": 128,
+      "dark": 128,
+      "mode": "Auto"
+     },
+     "bd_led_color": {
+      "bright": 128,
+      "dark": 128,
+      "mode": "Auto"
+     },
+     "bd_night": {
+      "bright": 128,
+      "dark": 128,
+      "mode": "Auto"
+     },
+     "binningMode": 1,
+     "blc": 128,
+     "blueGain": 128,
+     "channel": 0,
+     "constantFrameRate": 0,
+     "corridorMode": 0,
+     "dayNight": "Auto",
+     "dayNightThreshold": 50,
+     "drc": 128,
+     "encType": "VBR",
+     "exposure": "Auto",
+     "gain": {
+      "max": 62,
+      "min": 1
+     },
+     "hdr": 0,
+     "mirroring": 0,
+     "nr3d": 1,
+     "redGain": 128,
+     "rotation": 0,
+     "shutter": {
+      "max": 125,
+      "min": 0
+     },
+     "whiteBalance": "Auto"
+    }
+   }
+  }
+ ]
+}
