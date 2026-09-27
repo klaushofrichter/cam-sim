@@ -71,7 +71,7 @@
     <video data-testid="live-video" bind:this={video} muted autoplay playsinline></video>
   </div>
   <TriggerBar />
-  <p class="note">Pictures are test patterns until the video library arrives (Plan 2). Watching here is not a camera client: it adds no sessions or counters.</p>
+  <p class="note">Shows the video selected on the Simulator page. Watching here is not a camera client: it adds no sessions or counters.</p>
 </section>
 
 <style>
