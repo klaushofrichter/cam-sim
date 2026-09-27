@@ -1,5 +1,6 @@
 import { Readable } from 'stream';
-import { Client } from 'basic-ftp';
+import { Client, enterPassiveModeIPv4 } from 'basic-ftp';
+import { localParts } from '../engine/clock';
 import type { Engine } from '../engine/engine';
 import type { Recording } from '../engine/sdcard';
 
@@ -15,21 +16,58 @@ export interface FtpTarget {
   onlyFtps: number;
 }
 
-// Connects and logs in the way the camera does: explicit FTPS when onlyFtps
-// is 1 (the default), plain FTP otherwise; the server certificate is not
-// verified (the camera doesn't).
+// Opens a session the way the RLC-1224A does (measured against cam-proxy's
+// server, 2026-09-27, cam-sim#25): explicit TLS first when onlyFtps is 1
+// (the certificate isn't verified), USER/PASS, PWD. Transfers use PASV only
+// (never EPSV), after TYPE, MODE S and, with TLS, PBSZ 0 / PROT P.
 export async function connect(t: FtpTarget): Promise<Client> {
   const client = new Client(TIMEOUT_MS);
   client.ftp.verbose = false;
-  await client.access({
-    host: t.server,
-    port: Number(t.port) || 21,
-    user: t.userName,
-    password: t.password,
-    secure: t.onlyFtps === 1,
-    secureOptions: { rejectUnauthorized: false },
-  });
+  client.prepareTransfer = enterPassiveModeIPv4;
+  try {
+    await client.connect(t.server, Number(t.port) || 21);
+    if (t.onlyFtps === 1) await client.useTLS({ rejectUnauthorized: false, host: t.server });
+    await client.login(t.userName, t.password);
+    await client.send('PWD');
+  } catch (err) {
+    client.close();
+    throw err;
+  }
   return client;
+}
+
+async function transferMode(client: Client, type: 'A' | 'I', tls: boolean): Promise<void> {
+  await client.send(`TYPE ${type}`);
+  await client.send('MODE S');
+  if (tls) {
+    await client.send('PBSZ 0');
+    await client.send('PROT P');
+  }
+}
+
+// Into remoteDir/YYYY/MM/DD one folder at a time: CWD, and MKD then CWD when
+// it doesn't exist yet.
+async function enter(client: Client, dir: string): Promise<void> {
+  for (const name of dir.split('/').filter(Boolean)) {
+    try {
+      await client.send(`CWD ${name}`);
+    } catch {
+      await client.send(`MKD ${name}`);
+      await client.send(`CWD ${name}`);
+    }
+  }
+}
+
+// One session: into the folder, then one file (close() sends QUIT).
+async function uploadOne(t: FtpTarget, dir: string, source: string | Readable, name: string): Promise<void> {
+  const client = await connect(t);
+  try {
+    await enter(client, dir);
+    await transferMode(client, 'I', t.onlyFtps === 1);
+    await client.uploadFrom(source, name);
+  } finally {
+    client.close();
+  }
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -55,8 +93,14 @@ export class FtpUploader {
     queueMicrotask(() => void this.work());
   };
 
+  // A factory reset drops what is waiting (an upload in flight finishes).
+  private readonly onFactoryReset = () => {
+    this.queue.length = 0;
+  };
+
   constructor(private readonly engine: Engine) {
     engine.events.on('recording', this.onRecording);
+    engine.bus.on('factory-reset', this.onFactoryReset);
   }
 
   pending(): number {
@@ -68,6 +112,7 @@ export class FtpUploader {
     this.stopped = true;
     this.queue.length = 0;
     this.engine.events.off('recording', this.onRecording);
+    this.engine.bus.off('factory-reset', this.onFactoryReset);
   }
 
   private async work(): Promise<void> {
@@ -93,40 +138,44 @@ export class FtpUploader {
     const dir = [String(ftp.remoteDir ?? '').replace(/\/+$/, ''), ftp.autoDir === 1 ? rec.date.replaceAll('-', '/') : ''].filter(Boolean).join('/');
     const file = `${dir ? `${dir}/` : ''}${stem}.mp4`;
     const stream = ftp.streamType === 1 ? 'sub' : 'main';
-    let client: Client | undefined;
     try {
       const delay = e.faults.active('ftp.delayMs')?.ms;
       if (delay) await sleep(delay);
       if (e.faults.consume('ftp.fail')) throw new Error('ftp.fail fault');
-      client = await connect(ftp as FtpTarget);
-      if (dir) await client.ensureDir(dir);
       const media = e.mediaFor(rec);
-      await client.uploadFrom(media.clipPath(stream), `${stem}.mp4`);
-      await client.uploadFrom(Readable.from(await media.snapshot()), `${stem}.jpg`);
+      const target = ftp as FtpTarget;
+      // The camera sends the snapshot in a second session while the clip
+      // is still uploading.
+      await Promise.all([
+        uploadOne(target, dir, media.clipPath(stream), `${stem}.mp4`),
+        media.snapshot().then((jpeg) => uploadOne(target, dir, Readable.from(jpeg), `${stem}.jpg`)),
+      ]);
       e.counters.ftpUploads++;
       e.bus.emit('ftp', { file, ok: true });
     } catch (err) {
       e.counters.ftpFailures++;
       e.log.warn({ err: (err as Error).message, stem }, 'ftp_upload_failed');
       e.bus.emit('ftp', { file, ok: false, error: (err as Error).message });
-    } finally {
-      client?.close();
     }
   }
 }
 
 // TestFtp: the whole Ftp object is required (the firmware answers -56 for a
-// partial one, measured); it connects and logs in, and never saves anything.
-// An unreachable server or a refused login answers -454 (measured).
+// partial one, measured). Like the camera it runs a whole session and stores
+// a small <Name>_00_<local time>.txt (measured against cam-proxy, 2026-09-27)
+// in the current folder; it never saves the settings. An unreachable server,
+// a refused login or a failed upload answers -454 (measured).
 export async function testFtp(engine: Engine, ftp: Record<string, unknown> | undefined): Promise<number | null> {
   const need = ['server', 'port', 'userName', 'password', 'remoteDir', 'onlyFtps'];
   if (!ftp || typeof ftp !== 'object' || need.some((k) => !(k in ftp))) return -56;
   if (engine.faults.consume('ftp.fail')) return -454;
+  const t = ftp as unknown as FtpTarget;
   let client: Client | undefined;
   try {
-    // Connect and log in only: uploads create remoteDir as needed, so a
-    // folder that doesn't exist yet is not an error.
-    client = await connect(ftp as unknown as FtpTarget);
+    client = await connect(t);
+    await transferMode(client, 'A', t.onlyFtps === 1);
+    const p = localParts(engine.clock, engine.config.tz);
+    await client.uploadFrom(Readable.from([Buffer.from('FTP test\r\n')]), `${engine.config.name}_00_${p.date.replaceAll('-', '')}${p.hms}.txt`);
     return null;
   } catch {
     return -454;

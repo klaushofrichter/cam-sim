@@ -8,7 +8,7 @@ import { FixtureMedia, composeMainFlv, fixturePaths } from './fixtures';
 
 const run = promisify(execFile);
 // Bump when the prepared files change, so caches are rebuilt.
-const LIBRARY_VERSION = 2;
+const LIBRARY_VERSION = 3;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
 const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
 
@@ -259,7 +259,7 @@ export class Library {
         const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=20`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',
           '-x265-params', 'keyint=40:min-keyint=40:bframes=0:log-level=error', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipMain], this.abort.signal);
-        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit('896', '512')},fps=10`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '20',
+        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit('896', '512')},fps=10`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
           '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipSub], this.abort.signal);
       }
       // Live FLV: sub as ffmpeg writes it; main as the camera's codec id 12.

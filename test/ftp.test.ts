@@ -77,11 +77,13 @@ describe('FTP upload', () => {
     vi.advanceTimersByTime(20_000);
     vi.useRealTimers();
     await expect.poll(() => files(s.root), { timeout: 10_000 }).toEqual([
-      'cams/den/2026/09/26/Den_00_20260926065221.jpg',
-      'cams/den/2026/09/26/Den_00_20260926065221.mp4',
+      'cams/den/2026/09/26/Den_00_20260926065217.jpg',
+      'cams/den/2026/09/26/Den_00_20260926065217.mp4',
     ]);
-    const mp4 = readFileSync(join(s.root, 'cams/den/2026/09/26/Den_00_20260926065221.mp4'));
-    expect(mp4.length).toBe(engine.media.clipSize('main'));
+    // The clip and the JPEG upload in parallel sessions: the file is there
+    // before all of it is.
+    const mp4 = join(s.root, 'cams/den/2026/09/26/Den_00_20260926065217.mp4');
+    await expect.poll(() => readFileSync(mp4).length, { timeout: 10_000 }).toBe(engine.media.clipSize('main'));
     // The server shows the files a moment before the client's upload returns.
     await expect.poll(() => engine.counters.ftpUploads).toBe(1);
   });
@@ -202,6 +204,21 @@ describe('FTP fixes from review', () => {
     await up.uploadRecording(rec);
     await up.uploadRecording(rec);
     expect([engine.counters.ftpFailures, engine.counters.ftpUploads]).toEqual([1, 1]);
+  });
+
+  // #23: a factory reset drops the uploads that are waiting.
+  it('a factory reset empties the upload queue', async () => {
+    const engine = await makeEngine();
+    const up = new FtpUploader(engine);
+    closers.push(() => up.stop());
+    engine.settings.set('SetFtpV20', { Ftp: ftpObject(engine, { port: 1 }) }, { strictPartial: true });
+    engine.faults.set({ name: 'ftp.delayMs', ms: 200 });
+    const { recording } = engine.events.trigger('motion', 1);
+    const rec = engine.sd.byId(recording!.id)!;
+    for (let i = 0; i < 5; i++) engine.events.emit('recording', rec);
+    expect(up.pending()).toBeGreaterThan(0);
+    expect(engine.factoryReset({ ms: 10 })).toBe(true);
+    expect(up.pending()).toBe(0);
   });
 
   it('keeps at most 20 uploads waiting, and stop() drops the rest', async () => {

@@ -80,6 +80,21 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
     expect(Number(st.nb_read_frames)).toBe(120);
   });
 
+  // #24: keyframes as the camera's GetEnc says (and as measured): sub every
+  // 4 s at 10 fps, main every 2 s at 20 fps.
+  it('puts keyframes where the camera does: sub every 4 s, main every 2 s', () => {
+    // Frames between keyframes (FLV timestamps can be unset; frames are
+    // exact): 40 frames is 4 s at the sub's 10 fps and 2 s at the main's 20.
+    const gaps = (file: string) => {
+      const keys = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=key_frame', '-of', 'csv=p=0', file])
+        .toString().trim().split('\n').map((l, i) => (l.trim().split(',')[0] === '1' ? i : -1)).filter((i) => i >= 0);
+      return keys.slice(1).map((k, i) => k - keys[i]);
+    };
+    for (const f of [paths.subFlv, paths.clipSub]) expect(gaps(f).length).toBeGreaterThanOrEqual(1);
+    for (const f of [paths.subFlv, paths.clipSub, paths.clipMain]) expect(new Set(gaps(f))).toEqual(new Set([40]));
+    expect(gaps(paths.clipMain).length).toBeGreaterThanOrEqual(5);
+  });
+
   it('makes 12 s clips, long enough for players to skip 10 s', () => {
     for (const p of [paths.clipSub, paths.clipMain]) {
       const d = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', p]).toString());

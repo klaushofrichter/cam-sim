@@ -18,11 +18,14 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** the headless core (Plan 1), the web UI (Plan 3), `cam2` in the
-cluster (Plan 4, see [below](#cam2-in-the-cluster)) and FTP upload (Plan 6) are
-released, and RTSP (Plan 5) is ready. The [video library](#video-library)
-(Plan 2) and ONVIF events (Plan 5) are ready; captured clips follow;
-see the [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md).
+**Status:** released (latest v2026.09.27.1): the headless core (Plan 1), the
+[video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
+`cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
+[RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
+[FTP upload](#ftp-upload) (Plan 6). Still open from the
+[design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md): a curated
+set of clips captured for the library, cam-sim's own OSD, and recordings cut
+from the video.
 Without a library, pictures, live video and recordings are an ffmpeg
 **test pattern**.
 
@@ -42,19 +45,21 @@ Without a library, pictures, live video and recordings are an ffmpeg
 **Docker, one camera:**
 
 ```sh
-docker run --rm -p 8443:8443 -p 8080:8080 -p 9443:9443 \
+docker run --rm -p 8443:8443 -p 8080:8080 -p 9443:9443 -p 8554:8554 -p 8000:8000 \
   -e CAMSIM_USERS='admin:admin:<password>' -e CAMSIM_CONTROL_TOKEN='<token>' \
   -v cam-sim-data:/data ghcr.io/klaushofrichter/cam-sim:latest
 ```
 
-The camera API is on 8443 (HTTPS) and 8080 (HTTP), and the control API on
-9443. Point a client at the simulator the way it would reach a real camera: by
+The camera API is on 8443 (HTTPS) and 8080 (HTTP), the control API on 9443,
+RTSP on 8554 and ONVIF on 8000. Point a client at the simulator the way it would reach a real camera: by
 address, with the certificate checked against the camera's name.
 
 **Docker, three cameras:** `docker compose up` in this repository starts
 `cam2`, `cam3` and `cam4` on `127.0.0.1`; the ports are in `compose.yaml`. It
 reads `CAMSIM_USERS` and `CAMSIM_CONTROL_TOKEN` from `.env`, and nothing else
-from `.env` reaches the containers.
+from `.env` reaches the containers. Each mounts `./library` read-only as its
+[video library](#video-library). Compose publishes the camera and control
+ports only, not RTSP or ONVIF.
 
 **Inside a test process** (Node), with no container:
 
@@ -71,7 +76,7 @@ await sim.close();
 ```
 
 Install it from a release tarball, for example
-`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.26.2/cam-sim-v2026.09.26.2.tgz"`.
+`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.1/cam-sim-v2026.09.27.1.tgz"`.
 In a vitest `globalSetup`, call `ensureFixtures(defaultFixtureDir(), logger)` so
 the test patterns are built once, not in every worker.
 
@@ -123,9 +128,14 @@ that collides (also with `test-pattern`) gets `-2`, `-3`, …:
 - **Any video file** (`.mp4`, `.mov`, `.mkv`, `.m4v`, `.avi`, `.webm`) is
   converted to the camera's formats: main H.265 at `CAMSIM_MAIN_SIZE`, 20 fps;
   sub H.264 896×512, 10 fps; AAC 16 kHz (silent when the source has no sound).
+  Keyframes as on the camera (its `GetEnc` gop): every 2 s on main, every 4 s
+  on sub.
   The picture is scaled to fit, with bars.
 - **A folder with `main.mp4` and `sub.mp4`** is a clip captured from the real
-  camera (H.265 main, H.264 sub). It is copied, not re-encoded.
+  camera. It is copied, not re-encoded, when main is H.265 and sub H.264;
+  otherwise it is converted like any video. Copying also needs far less
+  memory: converting a 4512×2512 source takes about 1 GB, so for a small
+  container convert on a bigger machine and add the result as a pair.
 
 After start the videos are prepared one at a time in the background, then
 cached in `<CAMSIM_DATA_DIR>/library` (or the temp folder), one folder per
@@ -247,7 +257,7 @@ post Logout
 | | `GetNetPort` / `SetNetPort` | `{}` / `{NetPort:{…}}` | ports and `*Enable` flags |
 | | `GetAbility` | `{User:{userName}}` | the camera's capability flags |
 | | `Reboot` | `{}` | `{rspCode:200}`, **or the connection drops first** (half the time, seeded) |
-| Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec`, `preRec`, `saveDay`, `schedule.table` (168 characters per trigger type) |
+| Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec`, `preRec` (1: recordings start 4 s before the event), `saveDay`, `schedule.table` (168 characters per trigger type) |
 | | `Search` | see [Search](#recordings-search) | `{SearchResult:{…}}` |
 | | `CheckDownload` | `{filename}` | `{downloadTask:0\|1}`; `-4` for an unknown name |
 | Detection | `GetMdAlarm` / `SetMdAlarm` | `{channel:0}` / `{MdAlarm:{…}}` | `newSens.sensDef` 1–50, **lower is more sensitive** |
@@ -259,7 +269,7 @@ post Logout
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
 | | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | positions `Upper Left` … `Lower Right`; name ≤ 31 bytes |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
-| | `TestFtp` | `{Ftp:{<the whole object>}}` | connects and logs in, saves nothing: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
+| | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |
 | | `CertificateClear` | `{}` | back to the factory certificate; sessions end; offline ~10 s (real speed) |
 | | `ImportCertificate` | `{importCertificate:{crt:{size,name,content},key:{…}}}` | `content` is base64 PEM. **Importing over an installed certificate answers 200 and changes nothing**, as on the camera; clear first. A key that doesn't match answers `-4` |
@@ -390,15 +400,16 @@ The camera's ONVIF device and event services on `CAMSIM_ONVIF_PORT` (8000),
 plain HTTP, SOAP 1.2, as captured from the real camera (redacted replies in
 [reference/rlc-1224a/onvif](reference/rlc-1224a/onvif)):
 
-- **Sign-in:** WS-UsernameToken in every request, with the camera users.
+- **Sign-in:** WS-UsernameToken in every request except
+  `GetSystemDateAndTime`, with the camera users.
   PasswordDigest and PasswordText both work, and `Created` must be within
   5 minutes. Otherwise the fault is `ter:NotAuthorized`.
-- **Device service** (`/onvif/device_service`): `GetDeviceInformation`,
-  `GetCapabilities`, `GetServices`.
+- **Device service** (`/onvif/device_service`): `GetSystemDateAndTime`,
+  `GetDeviceInformation`, `GetCapabilities`, `GetServices`.
 - **Event service** (`/onvif/event_service`): `GetEventProperties` and
   `CreatePullPointSubscription`. A subscription answers with its manager
   address `/onvif/PullSubManager?Idx=<n>`, which takes `PullMessages` (a long
-  poll, at most 60 s), `Renew` and `Unsubscribe`. There are at most 16
+  poll: `Timeout`, default 5 s, at most 60 s), `Renew` and `Unsubscribe`. There are at most 16
   subscriptions, each living at most 24 h without renewal.
 - **Topics:**
   - `RuleEngine/CellMotionDetector/Motion` (`IsMotion`);
@@ -431,7 +442,20 @@ the FTP schedule allows is uploaded:
 - The main-stream clip by default; `streamType: 1` sends the sub clip.
 - FTPS (explicit TLS, certificate not verified) when `onlyFtps` is 1, the
   camera's default; plain FTP when 0.
-- One upload at a time. A failure is logged and counted (`ftpFailures`), not
+- **The session follows the real camera's, measured against
+  [cam-proxy](https://github.com/klaushofrichter/cam-proxy)'s server on
+  2026-09-27:**
+  - `AUTH TLS`, `USER`/`PASS`, `PWD`;
+  - `CWD` into each folder, and `MKD` then `CWD` when it doesn't exist yet;
+  - `TYPE I`, `MODE S`, `PBSZ 0`/`PROT P` with TLS;
+  - `PASV` only (never EPSV), then `STOR`.
+
+  The JPEG goes in a **second, parallel session** while the clip is still
+  uploading.
+- **Pre-record:** with `Rec.preRec` 1 (the default), a triggered recording,
+  and so its file name, starts 4 s before the event, never before the previous
+  recording ended.
+- One recording at a time. A failure is logged and counted (`ftpFailures`), not
   retried. At most 20 wait; more are dropped and counted (`ftpDropped`).
 - Each upload is reported on the SSE feed as an `ftp` event
   (`{file, ok, error?}`).
@@ -449,8 +473,8 @@ the FTP schedule allows is uploaded:
 - **Pictures:** without a library they're a test pattern. The test pattern's
   main stream is 1280×720 (and a converted video's is `CAMSIM_MAIN_SIZE`),
   while `GetEnc` always reports 4512×2512.
-- **Recordings:** they start at the event, not a few seconds before. An event
-  during a recording extends it instead of starting an overlapping clip.
+- **Recordings:** an event during a recording extends it instead of starting
+  an overlapping clip. (Pre-record, 4 s, is simulated.)
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -466,7 +490,11 @@ Base URL `http(s)://<host>:9443/sim/api`. Every request needs
 - a token in the URL (`?token=` or `?access_token=`) answers 400 `{"error":"token_in_url"}`;
 - without a configured token, every route answers 404.
 
-The full schema is in [openapi.yaml](openapi.yaml).
+The full schema is in [openapi.yaml](openapi.yaml). It also lists the routes
+the web UI uses (sign-in, media, recordings, settings, users). The UI signs in
+with a session cookie instead of the bearer token; writes with the cookie need
+the header `X-CamSim-UI: 1`, otherwise they answer 403 `{"error":"csrf"}`. Every
+client may send 1200 requests a minute; more answer 429 `rate_limited`.
 
 ```sh
 ctl() { curl -s -H "Authorization: Bearer $CAMSIM_CONTROL_TOKEN" -H 'Content-Type: application/json' "$@"; }
@@ -480,12 +508,13 @@ C=http://127.0.0.1:9443/sim/api
 ```json
 {
   "name": "Cam", "serial": "SIM3F0A…", "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059",
-  "offline": false, "power": "on", "rebooting": false, "video": "test-pattern",
+  "tz": "America/Chicago", "offline": false, "power": "on", "rebooting": false, "video": "test-pattern",
   "faults": [], "events": [],
   "sd": { "usedMb": 8, "capacityMb": 4096, "recordings": 6 },
   "counters": { "logins": 1, "loginAttempts": 1, "activeSessions": 1, "devInfoCalls": 0,
                 "activeStreams": 0, "streamsOpened": 0, "downloads": 0, "activeDownloads": 0,
-                "droppedDownloads": 0, "downloadOrder": [], "searches": 0, "setCalls": [], "reboots": 0 },
+                "droppedDownloads": 0, "downloadOrder": [], "searches": 0, "setCalls": [], "reboots": 0,
+                "ftpUploads": 0, "ftpFailures": 0, "ftpDropped": 0 },
   "certificate": { "source": "factory", "enable": 0 },
   "settings": { "Rec": { "…": "…" }, "Isp": { "…": "…" } }
 }
@@ -504,11 +533,13 @@ C=http://127.0.0.1:9443/sim/api
 | Action | Body | Answer | Effect |
 |---|---|---|---|
 | `reboot` | `{"ms":1000,"dropsConnection":false}` (optional) | 202 | offline for `ms` (default: 1 s fast, 60 s real), then a new serial, no sessions, and the saved settings take effect. 409 `powered_off` while off |
-| `power-off` | — | 204 | the camera goes dark: every connection drops, sessions end, the recording in progress is closed, background events pause, and new events are refused. 409 `already_off` |
+| `power-off` | — | 204 | the camera goes dark: every connection drops, sessions end, the recording in progress is closed, background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
 | `power-on` | `{"ms":1000}` (optional) | 202 | boots like a reboot (`power` is `booting`, then `on`), and background events resume. 409 `already_on` |
 | `tokens.revoke` | — | 204 | every session ends |
 | `flv.dropActive` | — | 204 | open live streams are cut |
 | `downloads.dropActive` | — | 204 | downloads in flight are cut |
+| `clear` | — | 204 | a known, empty content: recordings, the recent event list and counters are cleared; settings, the certificate and sessions stay |
+| `factory-reset` | `{"ms":1000}` (optional) | 202 | the factory state: settings, faults, the video (test pattern), the certificate (the factory self-signed one) and the content are reset, waiting FTP uploads are dropped, then a reboot (sessions and ONVIF subscriptions end). 409 while off or booting |
 
 ```sh
 ctl -X POST $C/actions/power-off
@@ -641,16 +672,22 @@ The UI has four pages:
   day's recordings with their triggers, playback of the sub or main copy, and
   downloads.
 - **Settings:** recording and schedules, detection sensitivities, image and
-  lights, on-screen text, network services, device, storage, certificate and
-  users. Each card writes whole objects through the camera's own validation,
-  so a rejected value shows the camera's error code.
+  lights, on-screen text and network services. Each of these cards writes
+  whole objects through the camera's own validation, so a rejected value
+  shows the camera's error code. Device, storage, certificate and users are
+  shown read-only (users change through the camera API).
 - **Simulator:**
   - power off, power on and reboot;
   - events;
+  - the video library: pick the video the camera shows;
   - every fault, with its parameters;
   - actions and reset;
   - counters;
   - a live log of camera requests and events.
+
+![Live page: the camera's live sub stream, showing a library video, with event triggers](docs/screenshots/live.png)
+
+![Simulator page: power, events, the video library and faults](docs/screenshots/simulator.png)
 
 Looking at the UI is not a camera client: it creates no camera sessions and
 changes no counters. A settings save in the UI writes the whole object, so the
@@ -680,23 +717,37 @@ run in Chrome.
 `cam-sim`, Deployment and Service `cam2`, PVC `cam2-data`. kube-setup owns the
 manifests.
 
-- **How clients reach it:** cams uses `cam2.cam-sim.svc.cluster.local:443`,
-  with the TLS name `cam2.skylar.technology`. The public name only serves the
-  ACME challenge, as for cam1.
+- **How clients reach it:**
+  - cams uses `cam2.cam-sim.svc.cluster.local:443`, with the TLS name
+    `cam2.skylar.technology`;
+  - the web UI and control API are at https://cam2.skylar.technology/ on the
+    LAN only (Traefik; 403 from outside; the ACME challenge path stays open);
+  - ONVIF `192.168.1.103:8000` and RTSP `192.168.1.103:554` are open to the
+    LAN (Service `cam2-gateway`), in plain text like the camera, for the
+    gateway;
+  - the camera's HTTP(S) ports stay inside the cluster.
+- **Video library:** PVC `cam2-library`, mounted read-only at `/library`
+  (`CAMSIM_LIBRARY_DIR=/library`, `CAMSIM_MAIN_SIZE=1920x1080`). Videos go in
+  through Deployment `cam2-library-loader`: scale it to 1, `kubectl cp` the
+  files into its `/library/`, scale it back to 0, and restart cam2 (the
+  library is read at start). Convert large sources on a bigger machine first
+  (see [Video library](#video-library)).
 - **Certificate:** a Let's Encrypt certificate, pushed daily at 04:27 by the
   `cam2-cert-push` CronJob, with the same script as cam1.
 - **Settings:**
   - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
   - background motion, person, vehicle and pet events;
   - `CAMSIM_CONTROL_TLS=on`, `CAMSIM_WEB_UI=true`.
-- **Control API and web UI:** `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in the cluster (port-forward). For cam2 it port-forwards
-  control port. It copies the token to the clipboard and opens the web UI once
-  there is one (Plan 3); until then it shows cam2's state. The API is then at
-  `https://127.0.0.1:9443/sim/api/…` with the bearer token from `.env`.
+- **Control API and web UI:** on the LAN at https://cam2.skylar.technology/
+  (sign in with `CAMSIM_CONTROL_TOKEN`). From elsewhere,
+  `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in
+  the cluster, where it port-forwards the control port to
+  `https://127.0.0.1:9443/`. It copies the token to the clipboard and opens
+  the web UI.
 - **Deploys:** a release (merge to `production`) builds the image, pins it by
   digest in kube-setup's manifest, applies it through the in-cluster runner
   (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
-  then tags the release.
+  then tags the release. Releases deploy automatically.
 
 ## Secrets
 
@@ -705,11 +756,15 @@ see `.env.example`. `scripts/sync-secrets.sh`:
 
 - fills empty values and placeholders;
 - sets the GitHub Actions secrets `CAMSIM_CONTROL_TOKEN`, `CAMSIM_USERS` and
-  `GITHUB_KUBE_SETUP_PAT`;
-- applies the Kubernetes Secret `cam-sim-secrets`, with the `CAMSIM_*` values
-  only.
+  `KUBE_SETUP_DEPLOY_TOKEN` (from `GITHUB_KUBE_SETUP_PAT`; GitHub refuses
+  `GITHUB_*` names);
+- applies the Kubernetes Secrets `cam-sim-secrets` (the `CAMSIM_*` values)
+  and `cam2-camera-credentials` (the admin user, for `cam2-cert-push`).
 
-It prints key names only, and `--dry-run` shows what it would do.
+It prints key names only, and `--dry-run` shows what it would do. Options:
+`--only github|kube`, `--rotate KEY` or `--rotate CAMSIM_USERS:<user>` (a new
+password for one camera user), `--gh-login` (use your gh login instead of
+`CAMSIM_GITHUB_PAT`), `--env-file PATH`.
 `REOLINK_PASSWORD` and `CAMSIM_GITHUB_PAT` are never synced.
 
 ## Development
@@ -722,13 +777,17 @@ scripts/container-smoke.sh
 ```
 
 CI runs:
-- the tests;
-- CodeQL;
+- the type checks and the tests;
+- the Playwright e2e suite of the web UI;
+- `npm audit` (blocking for production dependencies) and a check that no
+  media file is committed;
+- CodeQL, with the accepted exceptions in `.github/codeql-accepted.tsv`;
 - the container smoke test;
 - **cams' own unit and e2e suites against the cam-sim build**
   (`.github/workflows/cams-compat.yml`).
 
-No media file of any kind is committed or published; the test patterns are
-generated.
+No camera footage is committed or published; the test patterns are
+generated. The screenshots in `docs/screenshots/` are the exception, and show
+a library video.
 
 MIT licence.
