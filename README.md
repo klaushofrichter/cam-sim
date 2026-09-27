@@ -135,6 +135,11 @@ download stay the same.
 Library videos are yours: the folder is mounted, never built into the image
 or committed.
 
+**Capturing from the real camera:** `scripts/capture-clip.py <name> <seconds>`
+records main and sub over RTSP (no re-encode) into `library/<name>/`, with the
+camera's OSD switched off for the capture and restored afterwards.
+`--check` only signs in and reads the OSD. It uses `~/Development/reolink/.env`.
+
 ## Simulated camera API
 
 This is the Reolink HTTP API as the real RLC-1224A answers it. The authority
