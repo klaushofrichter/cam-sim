@@ -13,9 +13,9 @@ Reads REOLINK_IP and REOLINK_PASSWORD from ~/Development/reolink/.env
 (CAMERA_USER, default admin). Never prints them. The camera certificate is
 issued for its DNS name, so TLS is verified against cam1.skylar.technology
 while connecting to the IP. Note: ffmpeg takes the RTSP credentials in its
-URL, so they are visible in this Mac's process list while it runs.
+URL, so they are visible in this Mac's process list while it runs; its error output is shown with them masked.
 """
-import http.client, json, os, re, socket, ssl, subprocess, sys
+import http.client, json, os, re, signal, socket, ssl, subprocess, sys
 from pathlib import Path
 from urllib.parse import quote
 
@@ -75,6 +75,11 @@ class Camera:
                 self.token = None
 
 
+def _interrupt(*_):
+    # SIGTERM restores the OSD like Ctrl-C does.
+    raise KeyboardInterrupt
+
+
 def check():
     env = load_env()
     cam = Camera(env["REOLINK_IP"], os.environ.get("CAMERA_USER", "admin"), env["REOLINK_PASSWORD"])
@@ -91,6 +96,7 @@ def main():
         return check()
     if len(sys.argv) != 3 or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", sys.argv[1]) or not sys.argv[2].isdigit():
         sys.exit("usage: capture-clip.py <name: lowercase, digits, dashes> <seconds>")
+    signal.signal(signal.SIGTERM, _interrupt)
     name, seconds = sys.argv[1], int(sys.argv[2])
     if not 5 <= seconds <= 120:
         sys.exit("seconds must be 5 to 120")
@@ -98,6 +104,8 @@ def main():
     host, password = env["REOLINK_IP"], env["REOLINK_PASSWORD"]
     user = os.environ.get("CAMERA_USER", "admin")
     out = OUT / name
+    if out.exists() and any(out.iterdir()):
+        sys.exit(f"library/{name}/ already exists; choose another name or remove it")
     out.mkdir(parents=True, exist_ok=True)
 
     cam = Camera(host, user, password)
@@ -115,18 +123,27 @@ def main():
         procs = [
             subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-i", f"{base}/{path}",
                               "-t", str(seconds), "-c", "copy", *tag, "-movflags", "+faststart", str(out / f"{stream}.mp4")],
-                             stdin=subprocess.DEVNULL)
+                             stdin=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             for stream, path, tag in (("main", "h264Preview_01_main", ["-tag:v", "hvc1"]), ("sub", "h264Preview_01_sub", []))
         ]
-        codes = [p.wait() for p in procs]
+        errors = [p.communicate()[1] for p in procs]
+        secrets = {password, quote(password, safe="")}
+        for err in errors:
+            for line in err.splitlines():
+                for secret in secrets:
+                    line = line.replace(secret, "***")
+                print(f"ffmpeg: {line}", file=sys.stderr)
+        codes = [p.returncode for p in procs]
         if any(codes):
             sys.exit(f"ffmpeg failed ({codes}); library/{name}/ may be incomplete")
         print(f"done: library/{name}/main.mp4 and sub.mp4 — review before publishing")
     finally:
-        if saved is not None:
-            cam.api("SetOsd", {"Osd": saved})
-            print("OSD restored")
-        cam.logout()
+        try:
+            if saved is not None:
+                cam.api("SetOsd", {"Osd": saved})
+                print("OSD restored")
+        finally:
+            cam.logout()
 
 
 if __name__ == "__main__":

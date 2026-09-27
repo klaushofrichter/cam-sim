@@ -143,7 +143,14 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
   const pump = () => {
     const due = Date.now() - began;
     if (e.media !== src.media) {
-      src = load(e.media, false);
+      try {
+        src = load(e.media, false);
+      } catch (err) {
+        // The new video's files are unreadable: end this stream, not the process.
+        e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
+        res.destroy();
+        return;
+      }
       base = due;
       pass = 0;
       next = 0;

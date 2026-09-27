@@ -107,6 +107,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_LIBRARY_DIR` | — | a folder of videos to offer besides the test pattern (see [Video library](#video-library)) |
 | `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
 | `CAMSIM_MAIN_SIZE` | `4512x2512` | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
+| `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
 `CAMSIM_MEDIA=video` from the first design is refused; use the library.
@@ -115,7 +116,8 @@ pointing at a mounted file wins over the plain variable.
 
 `CAMSIM_LIBRARY_DIR` holds the videos the camera can show besides the test
 pattern. Each entry's id is its name in lowercase with dashes (`Garden
-Walk.mp4` → `garden-walk`):
+Walk.mp4` → `garden-walk`); long names are shortened with a hash, and a name
+that collides (also with `test-pattern`) gets `-2`, `-3`, …:
 
 - **Any video file** (`.mp4`, `.mov`, `.mkv`, `.m4v`, `.avi`, `.webm`) is
   converted to the camera's formats: main H.265 at `CAMSIM_MAIN_SIZE`, 20 fps;
@@ -125,8 +127,11 @@ Walk.mp4` → `garden-walk`):
   camera (H.265 main, H.264 sub). It is copied, not re-encoded.
 
 After start the videos are prepared one at a time in the background, then
-cached in `<CAMSIM_DATA_DIR>/library` (or the temp folder) until the source
-file changes. `GET /sim/api/videos` shows each one's state. Selecting a video
+cached in `<CAMSIM_DATA_DIR>/library` (or the temp folder), one folder per
+source version and settings, so instances can share it. Sources are cut to
+`CAMSIM_MAX_VIDEO_S`. After a restart cached videos are ready at once, and a
+removed source's cached copy still serves its recordings. A source changed
+while the simulator runs is picked up at the next start. `GET /sim/api/videos` shows each one's state. Selecting a video
 (`CAMSIM_VIDEO`, `PUT /sim/api/video`, or the web UI's Simulator page) switches
 live FLV at once, RTSP within a second (readers reconnect), snapshots, and new
 recordings. A recording keeps the video it was made from, so its size and

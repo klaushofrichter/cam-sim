@@ -40,6 +40,7 @@ export class Engine {
   videoId = 'test-pattern';
   library?: Library; // set by the Library itself
   private readonly mediaById = new Map<string, MediaSource>();
+  private readonly missingVideos = new Set<string>();
   readonly bus = new EventEmitter();
   readonly faults = new Faults();
   readonly counters = new Counters();
@@ -107,6 +108,7 @@ export class Engine {
 
   // Switches what the camera shows (live, snapshots, RTSP, recordings).
   setMedia(media: MediaSource, id: string): void {
+    if (this.media !== media) this.media.release?.();
     this.media = media;
     this.videoId = id;
     this.registerMedia(id, media);
@@ -120,7 +122,15 @@ export class Engine {
   }
 
   mediaFor(rec: { video?: string }): MediaSource {
-    return this.mediaById.get(rec.video ?? 'test-pattern') ?? this.media;
+    const id = rec.video ?? 'test-pattern';
+    const m = this.mediaById.get(id);
+    if (m) return m;
+    // Its video is gone (no cached copy left): the current one stands in.
+    if (!this.missingVideos.has(id)) {
+      this.missingVideos.add(id);
+      this.log.warn({ video: id }, 'recording_video_missing');
+    }
+    return this.media;
   }
 
   offline(): boolean {

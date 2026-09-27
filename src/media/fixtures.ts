@@ -215,4 +215,8 @@ export class FixtureMedia implements MediaSource {
   clipSize(stream: Stream): number {
     return statSync(this.clipPath(stream)).size;
   }
+
+  release(): void {
+    this.flv.clear();
+  }
 }

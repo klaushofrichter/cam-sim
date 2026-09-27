@@ -10,4 +10,6 @@ export interface MediaSource {
   durationMs(stream: Stream): number;
   clipPath(stream: Stream): string;
   clipSize(stream: Stream): number;
+  // Drops parsed data kept for live streams (the video is no longer shown).
+  release?(): void;
 }

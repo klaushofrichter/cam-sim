@@ -45,6 +45,7 @@ export interface CamSimOptions {
   libraryDir?: string; // videos to offer besides the test pattern
   video?: string; // selected once it is ready
   mainSize?: string;
+  maxVideoS?: number;
   logLevel?: string;
   log?: pino.Logger;
 }
@@ -87,6 +88,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554 },
     logLevel: o.logLevel ?? 'silent',
     mainSize: o.mainSize ?? '4512x2512',
+    maxVideoS: o.maxVideoS ?? 60,
     libraryDir: o.libraryDir,
     video: o.video,
   };

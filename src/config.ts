@@ -34,6 +34,8 @@ export interface CamSimConfig {
   logLevel: string;
   // Main-stream size of converted library videos (the camera's 4512x2512).
   mainSize: string;
+  // Library sources are cut to this many seconds (a loop, not a movie).
+  maxVideoS: number;
   // The video library's source folder, and the video selected at start.
   libraryDir?: string;
   video?: string;
@@ -43,6 +45,13 @@ export interface CamSimConfig {
 
 // Messages name the variable, never its value (values may be secrets).
 export class ConfigError extends Error {}
+
+function maxVideoS(v: string | undefined): number {
+  if (!v) return 60;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1 || n > 600) throw new ConfigError('CAMSIM_MAX_VIDEO_S must be a whole number of seconds from 1 to 600');
+  return n;
+}
 
 function mainSize(v: string | undefined): string {
   if (!v) return '4512x2512';
@@ -166,6 +175,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
     mainSize: mainSize(env.CAMSIM_MAIN_SIZE),
+    maxVideoS: maxVideoS(env.CAMSIM_MAX_VIDEO_S),
     libraryDir: env.CAMSIM_LIBRARY_DIR || undefined,
     video: env.CAMSIM_VIDEO || undefined,
   };
