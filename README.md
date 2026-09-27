@@ -389,7 +389,7 @@ development.
   transport.
 - **Refused:** while `rtspEnable` is 0, while the camera is offline or powered
   off, or under the `rtsp.refuse` or `rtsp.reset` fault. Connected readers are
-  cut when any of these starts, and on reboot.
+  cut when any of these starts except `rtsp.refuse`, and on reboot.
 - **Port:** `CAMSIM_RTSP_PORT`; 0 picks a free port (in process), reported by
   `listen()`. MediaMTX needs a writable temporary folder.
 - **Picture:** the selected video's clips, looped and copied, not re-encoded.
@@ -611,7 +611,7 @@ matching requests.
 | `snap.fail` | | Snap answers 500 |
 | `ftp.fail` | `count` optional | FTP uploads and `TestFtp` fail (`-454`) |
 | `ftp.delayMs` | `ms` | wait before each FTP upload |
-| `rtsp.refuse` | | RTSP cuts connected readers and refuses new ones |
+| `rtsp.refuse` | | RTSP refuses new readers; connected ones keep watching |
 | `rtsp.reset` | | RTSP cuts connected readers and refuses new ones |
 
 ```sh

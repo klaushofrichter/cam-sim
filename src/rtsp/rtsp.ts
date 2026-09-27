@@ -38,7 +38,8 @@ class Stopped extends Error {}
 // RTSP like the camera: MediaMTX serves the two paths, ffmpeg publishes the
 // stream copies into them, and MediaMTX asks us (HTTP auth) whether a reader
 // may watch: a camera user, RTSP switched on, the camera on and online, and
-// no rtsp.refuse/rtsp.reset fault. TCP only, so MediaMTX needs no UDP ports.
+// no rtsp.refuse/rtsp.reset fault. rtsp.refuse only turns new readers away;
+// the others also cut connected ones. TCP only, so MediaMTX needs no UDP ports.
 export class RtspService {
   private mtx?: ChildProcess;
   private mtxExited = false;
@@ -62,7 +63,7 @@ export class RtspService {
   };
   private readonly onChange = () => {
     const e = this.engine;
-    if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) this.dropReaders();
+    if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.reset')) this.dropReaders();
   };
 
   constructor(private readonly engine: Engine, private readonly opts: { port: number; host?: string; mediamtx: string | undefined }) {}
