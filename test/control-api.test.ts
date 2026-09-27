@@ -49,6 +49,7 @@ describe('control API: state, events, recordings', () => {
     expect(s.serial).toMatch(/^SIM/);
     expect(s.sd).toMatchObject({ capacityMb: 4096, recordings: 0 });
     expect(s.settings.Isp.dayNight).toBe('Auto');
+    expect(s.tz).toBe('America/Chicago');
   });
 
   it('triggers an event that Search then finds', async () => {

@@ -15,11 +15,12 @@ Each simulator has two faces:
   controls events, faults, power and state. Nothing on the camera ports can
   reach it.
 
-One container is one camera. It runs headless; there is no web UI yet.
+One container is one camera. It runs headless by default; an optional
+[web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** Plan 1, the headless core, is released, and `cam2` runs in the
-cluster (Plan 4, see [below](#cam2-in-the-cluster)). Real video (Plan 2), a web
-UI (Plan 3), RTSP and ONVIF events (Plan 5) and FTP upload (Plan 6) follow; see the
+**Status:** the headless core (Plan 1), the web UI (Plan 3) and `cam2` in the
+cluster (Plan 4, see [below](#cam2-in-the-cluster)) are released. Real video
+(Plan 2), RTSP and ONVIF events (Plan 5) and FTP upload (Plan 6) follow; see the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md). Until
 Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
 
@@ -29,6 +30,7 @@ Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
 - [Configuration](#configuration)
 - [Simulated camera API](#simulated-camera-api)
 - [Control API](#control-api)
+- [Web UI](#web-ui)
 - [cam2 in the cluster](#cam2-in-the-cluster)
 - [Secrets](#secrets)
 - [Development](#development)
@@ -94,12 +96,12 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_HTTPS_PORT` | `8443` | camera HTTPS |
 | `CAMSIM_HTTP_PORT` | `8080` | camera HTTP |
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
+| `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
-`CAMSIM_MEDIA=video` (Plan 2) and `CAMSIM_WEB_UI=true` (Plan 3) are refused
-until they exist.
+`CAMSIM_MEDIA=video` (Plan 2) is refused until it exists.
 
 ## Simulated camera API
 
@@ -479,6 +481,55 @@ ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
 | `state.dropDownloads()` | `downloads.dropActive` |
 | partial writes visible at once | `settings.strictPartial` |
 
+## Web UI
+
+With `CAMSIM_WEB_UI=true` the control port serves a web UI at `/`. Sign in by
+pasting the control token once; it's exchanged for a session cookie
+(HttpOnly, SameSite=Strict, 12 hours) and not stored in the browser. Signing
+out, or a simulator restart, ends the session.
+
+The UI has four pages:
+
+- **Live:** the sub stream (H.264) or the main stream (H.265 in the camera's
+  codec id 12 FLV), a snapshot, and buttons to trigger motion, person,
+  vehicle or pet events.
+- **Playback:** a month calendar with the days that have recordings, each
+  day's recordings with their triggers, playback of the sub or main copy, and
+  downloads.
+- **Settings:** recording and schedules, detection sensitivities, image and
+  lights, on-screen text, network services, device, storage, certificate and
+  users. Each card writes whole objects through the camera's own validation,
+  so a rejected value shows the camera's error code.
+- **Simulator:**
+  - power off, power on and reboot;
+  - events;
+  - every fault, with its parameters;
+  - actions and reset;
+  - counters;
+  - a live log of camera requests and events.
+
+Looking at the UI is not a camera client: it creates no camera sessions and
+changes no counters. A settings save in the UI writes the whole object, so the
+saved and running values become equal. That also clears any reset a partial
+camera-API write left waiting for the next reboot.
+
+Each camera's session cookie carries its name (`camsim_session_<name>`), so
+several simulators on one host stay signed in side by side. Login attempts are
+limited to 20 per 15 minutes per address, and the UI refuses to be shown
+inside another page's frame.
+
+To open it:
+
+- **Local Docker:** `docker compose up` turns it on; open
+  `http://127.0.0.1:9442/` for cam2.
+- **Any simulator:** `scripts/cam-ui.sh [camera]` finds the camera in local
+  Docker or the cluster, copies the token to the clipboard, and opens the
+  browser.
+
+The UI is built with Svelte 5 and Vite (`web/`, `npm run dev:web` against a
+simulator on port 9443). It's tested by the Playwright specs in `e2e/`, which
+run in Chrome.
+
 ## cam2 in the cluster
 
 `cam2.skylar.technology` is a permanent simulator in the k3s cluster: namespace
@@ -493,7 +544,7 @@ manifests.
 - **Settings:**
   - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
   - background motion, person, vehicle and pet events;
-  - `CAMSIM_CONTROL_TLS=on`.
+  - `CAMSIM_CONTROL_TLS=on`, `CAMSIM_WEB_UI=true`.
 - **Control API and web UI:** `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in the cluster (port-forward). For cam2 it port-forwards
   control port. It copies the token to the clipboard and opens the web UI once
   there is one (Plan 3); until then it shows cam2's state. The API is then at

@@ -8,6 +8,7 @@ x-sim: &sim
     CAMSIM_USERS: ${CAMSIM_USERS:?set CAMSIM_USERS in .env}
     CAMSIM_CONTROL_TOKEN: ${CAMSIM_CONTROL_TOKEN:?set CAMSIM_CONTROL_TOKEN in .env}
     CAMSIM_SEED_CLIPS: demo
+    CAMSIM_WEB_UI: "true"
     CAMSIM_AUTO_EVENTS: motion:6/h,person:2/h,vehicle:1/h
 
 services:

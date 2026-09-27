@@ -84,13 +84,18 @@ describe('loadConfig', () => {
 
   it('refuses features that arrive in later plans', () => {
     expect(() => loadConfig({ ...base, CAMSIM_MEDIA: 'video' })).toThrow(/CAMSIM_MEDIA=video/);
-    expect(() => loadConfig({ ...base, CAMSIM_WEB_UI: 'true' })).toThrow(/CAMSIM_WEB_UI/);
+
   });
 
   it('parses CAMSIM_CONTROL_TLS', () => {
     expect(loadConfig(base).controlTls).toBe('auto');
     expect(loadConfig({ ...base, CAMSIM_CONTROL_TLS: 'on' }).controlTls).toBe('on');
     expect(() => loadConfig({ ...base, CAMSIM_CONTROL_TLS: 'yes' })).toThrow(/CAMSIM_CONTROL_TLS/);
+  });
+
+  it('turns the web UI on with CAMSIM_WEB_UI=true', () => {
+    expect(loadConfig({ ...base, CAMSIM_WEB_UI: 'true' }).webUi).toBe(true);
+    expect(loadConfig(base).webUi).toBe(false);
   });
 
   it('uses CAMSIM_SEED when set', () => {

@@ -17,7 +17,7 @@ fail() { echo "smoke: FAIL: $*" >&2; docker logs "$NAME" 2>&1 | tail -20 >&2 || 
 
 [ "${SKIP_BUILD:-}" = 1 ] || docker build -q -t "$IMAGE" . >/dev/null
 docker run -d --name "$NAME" \
-  -e CAMSIM_USERS="smoke:admin:$PW" -e CAMSIM_CONTROL_TOKEN="$TOKEN" \
+  -e CAMSIM_USERS="smoke:admin:$PW" -e CAMSIM_CONTROL_TOKEN="$TOKEN" -e CAMSIM_WEB_UI=true \
   -p "127.0.0.1:$HTTPS:8443" -p "127.0.0.1:$CONTROL:9443" "$IMAGE" >/dev/null
 
 for _ in $(seq 1 60); do
@@ -45,5 +45,7 @@ NAME_=$(cam Search "{\"Search\":{\"channel\":0,\"onlyStatus\":0,\"streamType\":\
 
 curl -sk "https://127.0.0.1:$HTTPS/cgi-bin/api.cgi?cmd=Download&source=$NAME_&output=x.mp4&token=$T" -o "$WORK/clip.mp4"
 [ "$(dd if="$WORK/clip.mp4" bs=1 skip=4 count=8 2>/dev/null)" = ftypmp42 ] || fail "Download"
+
+curl -s "http://127.0.0.1:$CONTROL/" | grep -q '<div id="app">' || fail "web UI not served"
 
 echo "smoke: OK"

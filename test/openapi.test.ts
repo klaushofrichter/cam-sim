@@ -24,7 +24,8 @@ function registered(app: any): string[] {
       if (layer.route) {
         for (const m of Object.keys(layer.route.methods)) out.push(`${m.toUpperCase()} ${prefix}${layer.route.path.replace(/:(\w+)/g, '{$1}')}`);
       } else if (layer.handle?.stack) {
-        walk(layer.handle.stack, prefix + '/sim/api');
+        // Two mounted routers: the session routes at /sim, the API at /sim/api.
+        walk(layer.handle.stack, prefix + (layer.match('/sim/login') ? '/sim' : '/sim/api'));
       }
     }
   };

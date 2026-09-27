@@ -1,0 +1,20 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetOnline",
+   "code": 0,
+   "value": {
+    "User": [
+     {
+      "canbeDisconn": 0,
+      "ip": "192.0.2.10",
+      "level": "admin",
+      "sessionId": 10,
+      "userName": "admin"
+     }
+    ]
+   }
+  }
+ ]
+}

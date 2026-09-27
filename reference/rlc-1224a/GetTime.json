@@ -1,0 +1,39 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetTime",
+   "code": 0,
+   "value": {
+    "Dst": {
+     "enable": 1,
+     "endHour": 2,
+     "endMin": 0,
+     "endMon": 11,
+     "endSec": 0,
+     "endWeek": 1,
+     "endWeekday": 0,
+     "offset": 1,
+     "startHour": 2,
+     "startMin": 0,
+     "startMon": 3,
+     "startSec": 0,
+     "startWeek": 2,
+     "startWeekday": 0
+    },
+    "Time": {
+     "day": 26,
+     "hour": 16,
+     "hourFmt": 1,
+     "isDst": 1,
+     "min": 45,
+     "mon": 9,
+     "sec": 27,
+     "timeFmt": "MM/DD/YYYY",
+     "timeZone": 21600,
+     "year": 2026
+    }
+   }
+  }
+ ]
+}

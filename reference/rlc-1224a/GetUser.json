@@ -1,0 +1,24 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetUser",
+   "code": 0,
+   "value": {
+    "CurUser": {
+     "User": "admin"
+    },
+    "User": [
+     {
+      "level": "admin",
+      "userName": "admin"
+     },
+     {
+      "level": "admin",
+      "userName": "admin"
+     }
+    ]
+   }
+  }
+ ]
+}
