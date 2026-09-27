@@ -74,7 +74,9 @@ describe('sync-secrets.sh', () => {
     const argv = read('gh.argv');
     expect(argv).toContain('secret set CAMSIM_CONTROL_TOKEN --repo klaushofrichter/cam-sim');
     expect(argv).toContain('secret set CAMSIM_USERS --repo klaushofrichter/cam-sim');
-    expect(argv).toContain('secret set GITHUB_KUBE_SETUP_PAT --repo klaushofrichter/cam-sim');
+    // GitHub refuses names starting with GITHUB_; cams' workflows read KUBE_SETUP_DEPLOY_TOKEN.
+    expect(argv).toContain('secret set KUBE_SETUP_DEPLOY_TOKEN --repo klaushofrichter/cam-sim');
+    expect(argv).not.toContain('GITHUB_KUBE_SETUP_PAT');
     expect(argv).not.toContain('REOLINK_PASSWORD');
     expect(argv).not.toContain('CAMSIM_GITHUB_PAT');
     expect(read('gh.stdin')).toContain(envValue('CAMSIM_CONTROL_TOKEN'));
@@ -93,6 +95,23 @@ describe('sync-secrets.sh', () => {
     expect(file).toContain('CAMSIM_USERS=');
     expect(file).not.toContain('REOLINK_PASSWORD');
     expect(file).not.toContain('PAT');
+  });
+
+  it('--gh-login ignores CAMSIM_GITHUB_PAT', () => {
+    write(BASE);
+    expect(run('--only', 'github', '--gh-login').status).toBe(0);
+    expect(read('gh.argv')).toContain('secret set CAMSIM_CONTROL_TOKEN');
+    expect(read('gh.env')).not.toContain('ghp_camsim');
+  });
+
+  it('creates the camera-credentials Secret for the certificate push job', () => {
+    write(BASE + 'CAMSIM_USERS=admin:admin:aaaaaaaaaaaaaaaaaaaaaaaa;cams:admin:bbbbbbbbbbbbbbbbbbbbbbbb\n');
+    const r = run('--only', 'kube');
+    expect(r.status).toBe(0);
+    expect(read('kubectl.argv')).toMatch(/create secret generic cam2-camera-credentials/);
+    expect(read('kubectl.files')).toContain('username=admin\npassword=aaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(r.stdout + r.stderr).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(read('kubectl.argv')).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaa');
   });
 
   it('requires KUBE_CONTEXT for the Kubernetes part', () => {

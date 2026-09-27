@@ -616,7 +616,7 @@ Each phase ends with a release and something usable.
    (codec id 12), Snap from video, pre-record ring, real recordings, seeding
    from video, `CAMSIM_SPEED=real`.
 3. **Web UI.**
-4. **cam2 in the cluster:** image deployment (with kube-setup), certificate
+4. **cam2 in the cluster** (running since 2026-09-26): image deployment (with kube-setup), certificate
    push, cams configured with cam2 as a second camera.
 5. **Gateway streaming and events:** RTSP via MediaMTX, ONVIF PullPoint events.
 6. **FTP/FTPS upload.**
