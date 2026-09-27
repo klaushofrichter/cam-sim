@@ -78,7 +78,7 @@ await sim.close();
 ```
 
 Install it from a release tarball, for example
-`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.2/cam-sim-v2026.09.27.2.tgz"`.
+`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.3/cam-sim-v2026.09.27.3.tgz"`.
 In a vitest `globalSetup`, call `ensureFixtures(defaultFixtureDir(), logger)` so
 the test patterns are built once, not in every worker.
 
@@ -762,7 +762,7 @@ manifests.
   digest in kube-setup's manifest, applies it through the in-cluster runner
   (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
   then tags the release. Releases deploy automatically. cams and cam-proxy
-  each pin a release tarball as a devDependency (now v2026.09.27.2) and need
+  each pin a release tarball as a devDependency (now v2026.09.27.3) and need
   a bump PR after a release; `cams-compat` CI (below) covers cams only, not
   cam-proxy.
 
