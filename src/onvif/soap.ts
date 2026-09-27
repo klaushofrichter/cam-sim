@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'crypto';
+import { safeEqual } from '../util/safe-equal';
 import type { User } from '../config';
 
 // Namespaces as the RLC-1224A declares them on its ONVIF envelopes (the ones
@@ -72,7 +73,5 @@ export function authenticate(xml: string, users: User[], now = Date.now()): User
     const got = Buffer.from(pw[2], 'base64');
     return got.length === want.length && timingSafeEqual(got, want) ? user : undefined;
   }
-  const a = createHash('sha256').update(pw[2]).digest();
-  const b = createHash('sha256').update(user.password).digest();
-  return timingSafeEqual(a, b) ? user : undefined;
+  return safeEqual(pw[2], user.password) ? user : undefined;
 }
