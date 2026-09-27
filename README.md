@@ -257,7 +257,7 @@ post Logout
 | | `GetNetPort` / `SetNetPort` | `{}` / `{NetPort:{…}}` | ports and `*Enable` flags |
 | | `GetAbility` | `{User:{userName}}` | the camera's capability flags |
 | | `Reboot` | `{}` | `{rspCode:200}`, **or the connection drops first** (half the time, seeded) |
-| Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec`, `preRec`, `saveDay`, `schedule.table` (168 characters per trigger type) |
+| Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec`, `preRec` (1: recordings start 4 s before the event), `saveDay`, `schedule.table` (168 characters per trigger type) |
 | | `Search` | see [Search](#recordings-search) | `{SearchResult:{…}}` |
 | | `CheckDownload` | `{filename}` | `{downloadTask:0\|1}`; `-4` for an unknown name |
 | Detection | `GetMdAlarm` / `SetMdAlarm` | `{channel:0}` / `{MdAlarm:{…}}` | `newSens.sensDef` 1–50, **lower is more sensitive** |
@@ -269,7 +269,7 @@ post Logout
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
 | | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | positions `Upper Left` … `Lower Right`; name ≤ 31 bytes |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
-| | `TestFtp` | `{Ftp:{<the whole object>}}` | connects and logs in, saves nothing: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
+| | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |
 | | `CertificateClear` | `{}` | back to the factory certificate; sessions end; offline ~10 s (real speed) |
 | | `ImportCertificate` | `{importCertificate:{crt:{size,name,content},key:{…}}}` | `content` is base64 PEM. **Importing over an installed certificate answers 200 and changes nothing**, as on the camera; clear first. A key that doesn't match answers `-4` |
@@ -442,7 +442,20 @@ the FTP schedule allows is uploaded:
 - The main-stream clip by default; `streamType: 1` sends the sub clip.
 - FTPS (explicit TLS, certificate not verified) when `onlyFtps` is 1, the
   camera's default; plain FTP when 0.
-- One upload at a time. A failure is logged and counted (`ftpFailures`), not
+- **The session follows the real camera's, measured against
+  [cam-proxy](https://github.com/klaushofrichter/cam-proxy)'s server on
+  2026-09-27:**
+  - `AUTH TLS`, `USER`/`PASS`, `PWD`;
+  - `CWD` into each folder, and `MKD` then `CWD` when it doesn't exist yet;
+  - `TYPE I`, `MODE S`, `PBSZ 0`/`PROT P` with TLS;
+  - `PASV` only (never EPSV), then `STOR`.
+
+  The JPEG goes in a **second, parallel session** while the clip is still
+  uploading.
+- **Pre-record:** with `Rec.preRec` 1 (the default), a triggered recording,
+  and so its file name, starts 4 s before the event, never before the previous
+  recording ended.
+- One recording at a time. A failure is logged and counted (`ftpFailures`), not
   retried. At most 20 wait; more are dropped and counted (`ftpDropped`).
 - Each upload is reported on the SSE feed as an `ftp` event
   (`{file, ok, error?}`).

@@ -6,6 +6,8 @@ import type { SettingsStore } from './settings';
 import type { Trigger } from './types';
 
 // "15 Seconds", "1 Minute", "2 Minutes" → seconds.
+const PRE_REC_MS = 4_000;
+
 export function postRecSeconds(v: unknown): number {
   const m = /^(\d+)\s*(Second|Minute)/i.exec(String(v));
   if (!m) return 15;
@@ -65,8 +67,13 @@ export class Events extends EventEmitter {
         if (endsAt > this.current.endsAt) this.scheduleEnd(this.current.id, this.current.startMs, endsAt);
         recording = this.o.sd.byId(this.current.id) ?? null;
       } else {
-        recording = this.o.sd.add({ date: p.date, start: p.hms, triggers: scheduled, dst: isDstOn(this.o.tz, p.date) });
-        this.scheduleEnd(recording.id, now.getTime(), endsAt);
+        // Pre-record (Rec.preRec 1, the firmware's default): the recording,
+        // and its file name, start a few seconds before the event (4 s
+        // measured, cam-sim#25), never before the previous one ended.
+        const startMs = rec.preRec === 1 ? Math.max(now.getTime() - PRE_REC_MS, this.lastEndMs) : now.getTime();
+        const s = localParts(this.o.clock, this.o.tz, new Date(startMs));
+        recording = this.o.sd.add({ date: s.date, start: s.hms, triggers: scheduled, dst: isDstOn(this.o.tz, s.date) });
+        this.scheduleEnd(recording.id, startMs, endsAt);
       }
     }
     const ev: SimEvent = { at: now.toISOString(), type, durationS, recordingId: recording?.id ?? null };
@@ -75,6 +82,8 @@ export class Events extends EventEmitter {
     this.emit('event', ev);
     return { recording };
   }
+
+  private lastEndMs = 0;
 
   private scheduleEnd(id: string, startMs: number, endsAt: number): void {
     if (this.current) clearTimeout(this.current.timer);
@@ -86,6 +95,7 @@ export class Events extends EventEmitter {
         this.o.sd.retention(Number(this.o.settings.running.Rec.saveDay) || 7);
         this.emit('recording', this.o.sd.byId(id));
       }
+      this.lastEndMs = endsAt;
       this.current = null;
     }, Math.max(0, endsAt - this.o.clock.now().getTime()));
     this.current = { id, startMs, endsAt, timer };

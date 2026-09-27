@@ -34,12 +34,12 @@ describe('Events', () => {
     const { recording } = events.trigger('motion', 5);
     expect(recording).not.toBeNull();
     expect(events.mdState()).toEqual({ state: 1 });
-    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('RecS0A_DST20260926_065221_000000_0_55148080000000_');
+    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('RecS0A_DST20260926_065217_000000_0_55148080000000_'); // pre-record: 4 s before the event
     vi.advanceTimersByTime(5_000);
     expect(events.mdState()).toEqual({ state: 0 });
     vi.advanceTimersByTime(15_000);
-    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065221_065241_');
-    expect(sd.search('main', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065221_065243_');
+    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065217_065241_');
+    expect(sd.search('main', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065217_065243_');
   });
 
   it('AI events also set motion, and show in GetAiState', () => {
@@ -98,7 +98,7 @@ describe('Events', () => {
     vi.advanceTimersByTime(30_000);
     const [r] = sd.all();
     expect(r.date).toBe('2026-09-26');
-    expect(r.files.sub.name).toContain('RecS0A_DST20260926_235950_000010_');
+    expect(r.files.sub.name).toContain('RecS0A_DST20260926_235946_000010_');
   });
 
   it('has no DST marker on the fall-back day', () => {
