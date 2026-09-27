@@ -58,7 +58,7 @@ paths:
           application/json:
             schema: { type: object, required: [token], properties: { token: { type: string } } }
       responses:
-        '204': { description: 'logged in; Set-Cookie camsim_session (HttpOnly, SameSite=Strict, 12 h)' }
+        '204': { description: 'logged in; Set-Cookie camsim_session_<name> (name lowercased, non-alphanumerics removed; HttpOnly, SameSite=Strict, 12 h)' }
         '401': { description: wrong token }
   /sim/logout:
     post:
@@ -209,7 +209,7 @@ paths:
         '202': { description: reboot or power-on started }
         '204': { description: done }
         '400': { description: unknown action or bad parameter }
-        '409': { description: 'not possible in this power state (powered_off, already_off, already_on)' }
+        '409': { description: 'not possible in this power state (powered_off, already_off, already_on, or busy: power-off while booting, factory-reset while rebooting)' }
   /sim/api/reset:
     post:
       summary: Back to a known state; an empty body resets everything
@@ -294,6 +294,6 @@ paths:
         '200': { description: requests }
   /sim/api/stream:
     get:
-      summary: Server-Sent Events (state, event, request, fault)
+      summary: Server-Sent Events (state, event, request, fault, ftp, video; the certificate arrives as a state event)
       responses:
         '200': { description: text/event-stream }
