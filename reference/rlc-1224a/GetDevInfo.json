@@ -1,0 +1,33 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetDevInfo",
+   "code": 0,
+   "value": {
+    "DevInfo": {
+     "B485": 0,
+     "IOInputNum": 0,
+     "IOOutputNum": 0,
+     "audioNum": 1,
+     "buildDay": "build 2607012059",
+     "cfgVer": "v3.2.0.0",
+     "channelNum": 1,
+     "detail": "IPC_NT18NA612MPS18T2C0E1W011000",
+     "diskNum": 1,
+     "exactType": "IPC",
+     "firmVer": "v3.2.0.6011_2607012059",
+     "frameworkVer": 1,
+     "hardVer": "IPC_NT18NA612MP",
+     "itemNo": "",
+     "model": "RLC-1224A",
+     "name": "Cam",
+     "pakSuffix": "pak,paks",
+     "serial": "SIM000000000000",
+     "type": "IPC",
+     "wifi": 0
+    }
+   }
+  }
+ ]
+}

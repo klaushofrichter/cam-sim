@@ -1,0 +1,35 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetEnc",
+   "code": 0,
+   "value": {
+    "Enc": {
+     "audio": 1,
+     "channel": 0,
+     "mainStream": {
+      "bitRate": 8192,
+      "frameRate": 20,
+      "gop": 2,
+      "height": 2512,
+      "profile": "High",
+      "size": "4512*2512",
+      "vType": "h265",
+      "width": 4512
+     },
+     "subStream": {
+      "bitRate": 1024,
+      "frameRate": 10,
+      "gop": 4,
+      "height": 512,
+      "profile": "High",
+      "size": "896*512",
+      "vType": "h264",
+      "width": 896
+     }
+    }
+   }
+  }
+ ]
+}

@@ -103,7 +103,6 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
 
   // Plan 1 is headless and fixture-only; fail loudly rather than ignore.
   if (env.CAMSIM_MEDIA === 'video') throw new ConfigError('CAMSIM_MEDIA=video is not available yet (Plan 2); use fixture');
-  if (env.CAMSIM_WEB_UI === 'true') throw new ConfigError('CAMSIM_WEB_UI is not available yet (Plan 3)');
 
   return {
     name: env.CAMSIM_NAME || 'Cam',

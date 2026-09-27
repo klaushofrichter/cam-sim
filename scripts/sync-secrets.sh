@@ -40,7 +40,8 @@ perms=$(stat -f '%Lp' "$ENV_FILE" 2>/dev/null || stat -c '%a' "$ENV_FILE")
 case "$perms" in *00) ;; *) die "$ENV_FILE is readable by others (mode $perms); run: chmod 600 $ENV_FILE" ;; esac
 
 # Values never go on a command line (ps shows argv): awk reads them from ENVIRON.
-get() { K="$1" awk -F= 'index($0, ENVIRON["K"] "=") == 1 { print substr($0, length(ENVIRON["K"]) + 2); exit }' "$ENV_FILE"; }
+# An inline comment (whitespace, then #) is not part of the value.
+get() { K="$1" awk -F= 'index($0, ENVIRON["K"] "=") == 1 { v = substr($0, length(ENVIRON["K"]) + 2); sub(/[ \t]+#.*$/, "", v); print v; exit }' "$ENV_FILE"; }
 has() { grep -q "^$1=" "$ENV_FILE"; }
 put() {
   local tmp

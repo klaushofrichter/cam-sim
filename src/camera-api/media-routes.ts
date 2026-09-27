@@ -99,8 +99,7 @@ const isConfig = (t: FlvTag) => (t.type === 9 || t.type === 8) && t.bytes[12] ==
 // AVC/HEVC end of sequence: never mid-stream (a live camera doesn't end).
 const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 
-// Endless video/x-flv, paced by tag timestamps; the fixture loops with
-// increasing timestamps (a camera never ends a stream on its own).
+// The camera's /flv endpoint: token, fault and RTMP checks, then the stream.
 export async function flv(engine: Engine, req: Request, res: Response): Promise<void> {
   const e = engine;
   if (!e.sessions.validate(tokenOf(req)) || e.faults.active('flv.reset') || e.settings.running.NetPort.rtmpEnable !== 1) {
@@ -110,14 +109,24 @@ export async function flv(engine: Engine, req: Request, res: Response): Promise<
   if (delay) await sleep(delay);
   if (res.destroyed || res.writableEnded) return;
   const stream = /channel0_main/.test(String(req.query.stream ?? '')) ? 'main' : 'sub';
+  streamFlv(e, res, stream, { count: true });
+}
+
+// Endless video/x-flv, paced by tag timestamps; the fixture loops with
+// increasing timestamps (a camera never ends a stream on its own). `count`
+// is false for the web UI's viewer, which isn't a camera client.
+export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main', opts: { count: boolean }): void {
+  const e = engine;
   const { header, tags: all } = e.media.liveFlv(stream);
   const tags = all.filter((t) => !isEndOfSequence(t));
   const loopMs = e.media.durationMs(stream);
   const loopTags = tags.filter((t) => t.type !== 18 && !isConfig(t));
   const canLoop = loopMs > 0 && loopTags.length > 0;
 
-  e.counters.activeStreams++;
-  e.counters.streamsOpened++;
+  if (opts.count) {
+    e.counters.activeStreams++;
+    e.counters.streamsOpened++;
+  }
   e.activeFlv.add(res);
   const began = Date.now();
   let pass = 0;
@@ -148,7 +157,7 @@ export async function flv(engine: Engine, req: Request, res: Response): Promise<
   const timer = setInterval(pump, 20);
   res.on('close', () => {
     clearInterval(timer);
-    e.counters.activeStreams--;
+    if (opts.count) e.counters.activeStreams--;
     e.activeFlv.delete(res);
   });
   res.status(200).type('video/x-flv');

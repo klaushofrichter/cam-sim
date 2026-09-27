@@ -1,0 +1,16 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetCertificateInfo",
+   "code": 0,
+   "value": {
+    "CertificateInfo": {
+     "crtName": "server.crt",
+     "enable": 1,
+     "keyName": "server.key"
+    }
+   }
+  }
+ ]
+}
