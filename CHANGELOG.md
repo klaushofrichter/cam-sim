@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- cam2 runs in the cluster (Plan 4): `cam2.skylar.technology` with a Let's
+  Encrypt certificate pushed daily like cam1's, and cams shows it next to Den.
+  The release workflow now deploys it (pinned by digest in kube-setup) before
+  tagging.
+- `scripts/sync-secrets.sh`: syncs `KUBE_SETUP_DEPLOY_TOKEN` (GitHub refuses
+  `GITHUB_*` names), creates `cam2-camera-credentials`, and has `--gh-login`.
+
+## v2026.09.26.3
+
 - Control API actions `power-off` and `power-on`: the camera goes dark
   (connections drop, sessions end, the recording in progress closes, events
   are refused) until power-on boots it like a reboot. `state.power` reports

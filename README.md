@@ -17,9 +17,9 @@ Each simulator has two faces:
 
 One container is one camera. It runs headless; there is no web UI yet.
 
-**Status:** Plan 1, the headless core, is released. Real video (Plan 2), a web
-UI (Plan 3), deployment as `cam2` in the cluster (Plan 4), RTSP and ONVIF
-events (Plan 5) and FTP upload (Plan 6) follow; see the
+**Status:** Plan 1, the headless core, is released, and `cam2` runs in the
+cluster (Plan 4, see [below](#cam2-in-the-cluster)). Real video (Plan 2), a web
+UI (Plan 3), RTSP and ONVIF events (Plan 5) and FTP upload (Plan 6) follow; see the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md). Until
 Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
 
@@ -29,6 +29,7 @@ Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
 - [Configuration](#configuration)
 - [Simulated camera API](#simulated-camera-api)
 - [Control API](#control-api)
+- [cam2 in the cluster](#cam2-in-the-cluster)
 - [Secrets](#secrets)
 - [Development](#development)
 
@@ -477,6 +478,29 @@ ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
 | `state.dropStreams()` | `flv.dropActive` |
 | `state.dropDownloads()` | `downloads.dropActive` |
 | partial writes visible at once | `settings.strictPartial` |
+
+## cam2 in the cluster
+
+`cam2.skylar.technology` is a permanent simulator in the k3s cluster: namespace
+`cam-sim`, Deployment and Service `cam2`, PVC `cam2-data`. kube-setup owns the
+manifests.
+
+- **How clients reach it:** cams uses `cam2.cam-sim.svc.cluster.local:443`,
+  with the TLS name `cam2.skylar.technology`. The public name only serves the
+  ACME challenge, as for cam1.
+- **Certificate:** a Let's Encrypt certificate, pushed daily at 04:27 by the
+  `cam2-cert-push` CronJob, with the same script as cam1.
+- **Settings:**
+  - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
+  - background motion, person, vehicle and pet events;
+  - `CAMSIM_CONTROL_TLS=on`.
+- **Control API:**
+  `kubectl -n cam-sim port-forward svc/cam2 9443:9443`, then
+  `https://127.0.0.1:9443/sim/api/…` with the bearer token from `.env`.
+- **Deploys:** a release (merge to `production`) builds the image, pins it by
+  digest in kube-setup's manifest, applies it through the in-cluster runner
+  (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
+  then tags the release.
 
 ## Secrets
 
