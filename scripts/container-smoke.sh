@@ -48,4 +48,9 @@ curl -sk "https://127.0.0.1:$HTTPS/cgi-bin/api.cgi?cmd=Download&source=$NAME_&ou
 
 curl -s "http://127.0.0.1:$CONTROL/" | grep -q '<div id="app">' || fail "web UI not served"
 
+# RTSP: pull the sub stream through MediaMTX with the camera user (inside the
+# container, which has ffprobe).
+docker exec "$NAME" ffprobe -v error -rtsp_transport tcp -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 \
+  "rtsp://smoke:$PW@127.0.0.1:8554/h264Preview_01_sub" | grep -q h264 || fail "RTSP"
+
 echo "smoke: OK"

@@ -20,7 +20,8 @@ One container is one camera. It runs headless by default; an optional
 
 **Status:** the headless core (Plan 1), the web UI (Plan 3), `cam2` in the
 cluster (Plan 4, see [below](#cam2-in-the-cluster)) and FTP upload (Plan 6) are
-released. Real video (Plan 2) and RTSP and ONVIF events (Plan 5) follow; see the
+released, and RTSP (Plan 5) is ready. Real video (Plan 2) and ONVIF events
+(the rest of Plan 5) follow; see the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md). Until
 Plan 2, pictures, live video and recordings are ffmpeg **test patterns**.
 
@@ -96,6 +97,8 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_HTTPS_PORT` | `8443` | camera HTTPS |
 | `CAMSIM_HTTP_PORT` | `8080` | camera HTTP |
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
+| `CAMSIM_RTSP_PORT` | `8554` | [RTSP](#rtsp) (the camera's 554) |
+| `CAMSIM_MEDIAMTX` | `mediamtx` on `PATH` | the MediaMTX binary that serves RTSP; the image includes it |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
 | `CAMSIM_FTP_SERVER`, `_PORT`, `_USER`, `_PASSWORD` / `_FILE`, `_DIR`, `_TLS`, `_STREAM` | — | [FTP upload](#ftp-upload) configured and switched on at start: port default 21, `_TLS` `true` (FTPS, the camera's default) or `false`, `_STREAM` `main` (default) or `sub` |
@@ -145,7 +148,7 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 | HTTPS | 8443 | 443 | the whole API |
 | HTTP | 8080 | 80 | the whole API |
 | RTMP | — | 1935 | behind `/flv`, as on the camera |
-| RTSP | — (Plan 5) | 554 | |
+| RTSP | 8554 | 554 | `h264Preview_01_main` / `_sub`, see [RTSP](#rtsp) |
 | ONVIF | — (Plan 5) | 8000 | |
 
 `GetNetPort` reports the camera's ports, not the container's. `SetNetPort`
@@ -323,6 +326,23 @@ the camera.
 - A name that isn't on the card, including any `..` path, resets the
   connection.
 
+### RTSP
+
+`rtsp://<user>:<password>@<host>:8554/h264Preview_01_main` (H.265) and
+`…/h264Preview_01_sub` (H.264): the camera's paths, including the `h264` in
+the main path. They're served by [MediaMTX](https://github.com/bluenviron/mediamtx),
+which the image includes; `scripts/install-mediamtx.sh` fetches it for local
+development.
+
+- **Sign-in:** a camera user (`CAMSIM_USERS`), Basic authentication, TCP
+  transport.
+- **Refused:** while `rtspEnable` is 0, while the camera is offline or powered
+  off, or under the `rtsp.refuse` fault. Power-off and reboot cut the readers.
+- **Picture:** until Plan 2 the streams are the test-pattern clips, looped and
+  copied, not re-encoded.
+- **Without MediaMTX,** the simulator starts without RTSP and logs
+  `rtsp_unavailable_no_mediamtx`.
+
 ### FTP upload
 
 Like the camera, the simulator is an FTP **client**. With `Ftp.enable: 1`
@@ -475,6 +495,7 @@ matching requests.
 | `snap.fail` | | Snap answers 500 |
 | `ftp.fail` | `count` optional | FTP uploads and `TestFtp` fail (`-454`) |
 | `ftp.delayMs` | `ms` | wait before each FTP upload |
+| `rtsp.refuse` | | RTSP refuses every reader |
 
 ```sh
 ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'

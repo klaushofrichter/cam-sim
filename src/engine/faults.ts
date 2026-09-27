@@ -8,6 +8,7 @@ export const FAULT_NAMES = [
   'settings.fail', 'settings.ignore', 'settings.strictPartial',
   'offline', 'latencyMs', 'snap.fail',
   'ftp.fail', 'ftp.delayMs',
+  'rtsp.refuse',
 ] as const;
 export type FaultName = (typeof FAULT_NAMES)[number];
 

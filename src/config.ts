@@ -30,7 +30,7 @@ export interface CamSimConfig {
   seed: number;
   tlsCertFile?: string;
   tlsKeyFile?: string;
-  ports: { https: number; http: number; control: number };
+  ports: { https: number; http: number; control: number; rtsp: number };
   logLevel: string;
   // CAMSIM_FTP_*: FTP upload configured and enabled at start.
   ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
@@ -150,6 +150,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
       https: port('CAMSIM_HTTPS_PORT', 8443),
       http: port('CAMSIM_HTTP_PORT', 8080),
       control: port('CAMSIM_CONTROL_PORT', 9443),
+      rtsp: port('CAMSIM_RTSP_PORT', 8554),
     },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
   };
