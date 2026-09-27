@@ -6,6 +6,7 @@ import { createEngine, type Engine } from './engine/engine';
 import { createCameraApp } from './camera-api/app';
 import { createControlApp } from './control-api/app';
 import { startListeners, type Listeners } from './camera-api/listeners';
+import { FtpUploader } from './ftp/uploader';
 import { FIRMWARE_VERSION } from './profile/version';
 import type { CamSimConfig, User } from './config';
 import type { Clock } from './engine/clock';
@@ -88,6 +89,8 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   if (opts.reboot) engine.rebootDefaults = { ...opts.reboot };
   const cameraApp = createCameraApp(engine, { port: 'http' });
   const controlApp = createControlApp(engine);
+  // Uploads finished recordings when FTP is enabled (SetFtpV20 or CAMSIM_FTP_*).
+  const ftp = new FtpUploader(engine);
   let camera: Listeners | undefined;
   let control: http.Server | https.Server | undefined;
 
@@ -117,6 +120,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
       return { ...camera.ports, control: controlPort };
     },
     async close() {
+      ftp.stop();
       engine.stop();
       await camera?.close();
       const srv = control;

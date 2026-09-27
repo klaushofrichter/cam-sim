@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- FTP upload (Plan 6): each finished recording goes to an FTP or FTPS server
+  as `<remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.mp4` plus a `.jpg`, like
+  the camera; `TestFtp` answers as measured on the real camera (`-56` for a
+  partial object, `-454` when it can't connect); faults `ftp.fail` and
+  `ftp.delayMs`; `CAMSIM_FTP_*` sets it up at start.
+
 - Web UI (Plan 3, `CAMSIM_WEB_UI=true`): token sign-in with a session cookie;
   Live (sub and main, snapshot, event triggers), Playback (calendar,
   recordings, playback, downloads), Settings (whole-object writes with the
