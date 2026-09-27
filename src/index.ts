@@ -8,6 +8,9 @@ import { createControlApp } from './control-api/app';
 import { startListeners, type Listeners } from './camera-api/listeners';
 import { FtpUploader } from './ftp/uploader';
 import { RtspService, findMediaMtx } from './rtsp/rtsp';
+import { Library } from './media/library';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { FIRMWARE_VERSION } from './profile/version';
 import type { CamSimConfig, User } from './config';
 import type { Clock } from './engine/clock';
@@ -39,6 +42,10 @@ export interface CamSimOptions {
   tlsKeyFile?: string;
   clock?: Clock;
   fixtureDir?: string;
+  libraryDir?: string; // videos to offer besides the test pattern
+  video?: string; // selected once it is ready
+  mainSize?: string;
+  maxVideoS?: number;
   logLevel?: string;
   log?: pino.Logger;
 }
@@ -80,6 +87,10 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     tlsKeyFile: o.tlsKeyFile,
     ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554 },
     logLevel: o.logLevel ?? 'silent',
+    mainSize: o.mainSize ?? '4512x2512',
+    maxVideoS: o.maxVideoS ?? 60,
+    libraryDir: o.libraryDir,
+    video: o.video,
   };
 }
 
@@ -93,6 +104,9 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   const controlApp = createControlApp(engine);
   // Uploads finished recordings when FTP is enabled (SetFtpV20 or CAMSIM_FTP_*).
   const ftp = new FtpUploader(engine);
+  // The video library; cached next to the data (or in the temp folder).
+  const library = new Library(engine, { sourceDir: config.libraryDir, cacheDir: config.dataDir ? join(config.dataDir, 'library') : join(tmpdir(), 'cam-sim-library') });
+  let preparing: Promise<void> | undefined;
   let camera: Listeners | undefined;
   let control: http.Server | https.Server | undefined;
   let rtsp: RtspService | undefined;
@@ -123,10 +137,16 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
       if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
+      preparing ??= library.prepareAll().then(() => {
+        const why = config.video ? library.select(config.video) : null;
+        if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
+      });
       return { ...camera.ports, control: controlPort, rtsp: rtsp.port() };
     },
     async close() {
       ftp.stop();
+      library.stop();
+      await preparing?.catch(() => undefined);
       await rtsp?.stop();
       engine.stop();
       await camera?.close();

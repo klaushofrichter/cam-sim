@@ -6,6 +6,7 @@ import { TRIGGERS, type Trigger } from '../engine/types';
 import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
+import { Library } from '../media/library';
 import { devInfo, ENC, AI_TYPES } from '../profile/rlc1224a';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
@@ -77,8 +78,22 @@ export function createControlApp(engine: Engine): express.Express {
 
   api.get('/state', (_req, res) => void res.json(e.state()));
 
-  api.get('/videos', (_req, res) => void res.status(501).json({ error: 'not_in_this_version' }));
-  api.put('/video', (_req, res) => void res.status(501).json({ error: 'not_in_this_version' }));
+  // Without a library folder the test pattern is the only video.
+  const library = () => e.library ?? new Library(e, { cacheDir: '' });
+  api.get('/videos', (_req, res) => void res.json({ selected: e.videoId, videos: library().list() }));
+  api.put('/video', (req, res) => {
+    const id = req.body?.id;
+    if (typeof id !== 'string' || !id || id.length > 64) return bad(res, 'id must be a video id from GET /sim/api/videos');
+    const why = library().select(id);
+    if (why) return void res.status(why.startsWith('unknown') ? 404 : 409).json({ error: why.startsWith('unknown') ? 'not_found' : 'not_ready', detail: why });
+    res.json({ selected: e.videoId });
+  });
+  api.get('/videos/:id/poster', async (req, res) => {
+    const jpeg = await library().poster(req.params.id);
+    if (!jpeg) return void res.status(404).json({ error: 'not_found' });
+    res.type('image/jpeg').setHeader('Cache-Control', 'no-store');
+    res.send(jpeg);
+  });
 
   api.post('/events', (req, res) => {
     const { type, durationS } = req.body ?? {};
@@ -159,7 +174,7 @@ export function createControlApp(engine: Engine): express.Express {
   api.post('/reset', (req, res) => {
     const b = req.body ?? {};
     const pick = (k: string) => (typeof b[k] === 'boolean' ? b[k] : undefined);
-    e.reset({ settings: pick('settings'), recordings: pick('recordings'), counters: pick('counters'), faults: pick('faults') });
+    e.reset({ settings: pick('settings'), recordings: pick('recordings'), counters: pick('counters'), faults: pick('faults'), video: pick('video') });
     res.status(204).end();
   });
 
@@ -187,13 +202,14 @@ export function createControlApp(engine: Engine): express.Express {
     const stream = req.params.stream;
     const rec = e.sd.byId(req.params.id);
     if (!rec || (stream !== 'sub' && stream !== 'main')) return void res.status(404).json({ error: 'not_found' });
-    const size = e.media.clipSize(stream);
+    const media = e.mediaFor(rec);
+    const size = media.clipSize(stream);
     res.status(200).type('video/mp4').setHeader('Content-Length', String(size));
     if (req.query.download === '1') {
       const name = rec.files[stream].name.slice(rec.files[stream].name.lastIndexOf('/') + 1);
       res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
     }
-    const file = createReadStream(e.media.clipPath(stream));
+    const file = createReadStream(media.clipPath(stream));
     res.on('close', () => file.destroy());
     file.pipe(res);
   });

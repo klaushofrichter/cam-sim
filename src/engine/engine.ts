@@ -12,6 +12,7 @@ import { Events } from './events';
 import { Faults } from './faults';
 import { Counters } from './counters';
 import type { MediaSource } from '../media/source';
+import type { Library } from '../media/library';
 import { ensureFixtures, defaultFixtureDir, FixtureMedia } from '../media/fixtures';
 import { createLogger } from '../log';
 import { Certificates, type CertState } from '../tls/certs';
@@ -36,6 +37,10 @@ export interface RequestRecord {
 // One simulated camera: every surface (camera API, control API, in-process
 // tests) works on this object.
 export class Engine {
+  videoId = 'test-pattern';
+  library?: Library; // set by the Library itself
+  private readonly mediaById = new Map<string, MediaSource>();
+  private readonly missingVideos = new Set<string>();
   readonly bus = new EventEmitter();
   readonly faults = new Faults();
   readonly counters = new Counters();
@@ -65,20 +70,22 @@ export class Engine {
     readonly config: CamSimConfig,
     readonly clock: Clock,
     readonly log: pino.Logger,
-    readonly media: MediaSource,
+    public media: MediaSource,
   ) {
     this.rng = createRng(config.seed);
     this.certs = new Certificates({ certFile: config.tlsCertFile, keyFile: config.tlsKeyFile, dataDir: config.dataDir });
     this.serial = this.newSerial();
     this.sessions = new Sessions(config.users, clock);
     this.settings = new SettingsStore({ name: config.name, file: config.dataDir && join(config.dataDir, 'settings.json'), log });
+    this.mediaById.set('test-pattern', media);
     this.sd = new SdCard({
       dir: config.dataDir && join(config.dataDir, 'sd'),
       capacityMb: config.sdMb,
       clock,
       tz: config.tz,
       log,
-      fixtureSizes: { sub: media.clipSize('sub'), main: media.clipSize('main') },
+      fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
+      currentVideo: () => this.videoId,
     });
     this.events = new Events({ clock, tz: config.tz, sd: this.sd, settings: this.settings, rng: this.rng });
     for (const f of config.faults) this.faults.set(f);
@@ -97,6 +104,33 @@ export class Engine {
 
   private newSerial(): string {
     return `SIM${this.rng.hex(12)}`;
+  }
+
+  // Switches what the camera shows (live, snapshots, RTSP, recordings).
+  setMedia(media: MediaSource, id: string): void {
+    if (this.media !== media) this.media.release?.();
+    this.media = media;
+    this.videoId = id;
+    this.registerMedia(id, media);
+    this.bus.emit('video', { id, selected: true });
+  }
+
+  // Library videos by id, so a recording is served from the video it was
+  // made from (its sizes and names stay consistent after a switch).
+  registerMedia(id: string, media: MediaSource): void {
+    this.mediaById.set(id, media);
+  }
+
+  mediaFor(rec: { video?: string }): MediaSource {
+    const id = rec.video ?? 'test-pattern';
+    const m = this.mediaById.get(id);
+    if (m) return m;
+    // Its video is gone (no cached copy left): the current one stands in.
+    if (!this.missingVideos.has(id)) {
+      this.missingVideos.add(id);
+      this.log.warn({ video: id }, 'recording_video_missing');
+    }
+    return this.media;
   }
 
   offline(): boolean {
@@ -192,12 +226,13 @@ export class Engine {
   }
 
   // Back to a known state between tests. Every part defaults to on.
-  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean } = {}): void {
+  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean; video?: boolean } = {}): void {
     const all = Object.values(what).every((v) => v === undefined);
     if (all || what.faults) this.faults.clearAll();
     if (all || what.settings) this.settings.resetFactory();
     if (all || what.recordings) this.sd.clear();
     if (all || what.counters) this.counters.reset();
+    if ((all || what.video) && this.videoId !== 'test-pattern') this.setMedia(this.mediaFor({ video: 'test-pattern' }), 'test-pattern');
     this.bus.emit('state', { reset: true });
   }
 
@@ -210,6 +245,7 @@ export class Engine {
       tz: this.config.tz,
       offline: this.offline(),
       power: this.power,
+      video: this.videoId,
       rebooting: this.rebooting,
       faults: this.faults.list(),
       events: this.events.recent(20),

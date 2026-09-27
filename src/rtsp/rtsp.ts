@@ -56,6 +56,10 @@ export class RtspService {
   private readonly onState = (s: { power?: string; rebooting?: boolean }) => {
     if (s.power === 'off' || s.rebooting === true) this.dropReaders();
   };
+  // A newly selected video: publishers restart on it (readers reconnect).
+  private readonly onVideo = (v: { selected?: boolean }) => {
+    if (v.selected) this.dropReaders();
+  };
   private readonly onChange = () => {
     const e = this.engine;
     if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) this.dropReaders();
@@ -188,6 +192,7 @@ export class RtspService {
     e.bus.on('state', this.onState);
     e.bus.on('fault', this.onChange);
     e.bus.on('settings', this.onChange);
+    e.bus.on('video', this.onVideo);
     this.up = true;
     e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
   }
@@ -248,6 +253,7 @@ export class RtspService {
     this.engine.bus.off('state', this.onState);
     this.engine.bus.off('fault', this.onChange);
     this.engine.bus.off('settings', this.onChange);
+    this.engine.bus.off('video', this.onVideo);
     this.stopPublishers();
     const m = this.mtx;
     if (m && !this.mtxExited && m.exitCode === null && m.signalCode === null) {

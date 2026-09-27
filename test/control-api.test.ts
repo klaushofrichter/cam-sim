@@ -83,11 +83,6 @@ describe('control API: state, events, recordings', () => {
     expect(engine.sd.all()).toHaveLength(0);
   });
 
-  it('answers 501 for video selection until Plan 2', async () => {
-    const { ctl } = await setup();
-    expect((await request(ctl).get('/sim/api/videos').set(auth)).status).toBe(501);
-    expect((await request(ctl).put('/sim/api/video').set(auth).send({ id: 'x' })).status).toBe(501);
-  });
 });
 
 describe('control API: faults, actions, reset', () => {

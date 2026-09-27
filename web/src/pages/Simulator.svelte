@@ -1,5 +1,6 @@
 <script lang="ts">
   import TriggerBar from '../components/TriggerBar.svelte';
+  import VideoPicker from '../components/VideoPicker.svelte';
   import { api, ApiError } from '../lib/api';
   import { simState, feed, type RequestRecord } from '../lib/state';
 
@@ -64,7 +65,7 @@
     if (confirm('Power the simulated camera off? Every connection drops until you power it on.')) void run('Power off', () => api('POST', '/actions/power-off'));
   };
   const reset = (what: Record<string, boolean>, label: string) => {
-    if (!what.everything || confirm('Reset settings, recordings, counters and faults?')) void run(label, () => api('POST', '/reset', what.everything ? {} : what));
+    if (!what.everything || confirm('Reset settings, recordings, counters, faults and the video?')) void run(label, () => api('POST', '/reset', what.everything ? {} : what));
   };
 
   let frozen = $state<typeof $feed>([]);
@@ -96,8 +97,7 @@
       <TriggerBar />
       <p class="muted small">Recorded when recording is on and the schedule allows the type. AI types also set motion.</p>
       <h3>Video</h3>
-      <select disabled><option>Test pattern</option></select>
-      <p class="muted small">The video library arrives with Plan 2.</p>
+      <VideoPicker />
     </div>
 
     <div class="card wide">

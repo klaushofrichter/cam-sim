@@ -12,6 +12,16 @@ describe('loadConfig', () => {
     ]);
   });
 
+  it('reads the video library settings, and checks the main size', () => {
+    const c = loadConfig({ CAMSIM_USERS: 'a:admin:pw', CAMSIM_LIBRARY_DIR: '/videos', CAMSIM_VIDEO: 'porch', CAMSIM_MAIN_SIZE: '1920x1080' });
+    expect(c).toMatchObject({ libraryDir: '/videos', video: 'porch', mainSize: '1920x1080' });
+    expect(loadConfig({ CAMSIM_USERS: 'a:admin:pw' }).mainSize).toBe('4512x2512');
+    expect(loadConfig({ CAMSIM_USERS: 'a:admin:pw' }).maxVideoS).toBe(60);
+    expect(loadConfig({ CAMSIM_USERS: 'a:admin:pw', CAMSIM_MAX_VIDEO_S: '30' }).maxVideoS).toBe(30);
+    for (const bad of ['0', '601', '1.5', 'x']) expect(() => loadConfig({ CAMSIM_USERS: 'a:admin:pw', CAMSIM_MAX_VIDEO_S: bad })).toThrow(ConfigError);
+    for (const bad of ['1920', '1921x1080', 'axb', '1920x1080x3']) expect(() => loadConfig({ CAMSIM_USERS: 'a:admin:pw', CAMSIM_MAIN_SIZE: bad })).toThrow(ConfigError);
+  });
+
   it('refuses a user without a password', () => {
     expect(() => loadConfig({ CAMSIM_USERS: 'a:admin:' })).toThrow(/CAMSIM_USERS/);
   });
