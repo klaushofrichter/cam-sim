@@ -80,14 +80,36 @@ paths:
         '401': { description: missing or wrong token }
   /sim/api/videos:
     get:
-      summary: Video library (Plan 2)
+      summary: The video library and the selected video
+      description: >
+        `{ selected, videos: [{ id, name, state, converted, durationS, error }] }`.
+        `test-pattern` is always there; the rest come from CAMSIM_LIBRARY_DIR and are
+        prepared one at a time after start (state pending → preparing → ready or failed).
       responses:
-        '501': { description: not in this version }
+        '200': { description: library }
   /sim/api/video:
     put:
-      summary: Select the video (Plan 2)
+      summary: Select the video the camera shows
+      description: >
+        Live (FLV and RTSP), snapshots and new recordings switch to it. Recordings
+        made earlier keep their own video.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [id], properties: { id: { type: string } } }
       responses:
-        '501': { description: not in this version }
+        '200': { description: '{ selected }' }
+        '400': { description: invalid id }
+        '404': { description: unknown video }
+        '409': { description: video not ready (still preparing, or failed) }
+  /sim/api/videos/{id}/poster:
+    get:
+      summary: A still of a ready video (JPEG)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: image/jpeg }
+        '404': { description: unknown or not ready }
   /sim/api/events:
     get:
       summary: Recent events, newest first
@@ -198,6 +220,7 @@ paths:
                 recordings: { type: boolean }
                 counters: { type: boolean }
                 faults: { type: boolean }
+                video: { type: boolean, description: back to the test pattern }
       responses:
         '204': { description: reset }
   /sim/api/media/snapshot:

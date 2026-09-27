@@ -100,8 +100,9 @@ export class FtpUploader {
       if (e.faults.consume('ftp.fail')) throw new Error('ftp.fail fault');
       client = await connect(ftp as FtpTarget);
       if (dir) await client.ensureDir(dir);
-      await client.uploadFrom(e.media.clipPath(stream), `${stem}.mp4`);
-      await client.uploadFrom(Readable.from(await e.media.snapshot()), `${stem}.jpg`);
+      const media = e.mediaFor(rec);
+      await client.uploadFrom(media.clipPath(stream), `${stem}.mp4`);
+      await client.uploadFrom(Readable.from(await media.snapshot()), `${stem}.jpg`);
       e.counters.ftpUploads++;
       e.bus.emit('ftp', { file, ok: true });
     } catch (err) {

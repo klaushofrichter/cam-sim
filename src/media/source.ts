@@ -3,7 +3,7 @@ import type { FlvTag } from './flv';
 export type Stream = 'sub' | 'main';
 
 // Where the camera's pictures come from. Plan 1 has only fixture media;
-// Plan 2 adds live video from the library.
+// Library videos (src/media/library.ts) are prepared into the same files.
 export interface MediaSource {
   snapshot(): Promise<Buffer>;
   liveFlv(stream: Stream): { header: Buffer; tags: FlvTag[] };

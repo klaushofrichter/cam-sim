@@ -142,6 +142,16 @@ describe('SdCard', () => {
     expect(f.EndTime).toEqual({ year: 2026, mon: 9, day: 27, hour: 0, min: 0, sec: 15 });
   });
 
+  it("keeps each recording's size, so names stay stable when the video changes", () => {
+    const current = { sub: 1000, main: 2000 };
+    const sd = new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: () => current });
+    const r = sd.add({ date: '2026-09-26', start: '065221', end: '065241', triggers: ['motion'], dst: true });
+    const before = sd.byId(r.id)!.files.sub.name;
+    current.sub = 5555;
+    expect(sd.byId(r.id)!.files.sub.name).toBe(before);
+    expect(sd.byId(r.id)!.files.sub.size).toBe(1000);
+  });
+
   it('clears', () => {
     const sd = make();
     sd.seed(DEMO_CLIPS);

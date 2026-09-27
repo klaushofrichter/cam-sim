@@ -32,12 +32,24 @@ export interface CamSimConfig {
   tlsKeyFile?: string;
   ports: { https: number; http: number; control: number; rtsp: number };
   logLevel: string;
+  // Main-stream size of converted library videos (the camera's 4512x2512).
+  mainSize: string;
+  // The video library's source folder, and the video selected at start.
+  libraryDir?: string;
+  video?: string;
   // CAMSIM_FTP_*: FTP upload configured and enabled at start.
   ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
 }
 
 // Messages name the variable, never its value (values may be secrets).
 export class ConfigError extends Error {}
+
+function mainSize(v: string | undefined): string {
+  if (!v) return '4512x2512';
+  const m = /^(\d{2,5})x(\d{2,5})$/.exec(v);
+  if (!m || Number(m[1]) % 2 || Number(m[2]) % 2) throw new ConfigError('CAMSIM_MAIN_SIZE must look like 4512x2512 (even numbers)');
+  return v;
+}
 
 type Env = Record<string, string | undefined>;
 
@@ -104,7 +116,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
   }
 
   // Plan 1 is headless and fixture-only; fail loudly rather than ignore.
-  if (env.CAMSIM_MEDIA === 'video') throw new ConfigError('CAMSIM_MEDIA=video is not available yet (Plan 2); use fixture');
+  if (env.CAMSIM_MEDIA === 'video') throw new ConfigError('CAMSIM_MEDIA=video is not used: put videos in CAMSIM_LIBRARY_DIR and select one with CAMSIM_VIDEO');
 
   let ftp: CamSimConfig['ftp'];
   if (env.CAMSIM_FTP_SERVER) {
@@ -153,5 +165,8 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
       rtsp: port('CAMSIM_RTSP_PORT', 8554),
     },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
+    mainSize: mainSize(env.CAMSIM_MAIN_SIZE),
+    libraryDir: env.CAMSIM_LIBRARY_DIR || undefined,
+    video: env.CAMSIM_VIDEO || undefined,
   };
 }

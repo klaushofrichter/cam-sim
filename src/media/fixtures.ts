@@ -26,7 +26,7 @@ const FILES = { snapshot: 'snapshot.jpg', subFlv: 'sub.flv', mainFlv: 'main.flv'
 
 export const defaultFixtureDir = () => join(tmpdir(), `cam-sim-fixtures-${FIXTURE_VERSION}`);
 
-function pathsIn(dir: string): FixturePaths {
+export function fixturePaths(dir: string): FixturePaths {
   return {
     dir,
     snapshot: join(dir, FILES.snapshot),
@@ -64,12 +64,20 @@ async function ffmpeg(args: string[]): Promise<void> {
 
 // The camera's main-stream FLV: H.265 with legacy codec id 12, plus AAC,
 // interleaved by timestamp.
-function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
+export function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
   const w = new FlvWriter();
   const nalus = splitAnnexB(h265);
   const aus: Buffer[][] = [];
   for (const n of nalus) {
-    if (h265NalType(n) === 35 || !aus.length) aus.push([]); // AUD starts an access unit
+    // A new access unit starts at an AUD, or at a picture's first slice
+    // (first_slice_segment_in_pic_flag) when the stream has no AUDs, as a
+    // camera's stream copy may not.
+    const type = h265NalType(n);
+    const firstSlice = type < 32 && (n[2] & 0x80) !== 0;
+    const last = aus[aus.length - 1];
+    const lastHasSlice = !!last?.some((x) => h265NalType(x) < 32);
+    const lastIsAud = !!last?.length && h265NalType(last[last.length - 1]) === 35;
+    if (!aus.length || type === 35 || (firstSlice && lastHasSlice && !lastIsAud)) aus.push([]);
     aus[aus.length - 1].push(n);
   }
   const find = (t: number) => nalus.find((n) => h265NalType(n) === t);
@@ -96,7 +104,7 @@ function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
 }
 
 async function generate(dir: string): Promise<void> {
-  const p = pathsIn(dir);
+  const p = fixturePaths(dir);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-frames:v', '1', p.snapshot]);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', '6',
     ...X264, '-profile:v', 'high', '-g', '20', '-bf', '0',
@@ -150,10 +158,10 @@ async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
 // a private temp directory that is renamed into place, so parallel test
 // workers and processes can all call this at the same time.
 export async function ensureFixtures(dir: string, log: pino.Logger): Promise<FixturePaths> {
-  if (complete(dir)) return pathsIn(dir);
+  if (complete(dir)) return fixturePaths(dir);
   await withLock(dir, () => build(dir, log));
   if (!complete(dir)) throw new Error(`fixtures in ${dir} are incomplete`);
-  return pathsIn(dir);
+  return fixturePaths(dir);
 }
 
 async function build(dir: string, log: pino.Logger): Promise<void> {
