@@ -5,6 +5,9 @@ import { FAULT_NAMES, ACTION_NAMES, FaultError, type FaultName } from '../engine
 import { TRIGGERS, type Trigger } from '../engine/types';
 import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
+import { streamFlv } from '../camera-api/media-routes';
+import { devInfo, ENC, AI_TYPES } from '../profile/rlc1224a';
+import { createReadStream } from 'fs';
 import { createSessionSigner, readCookie, SESSION_COOKIE, SESSION_MS } from './session';
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
@@ -141,6 +144,68 @@ export function createControlApp(engine: Engine): express.Express {
     e.reset({ settings: pick('settings'), recordings: pick('recordings'), counters: pick('counters'), faults: pick('faults') });
     res.status(204).end();
   });
+
+  // For the web UI: what a person looks at on a camera, without being a
+  // camera client (no sessions, no counters).
+  api.get('/media/snapshot', async (_req, res) => void res.type('image/jpeg').send(await e.media.snapshot()));
+  api.get('/media/live/:stream', (req, res) => {
+    const stream = req.params.stream;
+    if (stream !== 'sub' && stream !== 'main') return void res.status(404).json({ error: 'not_found' });
+    streamFlv(e, res, stream, { count: false });
+  });
+
+  const DATE = /^\d{4}-\d{2}-\d{2}$/;
+  api.get('/recordings', (req, res) => {
+    const date = String(req.query.date ?? '');
+    if (!DATE.test(date)) return bad(res, 'date must be YYYY-MM-DD');
+    res.json(e.sd.all().filter((r) => r.date === date));
+  });
+  api.get('/recordings/days', (req, res) => {
+    const year = Number(req.query.year), mon = Number(req.query.mon);
+    if (!Number.isInteger(year) || !Number.isInteger(mon) || mon < 1 || mon > 12) return bad(res, 'year and mon (1-12) are required');
+    res.json(e.sd.status('sub', year, mon));
+  });
+  api.get('/recordings/:id/:stream', (req, res) => {
+    const stream = req.params.stream;
+    const rec = e.sd.byId(req.params.id);
+    if (!rec || (stream !== 'sub' && stream !== 'main')) return void res.status(404).json({ error: 'not_found' });
+    const size = e.media.clipSize(stream);
+    res.status(200).type('video/mp4').setHeader('Content-Length', String(size));
+    if (req.query.download === '1') {
+      const name = rec.files[stream].name.slice(rec.files[stream].name.lastIndexOf('/') + 1);
+      res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    }
+    const file = createReadStream(e.media.clipPath(stream));
+    res.on('close', () => file.destroy());
+    file.pipe(res);
+  });
+
+  api.get('/settings', (_req, res) => void res.json({
+    settings: e.settings.running,
+    devInfo: devInfo(e.config.name, e.serial, e.config.firmVer),
+    hddInfo: e.sd.hddInfo(),
+    enc: ENC,
+    certificate: { source: e.certificate.source, enable: e.certificate.enable },
+  }));
+  // Whole-object writes through the camera's own validation.
+  const SET_FOR: Record<string, string> = { Rec: 'SetRecV20', MdAlarm: 'SetMdAlarm', Isp: 'SetIsp', IrLights: 'SetIrLights', WhiteLed: 'SetWhiteLed', Osd: 'SetOsd', NetPort: 'SetNetPort', Ftp: 'SetFtpV20' };
+  const writeSetting = (res: Response, cmd: string, key: string, body: unknown) => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return bad(res, 'the body must be the whole settings object');
+    const r = e.settings.set(cmd, { [key]: body }, { strictPartial: true });
+    if (r) return void res.status(400).json({ error: 'invalid', rspCode: r.rspCode });
+    res.json(key === 'AiAlarm' ? e.settings.get('AiAlarm', (body as { ai_type: 'people' }).ai_type) : e.settings.get(key as 'Isp'));
+  };
+  api.put('/settings/AiAlarm/:type', (req, res) => {
+    const type = req.params.type;
+    if (!(AI_TYPES as readonly string[]).includes(type)) return void res.status(404).json({ error: 'not_found' });
+    writeSetting(res, 'SetAiAlarm', 'AiAlarm', { ...(req.body ?? {}), ai_type: type });
+  });
+  api.put('/settings/:key', (req, res) => {
+    const key = req.params.key;
+    if (!Object.hasOwn(SET_FOR, key)) return void res.status(404).json({ error: 'not_found' });
+    writeSetting(res, SET_FOR[key], key, req.body);
+  });
+  api.get('/users', (_req, res) => void res.json(e.sessions.users()));
 
   api.get('/requests', (req, res) => void res.json(e.requests.recent(Math.min(500, Number(req.query.limit) || 100))));
   api.get('/stream', (req, res) => sse(e, req, res));
