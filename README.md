@@ -494,8 +494,9 @@ manifests.
   - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
   - background motion, person, vehicle and pet events;
   - `CAMSIM_CONTROL_TLS=on`.
-- **Control API:**
-  `kubectl -n cam-sim port-forward svc/cam2 9443:9443`, then
+- **Control API and web UI:** `scripts/cam2-ui.sh` port-forwards cam2's
+  control port. It copies the token to the clipboard and opens the web UI once
+  there is one (Plan 3); until then it shows cam2's state. The API is then at
   `https://127.0.0.1:9443/sim/api/…` with the bearer token from `.env`.
 - **Deploys:** a release (merge to `production`) builds the image, pins it by
   digest in kube-setup's manifest, applies it through the in-cluster runner
