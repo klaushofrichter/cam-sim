@@ -110,6 +110,10 @@ export class Events extends EventEmitter {
     return { channel: 0, dog_cat: s('pet'), face: { alarm_state: 0, support: 0 }, people: s('person'), vehicle: s('vehicle') };
   }
 
+  clearRecent(): void {
+    this.log.length = 0;
+  }
+
   recent(limit: number): SimEvent[] {
     return this.log.slice(0, limit);
   }

@@ -13,7 +13,7 @@ export const FAULT_NAMES = [
 export type FaultName = (typeof FAULT_NAMES)[number];
 
 // One-shot actions, applied at once rather than kept.
-export const ACTION_NAMES = ['tokens.revoke', 'reboot', 'power-off', 'power-on', 'flv.dropActive', 'downloads.dropActive'] as const;
+export const ACTION_NAMES = ['tokens.revoke', 'reboot', 'power-off', 'power-on', 'flv.dropActive', 'downloads.dropActive', 'clear', 'factory-reset'] as const;
 export type ActionName = (typeof ACTION_NAMES)[number];
 
 export interface FaultSpec {

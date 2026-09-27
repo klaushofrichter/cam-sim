@@ -197,3 +197,53 @@ describe('control API: request log and SSE', () => {
     expect(text).toMatch(/id: \d+\nevent: event\ndata: \{.*"type":"pet"/);
   });
 });
+
+// #23: named actions for a known test state.
+describe('control API: clear and factory-reset', () => {
+  it('clear empties recordings, the event list and counters, and keeps settings and sessions', async () => {
+    const { engine, ctl, cam } = await setup();
+    const t = await login(cam);
+    engine.events.trigger('motion', 1);
+    engine.settings.running.Rec.postRec = '1 Minute';
+    expect(engine.sd.all().length).toBeGreaterThan(0);
+    const r = await request(ctl).post('/sim/api/actions/clear').set(auth);
+    expect(r.status).toBe(204);
+    expect(engine.sd.all()).toHaveLength(0);
+    expect(engine.events.recent(20)).toHaveLength(0);
+    expect(engine.counters.snapshot().logins).toBe(0);
+    expect(engine.settings.running.Rec.postRec).toBe('1 Minute'); // kept
+    expect((await post(cam, 'GetDevInfo', {}, t)).reply.code).toBe(0); // session kept
+  });
+
+  it('factory-reset returns everything to the factory state and reboots', async () => {
+    const { engine, ctl, cam } = await setup();
+    const t = await login(cam);
+    engine.events.trigger('motion', 1);
+    engine.settings.running.Rec.postRec = '1 Minute';
+    engine.faults.set({ name: 'ftp.fail' });
+    const { generate } = await import('selfsigned');
+    const p = await generate([{ name: 'commonName', value: 'cam2.test' }], { keySize: 2048 });
+    expect(engine.importCertificate(p.cert, p.private)).toBeNull();
+    const dropped: boolean[] = [];
+    engine.bus.on('factory-reset', () => dropped.push(true));
+    const r = await request(ctl).post('/sim/api/actions/factory-reset').set(auth).send({ ms: 50 });
+    expect(r.status).toBe(202);
+    expect(engine.sd.all()).toHaveLength(0);
+    expect(engine.events.recent(20)).toHaveLength(0);
+    expect(engine.faults.list()).toEqual([]);
+    expect(engine.settings.running.Rec.postRec).toBe('15 Seconds');
+    expect(engine.certificate).toMatchObject({ source: 'factory', enable: 0 });
+    expect(dropped).toEqual([true]); // the FTP queue and others listen for it
+    expect(engine.rebooting).toBe(true);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(engine.rebooting).toBe(false);
+    expect((await post(cam, 'GetDevInfo', {}, t)).reply.code).not.toBe(0); // the old session is gone
+  });
+
+  it('refuses an unknown action, and factory-reset while powered off', async () => {
+    const { engine, ctl } = await setup();
+    expect((await request(ctl).post('/sim/api/actions/nope').set(auth)).status).toBe(400);
+    engine.powerOff();
+    expect((await request(ctl).post('/sim/api/actions/factory-reset').set(auth)).status).toBe(409);
+  });
+});

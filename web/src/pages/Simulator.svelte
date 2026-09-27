@@ -134,6 +134,8 @@
         <button onclick={() => reset({ counters: true }, 'Counters reset')}>Counters</button>
         <button onclick={() => reset({ faults: true }, 'Faults cleared')}>Faults</button>
         <button class="danger" onclick={() => reset({ everything: true }, 'Everything reset')}>Everything</button>
+        <button onclick={() => { if (confirm('Clear the content (recordings, event list, counters)? Settings, certificate and sessions stay.')) void run('Cleared', () => api('POST', '/actions/clear')); }} data-testid="action-clear">Clear</button>
+        <button class="danger" onclick={() => { if (confirm('Factory reset: settings, faults, video, certificate and content back to the factory state, then a reboot (sessions and ONVIF subscriptions end)?')) void run('Factory reset', () => api('POST', '/actions/factory-reset')); }} data-testid="action-factory-reset">Factory reset</button>
       </div>
     </div>
 
