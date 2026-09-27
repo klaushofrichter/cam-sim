@@ -128,6 +128,8 @@ that collides (also with `test-pattern`) gets `-2`, `-3`, …:
 - **Any video file** (`.mp4`, `.mov`, `.mkv`, `.m4v`, `.avi`, `.webm`) is
   converted to the camera's formats: main H.265 at `CAMSIM_MAIN_SIZE`, 20 fps;
   sub H.264 896×512, 10 fps; AAC 16 kHz (silent when the source has no sound).
+  Keyframes as on the camera (its `GetEnc` gop): every 2 s on main, every 4 s
+  on sub.
   The picture is scaled to fit, with bars.
 - **A folder with `main.mp4` and `sub.mp4`** is a clip captured from the real
   camera. It is copied, not re-encoded, when main is H.265 and sub H.264;

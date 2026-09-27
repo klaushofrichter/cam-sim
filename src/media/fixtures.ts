@@ -11,7 +11,7 @@ import type { MediaSource, Stream } from './source';
 const run = promisify(execFile);
 
 // Bump when the generated files change, so caches are rebuilt.
-export const FIXTURE_VERSION = 2;
+export const FIXTURE_VERSION = 3;
 
 export interface FixturePaths {
   dir: string;
@@ -107,7 +107,7 @@ async function generate(dir: string): Promise<void> {
   const p = fixturePaths(dir);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-frames:v', '1', p.snapshot]);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', '6',
-    ...X264, '-profile:v', 'high', '-g', '20', '-bf', '0',
+    ...X264, '-profile:v', 'high', '-g', '40', '-bf', '0',
     '-c:a', 'aac', '-f', 'flv', p.subFlv]);
   const h265 = join(dir, 'main.h265');
   const aac = join(dir, 'main.aac');
@@ -118,7 +118,7 @@ async function generate(dir: string): Promise<void> {
   rmSync(h265);
   rmSync(aac);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
-    ...X264, '-g', '20', '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipSub]);
+    ...X264, '-g', '40', '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipSub]);
   await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
     ...X265, '-tag:v', 'hvc1', '-x265-params', 'keyint=40:log-level=error',
     '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipMain]);
