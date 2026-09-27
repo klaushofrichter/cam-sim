@@ -410,8 +410,14 @@ plain HTTP, SOAP 1.2, as captured from the real camera (redacted replies in
   events then send `Changed` at their start and end: motion drives both
   motion topics, person `PeopleDetect`, vehicle `VehicleDetect`, pet
   `DogCatDetect`.
+- **Subscriptions live in memory,** as on the camera. Power-off, a reboot or
+  switching ONVIF off ends them all, and waiting `PullMessages` connections
+  drop, so a client has to subscribe again. A subscription keeps at most
+  1000 unread messages (the oldest go first).
 - **Refused** (the connection drops) while the camera is off or offline, or
   while `onvifEnable` is 0.
+- **Limits:** request bodies up to 16 KB; 600 requests a minute per client
+  address, then 429.
 
 ### FTP upload
 

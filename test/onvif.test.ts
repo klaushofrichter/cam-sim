@@ -165,3 +165,114 @@ describe('ONVIF events', () => {
     await expect(soap(app, '/onvif/device_service', '<GetSystemDateAndTime xmlns="http://www.onvif.org/ver10/device/wsdl"/>', null)).rejects.toThrow();
   });
 });
+
+describe('ONVIF review fixes', () => {
+  const drained = async (app: ReturnType<typeof createOnvifApp>) => {
+    const sub = await subscribe(app);
+    await soap(app, sub, pull(100));
+    return sub;
+  };
+
+  it('an empty PullMessages answers after its Timeout on a quiet camera', async () => {
+    const { app } = await setup();
+    const sub = await drained(app);
+    const t0 = Date.now();
+    const res = await soap(app, sub, pull(20, 'PT1S'));
+    expect(res.status).toBe(200);
+    expect(topics(res.text)).toHaveLength(0);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(900);
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+
+  it('power-off drops waiting polls and ends every subscription', async () => {
+    const { app, engine } = await setup();
+    const sub = await drained(app);
+    const waiting = soap(app, sub, pull(20, 'PT10S')).then(
+      () => 'answered',
+      () => 'dropped',
+    );
+    await new Promise((r) => setTimeout(r, 200));
+    engine.powerOff();
+    expect(await waiting).toBe('dropped');
+    engine.powerOn(10);
+    await vi.waitFor(() => expect(engine.power).toBe('on'));
+    expect((await soap(app, sub, pull(20, 'PT0S'))).text).toContain('InvalidArgVal');
+  });
+
+  it('switching ONVIF off ends every subscription', async () => {
+    const { app, engine } = await setup();
+    const sub = await drained(app);
+    engine.settings.running.NetPort.onvifEnable = 0;
+    engine.bus.emit('settings', { cmd: 'SetNetPort' });
+    engine.settings.running.NetPort.onvifEnable = 1;
+    expect((await soap(app, sub, pull(20, 'PT0S'))).text).toContain('InvalidArgVal');
+  });
+
+  it('a strange Host header does not reach the XML', async () => {
+    const { app } = await setup();
+    const res = await request(app).post('/onvif/event_service').set('Host', 'x"><inj/>:1').set('Content-Type', 'application/soap+xml').send(envelope(EV, security('admin', 'admin-pw')));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('<inj');
+    expect(res.text).toMatch(/<wsa5:Address>http:\/\/127\.0\.0\.1:\d+\/onvif\/PullSubManager\?Idx=\d+<\/wsa5:Address>/);
+  });
+
+  it('keeps at most 1000 messages for a subscription nobody pulls', async () => {
+    const { app, engine } = await setup();
+    const sub = await drained(app);
+    for (let i = 0; i < 1500; i++) engine.events.emit('detect', { type: 'motion', state: i % 2 === 0 });
+    expect(topics((await soap(app, sub, pull(1000, 'PT0S'))).text)).toHaveLength(1000);
+    expect(topics((await soap(app, sub, pull(1000, 'PT0S'))).text)).toHaveLength(0);
+  });
+
+  it('parses hostile bodies in linear time and refuses big ones', async () => {
+    const { app } = await setup();
+    for (const junk of ['<Body'.repeat(3000), '<Username '.repeat(1500), '<Password='.repeat(1500)]) {
+      const t0 = Date.now();
+      const res = await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(junk);
+      expect(res.status).toBe(400);
+      expect(Date.now() - t0).toBeLessThan(100);
+    }
+    const big = await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send('x'.repeat(20_000));
+    expect(big.status).toBe(413);
+  });
+
+  it('accepts a digest with Type anywhere in the tag, and a text password with entities', async () => {
+    const engine = await makeEngine({ CAMSIM_USERS: 'admin:admin:a&b<c' });
+    const app = createOnvifApp(engine);
+    const info = '<GetDeviceInformation xmlns="http://www.onvif.org/ver10/device/wsdl"/>';
+    const digest = security('admin', 'a&b<c').replace('<wsse:Password Type=', "<wsse:Password xmlns:x='y' Type=").replace(/Type="([^"]*)"/, "Type='$1'");
+    expect((await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(envelope(info, digest))).status).toBe(200);
+    const text = '<wsse:Security xmlns:wsse="x"><wsse:UsernameToken><wsse:Username>admin</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">a&amp;b&lt;c</wsse:Password></wsse:UsernameToken></wsse:Security>';
+    expect((await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(envelope(info, text))).status).toBe(200);
+  });
+
+  it('takes only a plain number as Idx', async () => {
+    const { app } = await setup();
+    const sub = await drained(app);
+    const idx = Number(/Idx=(\d+)/.exec(sub)![1]);
+    expect((await soap(app, `/onvif/PullSubManager?Idx=${idx.toString(16).replace(/^/, '0x')}`, pull(20, 'PT0S'))).text).toContain('InvalidArgVal');
+  });
+
+  it('rate-limits a client that floods it', async () => {
+    const { app } = await setup();
+    const agent = request.agent(app);
+    let last = 0;
+    for (let i = 0; i < 610; i++) last = (await agent.post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send('<x/>')).status;
+    expect(last).toBe(429);
+  });
+
+  it('stop() removes its listeners', async () => {
+    const { app, engine } = await setup();
+    const before = engine.events.listenerCount('detect');
+    app.stop();
+    expect(engine.events.listenerCount('detect')).toBe(before - 1);
+  });
+
+  it('reports the camera service versions', async () => {
+    const { app } = await setup();
+    const svc = (await soap(app, '/onvif/device_service', '<GetServices xmlns="http://www.onvif.org/ver10/device/wsdl"><IncludeCapability>false</IncludeCapability></GetServices>')).text;
+    expect(svc).toContain('<tt:Major>21</tt:Major><tt:Minor>6</tt:Minor>');
+    const caps = (await soap(app, '/onvif/device_service', '<GetCapabilities xmlns="http://www.onvif.org/ver10/device/wsdl"/>')).text;
+    expect(caps).toContain('<tt:WSSubscriptionPolicySupport>true</tt:WSSubscriptionPolicySupport>');
+  });
+});

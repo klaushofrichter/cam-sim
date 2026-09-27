@@ -32,16 +32,82 @@ export function fault(subcode: string, reason: string): string {
   );
 }
 
+// A small linear scanner instead of regular expressions: request bodies are
+// untrusted, and backtracking regexes over them can stall the event loop.
+interface Element {
+  local: string; // name without prefix
+  attrs: string; // raw attribute text of the start tag
+  textStart: number; // index after the start tag's '>'
+  selfClosing: boolean;
+}
+
+const NAME = /[A-Za-z0-9_.-]/;
+
+// Start tags in document order (skipping end tags, comments, PIs, CDATA).
+function* elements(xml: string): Generator<Element> {
+  let i = 0;
+  for (;;) {
+    const lt = xml.indexOf('<', i);
+    if (lt < 0) return;
+    const next = xml[lt + 1];
+    if (next === '/' || next === '?' || next === '!') {
+      const close = next === '!' && xml.startsWith('<!--', lt) ? xml.indexOf('-->', lt + 4) : next === '!' && xml.startsWith('<![CDATA[', lt) ? xml.indexOf(']]>', lt + 9) : xml.indexOf('>', lt + 1);
+      if (close < 0) return;
+      i = close + 1;
+      continue;
+    }
+    let j = lt + 1;
+    while (j < xml.length && (NAME.test(xml[j]) || xml[j] === ':')) j++;
+    const qname = xml.slice(lt + 1, j);
+    const gt = xml.indexOf('>', j);
+    if (!qname || gt < 0) return;
+    const selfClosing = xml[gt - 1] === '/';
+    yield { local: qname.slice(qname.lastIndexOf(':') + 1), attrs: xml.slice(j, selfClosing ? gt - 1 : gt), textStart: gt + 1, selfClosing };
+    i = gt + 1;
+  }
+}
+
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+function decode(text: string): string {
+  return text.replace(/&(#x[0-9a-fA-F]{1,6}|#[0-9]{1,7}|amp|lt|gt|quot|apos);/g, (_m, e: string) => {
+    if (e[0] !== '#') return ENTITIES[e];
+    const code = e[1] === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+    return code <= 0x10ffff ? String.fromCodePoint(code) : '';
+  });
+}
+
+function find(xml: string, name: string): Element | undefined {
+  for (const el of elements(xml)) if (el.local === name) return el;
+  return undefined;
+}
+
+function textOf(xml: string, el: Element): string {
+  if (el.selfClosing) return '';
+  const end = xml.indexOf('<', el.textStart);
+  return decode(xml.slice(el.textStart, end < 0 ? xml.length : end)).trim();
+}
+
 // The first element in the SOAP Body: the operation's local name.
 export function operation(xml: string): string | undefined {
-  const body = /<(?:[\w-]+:)?Body[^>]*>\s*<(?:[\w-]+:)?([A-Za-z]+)[\s/>]/.exec(xml);
-  return body?.[1];
+  let inBody = false;
+  for (const el of elements(xml)) {
+    if (inBody) return el.local;
+    if (el.local === 'Body') inBody = true;
+  }
+  return undefined;
 }
 
 // The text of the first element with this local name.
 export function field(xml: string, name: string): string | undefined {
-  const m = new RegExp(`<(?:[\\w-]+:)?${name}(?:\\s[^>]*)?>([^<]*)</(?:[\\w-]+:)?${name}>`).exec(xml);
-  return m?.[1].trim();
+  const el = find(xml, name);
+  return el ? textOf(xml, el) : undefined;
+}
+
+function attr(attrs: string, name: string): string | undefined {
+  for (const m of attrs.matchAll(/([A-Za-z0-9_.:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    if (m[1].slice(m[1].lastIndexOf(':') + 1) === name) return decode(m[2] ?? m[3] ?? '');
+  }
+  return undefined;
 }
 
 // "PT60S", "PT1M30S", "PT2H" → ms. An absolute xsd:dateTime → ms from now.
@@ -59,10 +125,11 @@ const MAX_SKEW_MS = 5 * 60_000;
 // or PasswordText. Created must be within 5 minutes (replay protection).
 export function authenticate(xml: string, users: User[], now = Date.now()): User | undefined {
   const name = field(xml, 'Username');
-  const pw = /<(?:[\w-]+:)?Password(?:\s+Type="([^"]*)")?[^>]*>([^<]*)</.exec(xml);
+  const el = find(xml, 'Password');
   const user = users.find((u) => u.name === name);
-  if (!user || !pw) return undefined;
-  const digestType = (pw[1] ?? '').endsWith('#PasswordDigest');
+  if (!user || !el) return undefined;
+  const pw = textOf(xml, el);
+  const digestType = (attr(el.attrs, 'Type') ?? '').endsWith('#PasswordDigest');
   const created = field(xml, 'Created');
   if (digestType) {
     const nonce = field(xml, 'Nonce');
@@ -70,8 +137,8 @@ export function authenticate(xml: string, users: User[], now = Date.now()): User
     const t = Date.parse(created);
     if (Number.isNaN(t) || Math.abs(now - t) > MAX_SKEW_MS) return undefined;
     const want = createHash('sha1').update(Buffer.concat([Buffer.from(nonce, 'base64'), Buffer.from(created), Buffer.from(user.password)])).digest();
-    const got = Buffer.from(pw[2], 'base64');
+    const got = Buffer.from(pw, 'base64');
     return got.length === want.length && timingSafeEqual(got, want) ? user : undefined;
   }
-  return safeEqual(pw[2], user.password) ? user : undefined;
+  return safeEqual(pw, user.password) ? user : undefined;
 }
