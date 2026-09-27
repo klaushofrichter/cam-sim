@@ -494,7 +494,7 @@ manifests.
   - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
   - background motion, person, vehicle and pet events;
   - `CAMSIM_CONTROL_TLS=on`.
-- **Control API and web UI:** `scripts/cam2-ui.sh` port-forwards cam2's
+- **Control API and web UI:** `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in the cluster (port-forward). For cam2 it port-forwards
   control port. It copies the token to the clipboard and opens the web UI once
   there is one (Plan 3); until then it shows cam2's state. The API is then at
   `https://127.0.0.1:9443/sim/api/…` with the bearer token from `.env`.
