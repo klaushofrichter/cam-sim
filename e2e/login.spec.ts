@@ -31,7 +31,7 @@ test('logout returns to the login page', async ({ page }) => {
 
 test('a tampered session cookie returns to the login page', async ({ page, context }) => {
   await signIn(page);
-  const [c] = (await context.cookies()).filter((x) => x.name === 'camsim_session');
+  const [c] = (await context.cookies()).filter((x) => x.name.startsWith('camsim_session_'));
   await context.addCookies([{ ...c, value: c.value.replace(/.$/, (x) => (x === '0' ? '1' : '0')) }]);
   await page.reload();
   await expect(page.getByTestId('token-input')).toBeVisible();

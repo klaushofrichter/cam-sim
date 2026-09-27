@@ -56,3 +56,13 @@ test('camera requests show up in the live log', async ({ page, request }) => {
   await camLogin(request);
   await expect(page.getByTestId('log-row').filter({ hasText: 'Login' }).first()).toBeVisible();
 });
+
+test('a fault toggle that the API refuses shows the fault as off', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#/simulator');
+  const row = page.getByTestId('fault-downloads.dropFirst');
+  await row.getByLabel('downloads.dropFirst count').fill('0'); // count must be 1 or more
+  await row.getByTestId('fault-toggle').click();
+  await expect(page.getByRole('status')).toContainText('count');
+  await expect(row.getByTestId('fault-toggle')).not.toBeChecked();
+});

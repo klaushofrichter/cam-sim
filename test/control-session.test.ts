@@ -37,7 +37,7 @@ describe('UI login', () => {
     const res = await request(ctl).post('/sim/login').send({ token: TOKEN });
     expect(res.status).toBe(204);
     const cookie = (res.headers['set-cookie'] as unknown as string[])[0];
-    expect(cookie).toMatch(/^camsim_session=v1\./);
+    expect(cookie).toMatch(/^camsim_session_cam=v1\./);
     expect(cookie).toMatch(/HttpOnly/);
     expect(cookie).toMatch(/SameSite=Strict/);
     expect(cookie).toMatch(/Path=\//);
@@ -72,7 +72,7 @@ describe('UI login', () => {
     const { ctl } = await setup();
     const other = await setup();
     const foreign = await loginCookie(other.ctl);
-    for (const c of ['camsim_session=v1.9999999999999.abcd', foreign]) {
+    for (const c of ['camsim_session_cam=v1.9999999999999.abcd', foreign]) {
       expect((await request(ctl).get('/sim/api/state').set('Cookie', c)).status).toBe(401);
     }
     expect((await request(ctl).get('/sim/session').set('Cookie', foreign)).body).toEqual({ loggedIn: false });
@@ -83,7 +83,7 @@ describe('UI login', () => {
     const c = await loginCookie(ctl);
     const res = await request(ctl).post('/sim/logout').set('Cookie', c).set('X-CamSim-UI', '1');
     expect(res.status).toBe(204);
-    expect((res.headers['set-cookie'] as unknown as string[])[0]).toMatch(/camsim_session=;/);
+    expect((res.headers['set-cookie'] as unknown as string[])[0]).toMatch(/camsim_session_cam=;/);
   });
 
   it('still refuses a token in the URL, and has no login without a control token', async () => {
@@ -92,5 +92,38 @@ describe('UI login', () => {
     expect((await request(ctl).get(`/sim/api/state?token=${TOKEN}`).set('Cookie', c)).status).toBe(400);
     const bare = createControlApp(await makeEngine());
     expect((await request(bare).post('/sim/login').send({ token: 'x' })).status).toBe(404);
+  });
+});
+
+describe('UI fixes from the final review', () => {
+  it('the login body limit does not apply to the API (larger bodies work, oversized ones get 413)', async () => {
+    const { ctl, engine } = await setup();
+    const hms = (h: number, s: number) => `${h}${String(Math.floor(s / 60)).padStart(2, '0')}${String(s % 60).padStart(2, '0')}`;
+    const clips = Array.from({ length: 150 }, (_, i) => ({ daysAgo: 1, start: hms(10, i), end: hms(11, i), triggers: ['motion'] }));
+    const res = await request(ctl).post('/sim/api/recordings/seed').set('Authorization', `Bearer ${TOKEN}`).send({ clips });
+    expect(res.status).toBe(201);
+    expect(engine.sd.all().length).toBeGreaterThanOrEqual(150);
+    const big = await request(ctl).post('/sim/api/recordings/seed').set('Authorization', `Bearer ${TOKEN}`).set('Content-Type', 'application/json').send(JSON.stringify({ clips: 'x'.repeat(300_000) }));
+    expect(big.status).toBe(413);
+  });
+
+  it('names the session cookie per camera, so cameras on one host keep their own sessions', async () => {
+    const a = await setup({ CAMSIM_NAME: 'cam2' });
+    const b = await setup({ CAMSIM_NAME: 'cam3' });
+    const ca = (await request(a.ctl).post('/sim/login').send({ token: TOKEN })).headers['set-cookie'] as unknown as string[];
+    const cb = (await request(b.ctl).post('/sim/login').send({ token: TOKEN })).headers['set-cookie'] as unknown as string[];
+    expect(ca[0]).toMatch(/^camsim_session_cam2=/);
+    expect(cb[0]).toMatch(/^camsim_session_cam3=/);
+    // Both cookies in one browser jar: each camera reads its own.
+    const jar = `${ca[0].split(';')[0]}; ${cb[0].split(';')[0]}`;
+    expect((await request(a.ctl).get('/sim/api/state').set('Cookie', jar)).status).toBe(200);
+    expect((await request(b.ctl).get('/sim/api/state').set('Cookie', jar)).status).toBe(200);
+  });
+
+  it('rate-limits login attempts', async () => {
+    const { ctl } = await setup();
+    let last = 0;
+    for (let i = 0; i < 21; i++) last = (await request(ctl).post('/sim/login').send({ token: 'wrong' })).status;
+    expect(last).toBe(429);
   });
 });

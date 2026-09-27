@@ -1,6 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
-export const SESSION_COOKIE = 'camsim_session';
+// Per camera: several simulators on one host (ports differ, cookies don't)
+// must not overwrite each other's session.
+export const sessionCookieName = (camera: string) => `camsim_session_${camera.toLowerCase().replace(/[^a-z0-9]/g, '') || 'cam'}`;
 export const SESSION_MS = 12 * 3600_000;
 
 // Web UI sessions: `v1.<expiresMs>.<hmac>`, signed with a per-process secret,

@@ -9,7 +9,8 @@ import { streamFlv } from '../camera-api/media-routes';
 import { devInfo, ENC, AI_TYPES } from '../profile/rlc1224a';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
-import { createSessionSigner, readCookie, SESSION_COOKIE, SESSION_MS } from './session';
+import { createSessionSigner, readCookie, sessionCookieName, SESSION_MS } from './session';
+import { rateLimit } from 'express-rate-limit';
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
 
@@ -37,12 +38,14 @@ export function createControlApp(engine: Engine): express.Express {
   // a cross-site form can't send).
   const sessions = createSessionSigner();
   const tokenMatches = (t: unknown) => typeof t === 'string' && !!e.config.controlToken && timingSafeEqual(digest(t), digest(e.config.controlToken));
+  const SESSION_COOKIE = sessionCookieName(e.config.name);
   const cookieOf = (req: Request) => readCookie(req.get('cookie'), SESSION_COOKIE);
   const cookieFlags = (req: Request) => `Path=/; HttpOnly; SameSite=Strict${req.secure ? '; Secure' : ''}`;
   const session = express.Router();
   session.use((_req, res, next) => (e.config.controlToken ? next() : void res.status(404).json({ error: 'not_found' })));
-  session.use(express.json({ limit: '4kb' }));
-  session.post('/login', (req, res) => {
+  // Guessing tokens: 20 login attempts per 15 minutes per address.
+  const loginLimit = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'too_many_attempts' } });
+  session.post('/login', loginLimit, express.json({ limit: '4kb' }), (req, res) => {
     if (!tokenMatches(req.body?.token)) return void res.status(401).json({ error: 'unauthorized' });
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${sessions.issue()}; Max-Age=${SESSION_MS / 1000}; ${cookieFlags(req)}`);
     res.status(204).end();
@@ -54,6 +57,9 @@ export function createControlApp(engine: Engine): express.Express {
   session.get('/session', (req, res) => void res.json({ loggedIn: sessions.verify(cookieOf(req)) }));
   app.use('/sim', session);
 
+  // A generous ceiling for everything else on the control port (the UI polls
+  // little; SSE and live video are single long requests).
+  app.use(rateLimit({ windowMs: 60_000, limit: 1200, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'rate_limited' } }));
   const api = express.Router();
   api.use((req: Request, res: Response, next: NextFunction) => {
     if (!e.config.controlToken) return void res.status(404).json({ error: 'not_found' });
@@ -229,9 +235,13 @@ export function createControlApp(engine: Engine): express.Express {
   if (e.config.webUi && e.config.controlToken) {
     if (!webDir) e.log.warn('web_ui_not_built');
     else {
-      app.use('/assets', express.static(join(webDir, 'assets'), { immutable: true, maxAge: '1y', index: false }));
+      // A missing asset is a 404, not the app page (stale chunks after an upgrade).
+      app.use('/assets', express.static(join(webDir, 'assets'), { immutable: true, maxAge: '1y', index: false, fallthrough: false }));
       app.get(/^\/(?!sim\/|healthz).*/, (_req, res) => {
         res.setHeader('Cache-Control', 'no-store');
+        // The UI has reset and power buttons: never inside another page's frame.
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
         res.sendFile(join(webDir, 'index.html'));
       });
     }
@@ -239,6 +249,9 @@ export function createControlApp(engine: Engine): express.Express {
   app.use((err: Error & { type?: string }, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) return next(err);
     if (err.type === 'entity.parse.failed') return void res.status(400).json({ error: 'invalid', detail: 'body is not JSON' });
+    if (err.type === 'entity.too.large') return void res.status(413).json({ error: 'too_large' });
+    const status = (err as { status?: number }).status;
+    if (status === 404) return void res.status(404).json({ error: 'not_found' });
     e.log.error({ err: err.message }, 'control_api_error');
     res.status(500).json({ error: 'internal' });
   });

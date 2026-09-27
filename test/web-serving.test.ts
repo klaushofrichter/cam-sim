@@ -41,3 +41,19 @@ describe('web UI serving', () => {
     }
   });
 });
+
+describe('web UI serving hardening', () => {
+  it('answers 404 for a missing asset instead of the app page', async () => {
+    process.env.CAMSIM_WEB_DIR = fakeBuild();
+    const ctl = createControlApp(await makeEngine({ CAMSIM_CONTROL_TOKEN: 't', CAMSIM_WEB_UI: 'true' }));
+    expect((await request(ctl).get('/assets/missing.js')).status).toBe(404);
+  });
+
+  it('may not be framed by another page', async () => {
+    process.env.CAMSIM_WEB_DIR = fakeBuild();
+    const ctl = createControlApp(await makeEngine({ CAMSIM_CONTROL_TOKEN: 't', CAMSIM_WEB_UI: 'true' }));
+    const res = await request(ctl).get('/');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+  });
+});

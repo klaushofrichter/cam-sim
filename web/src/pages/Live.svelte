@@ -9,6 +9,9 @@
   let video: HTMLVideoElement | undefined = $state();
   let error = $state('');
   let player: ReturnType<typeof mpegts.createPlayer> | null = null;
+  // Only the power state matters here; every event or fault update replaces
+  // the whole state object, which must not restart the stream.
+  const power = $derived($simState?.power);
   const hevc = typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L150.B0"');
 
   function stop() {
@@ -26,7 +29,7 @@
   function start() {
     stop();
     error = '';
-    if (!video || $simState?.power !== 'on') return;
+    if (!video || power !== 'on') return;
     if (stream === 'main' && !hevc) {
       error = 'The main stream is H.265, which this browser cannot play in a page (Safari and Chrome on macOS can).';
       return;
@@ -43,7 +46,7 @@
 
   $effect(() => {
     void stream;
-    void $simState?.power;
+    void power;
     start();
   });
   onDestroy(stop);

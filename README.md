@@ -509,7 +509,14 @@ The UI has four pages:
   - a live log of camera requests and events.
 
 Looking at the UI is not a camera client: it creates no camera sessions and
-changes no counters.
+changes no counters. A settings save in the UI writes the whole object, so the
+saved and running values become equal. That also clears any reset a partial
+camera-API write left waiting for the next reboot.
+
+Each camera's session cookie carries its name (`camsim_session_<name>`), so
+several simulators on one host stay signed in side by side. Login attempts are
+limited to 20 per 15 minutes per address, and the UI refuses to be shown
+inside another page's frame.
 
 To open it:
 

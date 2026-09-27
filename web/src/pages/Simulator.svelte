@@ -38,7 +38,14 @@
     }
   }
 
-  async function toggle(f: (typeof FAULTS)[number]) {
+  async function toggle(f: (typeof FAULTS)[number], box: HTMLInputElement) {
+    await toggleFault(f);
+    // The box shows the fault's real state, also when the API refused the change
+    // (the SSE state update may not come, or come later).
+    box.checked = !!(await api<Array<{ name: string }>>('GET', '/faults').catch(() => [])).find((x) => x.name === f.name);
+  }
+
+  async function toggleFault(f: (typeof FAULTS)[number]) {
     if (active(f.name)) return run(`${f.name} off`, () => api('DELETE', `/faults/${f.name}`));
     const p = params[f.name];
     const body: Record<string, unknown> = {};
@@ -95,7 +102,7 @@
         {#each FAULTS as f (f.name)}
           {@const on = active(f.name)}
           <li data-testid="fault-{f.name}" class:on>
-            <label class="switch"><input type="checkbox" checked={!!on} onchange={() => void toggle(f)} data-testid="fault-toggle" /> <span class="mono">{f.name}</span></label>
+            <label class="switch"><input type="checkbox" checked={!!on} onchange={(e) => void toggle(f, e.currentTarget)} data-testid="fault-toggle" /> <span class="mono">{f.name}</span></label>
             <span class="desc">{f.label}{#if on?.count !== undefined} · {on.count} left{/if}</span>
             <span class="params">
               {#if f.params.includes('ms')}<input type="number" min="0" bind:value={params[f.name].ms} disabled={!!on} aria-label="{f.name} ms" /> ms{/if}

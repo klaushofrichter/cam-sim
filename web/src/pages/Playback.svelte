@@ -16,6 +16,12 @@
   // The camera's calendar day, in its own time zone.
   const localDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: $simState?.tz ?? 'America/Chicago' }).format(d);
   let date = $state(localDate());
+  // Until someone picks a day, follow the camera's own "today" (its time zone
+  // is known only once the state has loaded).
+  let picked = false;
+  $effect(() => {
+    if (!picked && $simState?.tz) date = localDate();
+  });
   let recs = $state<Rec[]>([]);
   let daysTable = $state('');
   let selected = $state<Rec | null>(null);
@@ -54,6 +60,7 @@
   // Blank cells so day 1 sits under its weekday (weeks start on Sunday).
   const lead = $derived(new Date(`${date.slice(0, 8)}01T12:00:00Z`).getUTCDay());
   const shift = (n: number) => {
+    picked = true;
     const d = new Date(`${date}T12:00:00Z`);
     d.setUTCMonth(d.getUTCMonth() + n, 1);
     date = d.toISOString().slice(0, 10);
@@ -74,7 +81,7 @@
         {#each Array(lead) as _, i (i)}<span></span>{/each}
         {#each days as d (d.day)}
           {@const iso = `${date.slice(0, 8)}${String(d.day).padStart(2, '0')}`}
-          <button class:has={d.has} class:sel={iso === date} data-testid="day-{d.day}" onclick={() => (date = iso)}>{d.day}</button>
+          <button class:has={d.has} class:sel={iso === date} data-testid="day-{d.day}" onclick={() => ((picked = true), (date = iso))}>{d.day}</button>
         {/each}
       </div>
       {#if error}<p class="err">{error}</p>{/if}

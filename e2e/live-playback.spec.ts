@@ -12,6 +12,18 @@ test('live plays the sub stream', async ({ page }) => {
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 10_000 }).toBeGreaterThan(t0);
 });
 
+test('triggering an event does not restart the live view', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#/live');
+  const video = page.getByTestId('live-video');
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+  const src = await video.evaluate((v: HTMLVideoElement) => v.src);
+  await page.getByTestId('trigger-motion').click();
+  await expect(page.getByTestId('trigger-result')).toContainText('Recording');
+  await page.waitForTimeout(1500);
+  expect(await video.evaluate((v: HTMLVideoElement) => v.src)).toBe(src);
+});
+
 test('a person trigger records, shows in Playback, plays and downloads', async ({ page }) => {
   await signIn(page);
   await page.goto('/#/live');
