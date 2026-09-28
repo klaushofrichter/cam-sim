@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `GetDevInfo` answers `simulator: "cam-sim"` (the one field the real camera
+  doesn't send), so clients can label the camera as simulated.
+
 - `rtsp.refuse` only turns new RTSP readers away; connected readers keep
   watching (`rtsp.reset`, offline and RTSP off still cut them).
 
