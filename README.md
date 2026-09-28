@@ -182,8 +182,11 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 ```
 
 ```json
-[{ "cmd": "GetDevInfo", "code": 0, "value": { "DevInfo": { "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059", "serial": "SIM3F0A…", "name": "Cam", "…": "…" } } }]
+[{ "cmd": "GetDevInfo", "code": 0, "value": { "DevInfo": { "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059", "serial": "SIM3F0A…", "name": "Cam", "simulator": "cam-sim", "…": "…" } } }]
 ```
+
+`GetDevInfo` also answers `simulator: "cam-sim"`, the one field the real
+camera doesn't send, so clients (cams) can label the camera as simulated.
 
 - **Every JSON reply is `Content-Type: text/html`**, as on the camera.
 - On failure `code` is 1 and `error.rspCode` is negative:

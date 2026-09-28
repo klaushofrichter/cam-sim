@@ -47,7 +47,10 @@ describe('RLC-1224A profile', () => {
 
   it.skipIf(!existsSync(REF))('matches the key sets of the captured replies', () => {
     const f = factorySettings('Cam');
-    expect(shape(devInfo('Cam', 'S', FIRMWARE.firmVer))).toEqual(shape(ref('GetDevInfo').DevInfo));
+    // The real camera's keys, plus cam-sim's one intended extra (simulator).
+    const { simulator, ...dev } = devInfo('Cam', 'S', FIRMWARE.firmVer) as Record<string, unknown>;
+    expect(simulator).toBe('cam-sim');
+    expect(shape(dev)).toEqual(shape(ref('GetDevInfo').DevInfo));
     expect(shape(ENC)).toEqual(shape(ref('GetEnc').Enc));
     expect(shape(DEFAULT_NET_PORT)).toEqual(shape(ref('GetNetPort').NetPort));
     expect(shape(f.Rec)).toEqual(shape(ref('GetRecV20').Rec));
@@ -61,5 +64,14 @@ describe('RLC-1224A profile', () => {
     expect(f.Isp).toEqual(ref('GetIsp').Isp);
     expect(f.WhiteLed).toEqual(ref('GetWhiteLed').WhiteLed);
     expect(f.MdAlarm).toEqual(ref('GetMdAlarm').MdAlarm);
+  });
+});
+
+describe('devInfo identifies the simulator (cams labels it, Klaus 2026-09-28)', () => {
+  it('adds simulator: cam-sim and changes nothing else', () => {
+    const d = devInfo('Den', 'SERIAL', 'v3.2.0.6011_2607012059') as Record<string, unknown>;
+    expect(d.simulator).toBe('cam-sim');
+    expect(d.model).toBe(FIRMWARE.model);
+    expect(Object.keys(d)).toHaveLength(21); // the real camera's 20 keys + simulator
   });
 });

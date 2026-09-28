@@ -20,6 +20,9 @@ export function devInfo(name: string, serial: string, firmVer: string) {
     buildDay: FIRMWARE.buildDay, cfgVer: FIRMWARE.cfgVer, channelNum: 1, detail: FIRMWARE.detail,
     diskNum: 1, exactType: 'IPC', firmVer, frameworkVer: 1, hardVer: FIRMWARE.hardVer, itemNo: '',
     model: FIRMWARE.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
+    // The one field a real camera never sends: clients such as cams label the
+    // camera as simulated (Klaus, 2026-09-28). Everything else stays identical.
+    simulator: 'cam-sim',
   };
 }
 
