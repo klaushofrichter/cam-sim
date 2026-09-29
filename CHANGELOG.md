@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `GetDevInfo.simulator` carries the build's version (`cam-sim <APP_VERSION>`), so cams can show which cam-sim a camera is.
 - `GetDevInfo` answers `simulator: "cam-sim"` (the one field the real camera
   doesn't send), so clients can label the camera as simulated.
 

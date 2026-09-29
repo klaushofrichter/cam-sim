@@ -22,7 +22,9 @@ export function devInfo(name: string, serial: string, firmVer: string) {
     model: FIRMWARE.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
     // The one field a real camera never sends: clients such as cams label the
     // camera as simulated (Klaus, 2026-09-28). Everything else stays identical.
-    simulator: 'cam-sim',
+    // With the build's version (the container's APP_VERSION), so cams can
+    // show which cam-sim it is (cams issue #69).
+    simulator: `cam-sim ${process.env.APP_VERSION || 'dev'}`,
   };
 }
 
