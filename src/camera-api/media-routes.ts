@@ -1,4 +1,5 @@
 import { createReadStream } from 'fs';
+import { isKeyframe } from '../media/flv-stream';
 import { Transform } from 'stream';
 import type { Request, Response } from 'express';
 import type { Engine } from '../engine/engine';
@@ -140,8 +141,51 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
   let pass = 0;
   let next = 0;
   let base = 0;
+  // The SD pipeline (spec 2026-09-29): while it runs, sub comes from it.
+  // Tags arriving between pumps wait in `queue`; each live part (a start or
+  // a restart of the pipeline) begins with its config tags, then a keyframe.
+  let live: { gen: number; off: () => void; queue: FlvTag[]; firstMs: number | null } | null = null;
+  const leaveLive = () => {
+    live?.off();
+    live = null;
+  };
+  const enterLive = (due: number) => {
+    const ls = e.liveSub!;
+    leaveLive();
+    const gen = ls.generation();
+    const entry = { gen, off: () => {}, queue: [] as FlvTag[], firstMs: null as number | null };
+    for (const c of ls.configTags()) if (c.type !== 18) res.write(shifted({ ...c, ms: 0 }, due));
+    entry.off = ls.subscribe((t, g) => {
+      if (g !== gen) return;
+      if (entry.firstMs === null) {
+        if (!isKeyframe(t)) return;
+        entry.firstMs = t.ms;
+      }
+      entry.queue.push(t);
+    });
+    base = due;
+    live = entry;
+  };
   const pump = () => {
     const due = Date.now() - began;
+    if (stream === 'sub') {
+      const ls = e.liveSub;
+      if (ls?.active() && (!live || live.gen !== ls.generation())) enterLive(due);
+      if (live && !ls?.active()) {
+        leaveLive();
+        src = load(e.media, false);
+        base = due;
+        pass = 0;
+        next = 0;
+      }
+      if (live) {
+        for (const t of live.queue.splice(0)) {
+          res.write(shifted(t, base - (live.firstMs ?? t.ms)));
+          if (res.writableLength > e.limits.flvBufferBytes) return void res.destroy();
+        }
+        return;
+      }
+    }
     if (e.media !== src.media) {
       try {
         src = load(e.media, false);
@@ -179,6 +223,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
   const timer = setInterval(pump, 20);
   res.on('close', () => {
     clearInterval(timer);
+    leaveLive();
     if (opts.count) e.counters.activeStreams--;
     e.activeFlv.delete(res);
   });
