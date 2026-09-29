@@ -28,6 +28,15 @@
 - Off means byte-for-byte today's behaviour, and no extra ffmpeg.
 - Docker: `apk add font-dejavu`.
 
+## Deployment note (Klaus, 2026-09-29)
+
+The pipeline runs **inside cam-sim's container**, as a child ffmpeg of the
+same image; there is no sidecar or separate service. In the cluster, cam2's
+container is limited to 500m CPU and 512Mi. The pipeline adds about 50–100m
+CPU and 50–100 MB while it's on, which fits, but it shares that limit with
+library conversion. After the release, ask the kube-setup session to raise
+cam2's CPU limit to 750m. Don't edit kube-setup from this repo.
+
 ## Review Focus
 
 1. **A camera name with `%`, `{`, `:`, quotes, backslashes or non-ASCII** must render literally and never break the filter graph. Names go through a text file with `expansion=none`. Pinned in Task 2.
