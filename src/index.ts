@@ -45,6 +45,8 @@ export interface CamSimOptions {
   fixtureDir?: string;
   libraryDir?: string; // videos to offer besides the test pattern
   video?: string; // selected once it is ready
+  pipelineMaxMin?: number; // the longest SD pipeline switch-on (minutes, default 1440)
+  fontDir?: string; // fonts for the SD pipeline (default: system DejaVu, or Arial on a Mac)
   mainSize?: string;
   maxVideoS?: number;
   logLevel?: string;
@@ -93,6 +95,8 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     maxVideoS: o.maxVideoS ?? 60,
     libraryDir: o.libraryDir,
     video: o.video,
+    pipelineMaxMin: o.pipelineMaxMin ?? 1440,
+    fontDir: o.fontDir,
   };
 }
 
