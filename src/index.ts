@@ -161,6 +161,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         rtspUrl: () => rtsp?.publisherUrl('sub'),
         onProcess: (up) => rtsp?.setSubSource(up ? 'pipeline' : 'copy'),
       });
+      rtsp.onDropReaders(() => pipeline?.restartNow());
       if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
       preparing ??= library.prepareAll().then(() => {
         const why = config.video ? library.select(config.video) : null;

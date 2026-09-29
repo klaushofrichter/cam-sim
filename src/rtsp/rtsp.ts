@@ -54,6 +54,8 @@ export class RtspService {
   private readonly pubPassword = randomBytes(16).toString('hex');
   // Who publishes sub: the stream copy, or the SD pipeline while it runs.
   private subMode: 'copy' | 'pipeline' = 'copy';
+  // Others that publish (the SD pipeline) and must drop their readers too.
+  private readonly dropHooks: Array<() => void> = [];
 
   // Changes that must cut connected readers, like a camera that goes down.
   private readonly onState = (s: { power?: string; rebooting?: boolean }) => {
@@ -235,7 +237,7 @@ export class RtspService {
     if (mode === this.subMode) return;
     this.subMode = mode;
     if (mode === 'pipeline') this.publishers.get('sub')?.kill('SIGTERM');
-    else if (!this.publishers.has('sub')) this.publish('sub');
+    else if (this.up && !this.publishers.has('sub')) this.publish('sub'); // never without MediaMTX
   }
 
   private publish(stream: Stream): void {
@@ -258,6 +260,13 @@ export class RtspService {
   // Readers drop when their publisher goes away; it restarts a second later.
   dropReaders(): void {
     for (const p of this.publishers.values()) p.kill('SIGTERM');
+    for (const fn of this.dropHooks) fn();
+  }
+
+  // The SD pipeline restarts when readers must be cut (rtsp.reset, offline,
+  // power off), like the copy publishers.
+  onDropReaders(fn: () => void): void {
+    this.dropHooks.push(fn);
   }
 
   private stopPublishers(): void {

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { makeEngine } from './helpers';
-import { SdPipeline } from '../src/pipeline/sd-pipeline';
+import { SdPipeline, scrubError } from '../src/pipeline/sd-pipeline';
 import { findFonts } from '../src/pipeline/fonts';
 import { isKeyframe } from '../src/media/flv-stream';
 import type { FlvTag } from '../src/media/flv';
@@ -112,4 +112,13 @@ describe('SdPipeline', () => {
     expect(video.length).toBeGreaterThan(5); // replayed, not waiting for the next keyframe
     expect(isKeyframe(video[0])).toBe(true);
   }, 30_000);
+
+  // Final review I5: the RTSP publisher password never reaches the state.
+  it('scrubs paths and the RTSP URL (with its password) from an error line', () => {
+    const url = 'rtsp://camsim-publisher:0123abcd@127.0.0.1:8554/h264Preview_01_sub';
+    const msg = scrubError(`[out#0/tee @ 0x1] ${url}: Connection refused; also /tmp/x/clock.txt`, url);
+    expect(msg).not.toContain('0123abcd');
+    expect(msg).not.toContain('/tmp/x');
+    expect(msg).toContain('Connection refused');
+  });
 });

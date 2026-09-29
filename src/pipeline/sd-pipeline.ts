@@ -11,6 +11,18 @@ import type { LiveSubSource } from './live-sub';
 
 type Fonts = { regular: string; bold: string };
 
+// An ffmpeg error line fit for the state and the web UI: the RTSP publisher
+// URL (it holds the publisher password) and any file paths removed.
+export function scrubError(text: string, rtspUrl?: string): string {
+  let t = text;
+  if (rtspUrl) {
+    t = t.replaceAll(rtspUrl, '<rtsp>');
+    const pw = /^rtsp:\/\/[^:]+:([^@]+)@/.exec(rtspUrl)?.[1];
+    if (pw) t = t.replaceAll(pw, '***');
+  }
+  return t.replace(/rtsp:\/\/\S+/g, '<rtsp>').replace(/(?:[A-Za-z]:)?\/[^\s:'"]+/g, '<path>').slice(0, 200);
+}
+
 // The optional SD pipeline (spec 2026-09-29): one ffmpeg that re-encodes the
 // current video's SD clip with the camera's name, time, watermark and
 // flip/mirror, for FLV clients (stdout) and, when given, RTSP (tee).
@@ -138,7 +150,7 @@ export class SdPipeline implements LiveSubSource {
       }
       const now = Date.now();
       if (now - this.lastFailure < 60_000) {
-        const msg = (lastErr || 'the SD pipeline stopped').replace(/(?:[A-Za-z]:)?\/[^\s:'"]+/g, '<path>').slice(0, 200);
+        const msg = scrubError(lastErr || 'the SD pipeline stopped', rtsp);
         return void e.pipelineOff(msg); // emits 'pipeline'
       }
       this.lastFailure = now;
@@ -169,6 +181,11 @@ export class SdPipeline implements LiveSubSource {
   private restart(): void {
     if (!this.proc) return;
     void this.kill(); // the exit handler's follow() starts it again
+  }
+
+  // A restart now (RTSP cuts its readers): readers reconnect to the new one.
+  restartNow(): void {
+    this.restart();
   }
 
   async stop(): Promise<void> {
