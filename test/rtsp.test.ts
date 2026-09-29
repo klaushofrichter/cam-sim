@@ -9,6 +9,8 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { Library } from '../src/media/library';
+import { SdPipeline } from '../src/pipeline/sd-pipeline';
+import { findFonts } from '../src/pipeline/fonts';
 
 const run = promisify(execFile);
 const mediamtx = findMediaMtx();
@@ -189,4 +191,26 @@ describe('RTSP availability', () => {
     expect(svc.running()).toBe(false);
     await svc.stop();
   });
+
+  it.skipIf(!mediamtx)('serves the pipeline on h264Preview_01_sub while it runs, and the copy again after', async () => {
+    const e = await makeEngine();
+    const rtsp = new RtspService(e, { port: await freePort(), mediamtx });
+    services.push(rtsp);
+    await rtsp.start();
+    const p = new SdPipeline(e, { fonts: findFonts(), rtspUrl: () => rtsp.publisherUrl('sub'), onProcess: (up: boolean) => rtsp.setSubSource(up ? 'pipeline' : 'copy') });
+    const url = `rtsp://cams:cams-pw@127.0.0.1:${rtsp.port()}/h264Preview_01_sub`;
+    try {
+      e.pipelineOn(5);
+      for (let i = 0; i < 150 && !p.active(); i++) await new Promise((r) => setTimeout(r, 100));
+      expect(p.active()).toBe(true); // its FLV side works too (tee)
+      expect(rtsp.publishing()).toBe(1); // only main's copy: the pipeline publishes sub
+      expect(await probe(url)).toMatchObject({ codec: 'h264', width: 896 });
+      e.pipelineOff();
+      await new Promise((r) => setTimeout(r, 2500));
+      expect(rtsp.publishing()).toBe(2); // sub's copy is back
+      expect(await probe(url)).toMatchObject({ codec: 'h264', width: 896 });
+    } finally {
+      await p.stop();
+    }
+  }, 60_000);
 });

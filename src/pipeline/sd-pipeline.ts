@@ -38,7 +38,7 @@ export class SdPipeline implements LiveSubSource {
     this.debounce.unref?.();
   };
 
-  constructor(private readonly engine: Engine, private readonly opts: { fonts: Fonts | null; rtspUrl?: () => string | undefined; onRunning?: (running: boolean) => void }) {
+  constructor(private readonly engine: Engine, private readonly opts: { fonts: Fonts | null; rtspUrl?: () => string | undefined; onProcess?: (up: boolean) => void }) {
     engine.liveSub = this;
     for (const t of ['pipeline', 'state', 'fault', 'video'] as const) engine.bus.on(t, this.onSwitch);
     engine.bus.on('settings', this.onChange);
@@ -84,9 +84,9 @@ export class SdPipeline implements LiveSubSource {
     const out = rtsp
       ? ['-f', 'tee', '-map', '0:v', '-map', '0:a?', `[f=rtsp:rtsp_transport=tcp]${rtsp}|[f=flv]pipe:1`]
       : ['-map', '0:v', '-map', '0:a?', '-f', 'flv', 'pipe:1'];
-    const args = ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', '-i', e.media.clipPath('sub'),
+    const args = ['-hide_banner', '-loglevel', 'warning', '-re', '-stream_loop', '-1', '-i', e.media.clipPath('sub'),
       '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
-      '-r', '10', '-g', '40', '-bf', '0', '-b:v', '1M', '-maxrate', '1M', '-bufsize', '2M', '-c:a', 'copy', ...out];
+      '-r', '10', '-g', '40', '-bf', '0', '-b:v', '1M', '-maxrate', '1M', '-bufsize', '2M', '-c:a', 'aac', '-b:a', '32k', ...out];
     const gen = ++this.gen;
     this.ready = false;
     this.cfg = [];
@@ -98,7 +98,6 @@ export class SdPipeline implements LiveSubSource {
         this.cfg.push(t);
         if (!this.ready && this.cfg.some((c) => c.type === 9)) {
           this.ready = true;
-          this.opts.onRunning?.(true);
           e.bus.emit('pipeline', e.pipelineState());
         }
         return;
@@ -108,14 +107,18 @@ export class SdPipeline implements LiveSubSource {
     let lastErr = '';
     const p = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     p.stdout!.on('data', (d: Buffer) => parser.push(d));
-    p.stderr!.on('data', (d) => (lastErr = String(d).trim().split('\n').pop() ?? lastErr));
+    p.stderr!.on('data', (d) => {
+      const text = String(d).trim();
+      lastErr = text.split('\n').pop() ?? lastErr;
+      e.log.debug({ ffmpeg: rtsp ? text.replaceAll(rtsp, '<rtsp>') : text }, 'sd_pipeline');
+    });
     p.on('error', (err) => (lastErr = err.message));
     p.on('exit', () => {
       if (this.proc !== p) return;
       this.proc = undefined;
       this.ready = false;
       clearInterval(this.clockTimer);
-      this.opts.onRunning?.(false);
+      this.opts.onProcess?.(false);
       // Decide first, then announce: the announcement re-runs follow(),
       // which must see a pending restart (or the switch already off).
       if (this.expectedExit || this.stopping) {
@@ -136,6 +139,9 @@ export class SdPipeline implements LiveSubSource {
       e.bus.emit('pipeline', e.pipelineState());
     });
     this.proc = p;
+    // RTSP: the stream copy stands down before this process connects, so
+    // neither takes the sub path from the other.
+    this.opts.onProcess?.(true);
   }
 
   private kill(): Promise<void> {
