@@ -5,10 +5,13 @@
 [![Build and publish image](https://github.com/klaushofrichter/cam-sim/actions/workflows/build-push.yml/badge.svg?branch=main)](https://github.com/klaushofrichter/cam-sim/actions/workflows/build-push.yml)
 [![Release and deploy](https://github.com/klaushofrichter/cam-sim/actions/workflows/release.yml/badge.svg?branch=production)](https://github.com/klaushofrichter/cam-sim/actions/workflows/release.yml)
 [![cams compatibility (daily)](https://github.com/klaushofrichter/cam-sim/actions/workflows/cams-compat.yml/badge.svg?event=schedule)](https://github.com/klaushofrichter/cam-sim/actions/workflows/cams-compat.yml)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](https://github.com/klaushofrichter/cam-sim/security/dependabot)
 
 <!-- The release badge is the newest tag, which the release job cuts after
      cam2 answers /healthz. The cams compatibility badge is the daily run of
-     cams' suites against main. No version numbers in the text below: they go
+     cams' suites against main. Dependabot is a static badge (it has no status
+     endpoint); alerts and security updates are on in the repository settings,
+     version updates come from .github/dependabot.yml. No version numbers in the text below: they go
      stale; the badge and the releases page carry them. -->
 
 cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
