@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Search answers like the real camera (measured 2026-09-29): only the start day is searched, from the start to the end time of day; `Status` lists only months with recordings and is added to clips searches; empty keys are left out; `onlyStatus` with reversed months answers `-64`.
+- README: image settings (day/night, rotation, mirroring, lights) are stored but don't change the video.
+
 - `GetDevInfo.simulator` carries the build's version (`cam-sim <APP_VERSION>`), so cams can show which cam-sim a camera is.
 - `GetDevInfo` answers `simulator: "cam-sim"` (the one field the real camera
   doesn't send), so clients can label the camera as simulated.

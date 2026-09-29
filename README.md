@@ -289,7 +289,7 @@ post Logout
 | | `GetAiAlarm` / `SetAiAlarm` | `{channel:0,ai_type}` / `{AiAlarm:{…,ai_type}}` | per `people`, `vehicle`, `dog_cat`; `sensitivity` 0–100 |
 | | `GetMdState` | `{channel:0}` | `{state:0\|1}`: 1 while an event is active |
 | | `GetAiState` | `{channel:0}` | `{channel:0,people:{alarm_state,support},vehicle:{…},dog_cat:{…},face:{alarm_state:0,support:0}}` |
-| Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation`, `mirroring`, … |
+| Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation` (upside down), `mirroring` (left–right), …; stored only, the video doesn't change (see [What differs](#what-differs-from-the-real-camera)) |
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
 | | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** (see [What differs](#what-differs-from-the-real-camera)) |
@@ -349,7 +349,7 @@ post Search '{"Search":{"channel":0,"onlyStatus":1,"streamType":"main",
 **Clips of one day** (`onlyStatus: 0`):
 
 ```json
-{ "SearchResult": { "channel": 0, "File": [ {
+{ "SearchResult": { "channel": 0, "Status": [ { "year": 2026, "mon": 9, "table": "…" } ], "File": [ {
   "name": "/mnt/sda/Mp4Record/2026-09-26/RecS0A_DST20260926_065221_065241_0_55148080000000_AAE60.mp4",
   "size": "700000", "type": "sub", "frameRate": 0, "width": 0, "height": 0,
   "StartTime": { "year": 2026, "mon": 9, "day": 26, "hour": 6, "min": 52, "sec": 21 },
@@ -359,6 +359,16 @@ post Search '{"Search":{"channel":0,"onlyStatus":1,"streamType":"main",
 - **One Search at a time, across the whole camera.** An overlapping Search
   answers `-54`, and the one already running comes back with no `File`.
 - `size` is a string. A day without clips has **no `File` key**.
+- **Only the start day is searched**, from `StartTime`'s time of day to
+  `EndTime`'s; `EndTime`'s date is ignored. A window from 28th 00:00 to 29th
+  23:59 lists only the 28th, 28th 12:00 to 29th 12:00 lists nothing, and
+  reversed dates (29th to 28th) list the 29th. Reversed times list nothing.
+  This matches the real camera (measured 2026-09-29); ask one day at a time.
+- **`Status`:** a clips search also returns the start month's table. Status
+  lists only months that have recordings (`onlyStatus: 1` over several months
+  too), and an empty key is left out: a past month without recordings or a
+  future one answers `{"channel":0}`. `onlyStatus: 1` with the end month
+  before the start month answers `-64` ("err received data from json").
 - A recording still in progress is listed with end `000000`.
 - The main copy of a recording ends 2 s after the sub copy.
 - A clip that crosses midnight is named by its start date, and its `EndTime`
@@ -504,6 +514,11 @@ the FTP schedule allows is uploaded:
   an overlapping clip. (Pre-record, 4 s, is simulated.) A recording's file is
   always the fixed clip (the 12 s fixture, or the library loop) whatever the
   recording's own duration.
+- **Image settings:** `SetIsp` (day/night, `rotation` and `mirroring`),
+  `SetIrLights` and `SetWhiteLed` are stored, validated and returned, but
+  change nothing in the picture. On the real camera `rotation` turns the
+  picture upside down and `mirroring` mirrors it (both = 180°); cam-sim's video
+  stays as its source is.
 - **On-screen overlays (OSD):** the camera name, the date and time, and the
   Reolink logo (`watermark`) are settings only. `GetOsd`/`SetOsd` store,
   validate and return them, and they survive a restart, but cam-sim draws

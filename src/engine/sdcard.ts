@@ -187,11 +187,15 @@ export class SdCard {
     this.persist();
   }
 
+  // Like the firmware (measured 2026-09-29): only the start day is searched,
+  // from the start's time of day to the end's; the end's date is ignored, so
+  // a window across midnight or with reversed times finds nothing after it.
   search(stream: Stream, from: Day, to: Day) {
-    const lo = `${dayKey(from)}${p2(from.hour ?? 0)}${p2(from.min ?? 0)}${p2(from.sec ?? 0)}`;
-    const hi = `${dayKey(to)}${p2(to.hour ?? 23)}${p2(to.min ?? 59)}${p2(to.sec ?? 59)}`;
+    const date = dayKey(from);
+    const lo = `${p2(from.hour ?? 0)}${p2(from.min ?? 0)}${p2(from.sec ?? 0)}`;
+    const hi = `${p2(to.hour ?? 23)}${p2(to.min ?? 59)}${p2(to.sec ?? 59)}`;
     return this.all()
-      .filter((r) => r.date + r.start >= lo && r.date + r.start <= hi)
+      .filter((r) => r.date === date && r.start >= lo && r.start <= hi)
       .map((r) => {
         const end = stream === 'main' ? (r.mainEnd ?? r.end) : r.end;
         return {
@@ -206,6 +210,17 @@ export class SdCard {
           height: 0,
         };
       });
+  }
+
+  // The month tables from one month to another, only for months with
+  // recordings, like the firmware (measured 2026-09-29).
+  statuses(stream: Stream, from: { year: number; mon: number }, to: { year: number; mon: number }) {
+    const out: { year: number; mon: number; table: string }[] = [];
+    for (let y = from.year, m = from.mon; y * 12 + m <= to.year * 12 + to.mon; m === 12 ? (y++, (m = 1)) : m++) {
+      const st = this.status(stream, y, m);
+      if (st.table.includes('1')) out.push(st);
+    }
+    return out;
   }
 
   status(stream: Stream, year: number, mon: number): { year: number; mon: number; table: string } {
