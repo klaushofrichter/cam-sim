@@ -103,7 +103,7 @@ describe('camera API: Search windows and Status, like the firmware', () => {
     expect(two.Status.map((x: any) => x.mon)).toEqual([9]); // August has none
     expect((await find(app, t, at(1, 0, 0, 0, 8), at(31, 23, 59, 59, 8), 1)).reply.value.SearchResult).toEqual({ channel: 0 });
     expect((await find(app, t, at(1, 0, 0, 0, 11), at(30, 23, 59, 59, 11), 1)).reply.value.SearchResult).toEqual({ channel: 0 });
-    expect((await find(app, t, at(1), at(1, 0, 0, 0, 8), 1)).reply).toEqual({ cmd: 'Search', code: 1, error: { detail: 'err received data from json', rspCode: -64 } });
+    expect((await find(app, t, at(1, 0), at(1, 0, 0, 0, 8), 1)).reply).toEqual({ cmd: 'Search', code: 1, error: { detail: 'err received data from json', rspCode: -64 } });
   });
 });
 
