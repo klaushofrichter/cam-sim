@@ -43,6 +43,10 @@ Without a library, pictures, live video and recordings are an ffmpeg
 - [Secrets](#secrets)
 - [Development](#development)
 
+For LLMs and coding agents, [llms.txt](llms.txt) is a short summary of this
+README, with links to its sections, the control API schema and the real
+camera's measured behaviour.
+
 ## Quick start
 
 **Docker, one camera:**
@@ -183,11 +187,11 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 ```
 
 ```json
-[{ "cmd": "GetDevInfo", "code": 0, "value": { "DevInfo": { "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059", "serial": "SIM3F0A…", "name": "Cam", "simulator": "cam-sim", "…": "…" } } }]
+[{ "cmd": "GetDevInfo", "code": 0, "value": { "DevInfo": { "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059", "serial": "SIM3F0A…", "name": "Cam", "simulator": "cam-sim 2026.09.29.1", "…": "…" } } }]
 ```
 
-`GetDevInfo` also answers `simulator: "cam-sim"`, the one field the real
-camera doesn't send, so clients (cams) can label the camera as simulated.
+`GetDevInfo` also answers `simulator: "cam-sim <version>"` (`cam-sim main` from a
+`:main` image, `cam-sim dev` outside an image), the one field the real camera doesn't send, so clients (cams) can label the camera as simulated.
 
 - **Every JSON reply is `Content-Type: text/html`**, as on the camera.
 - On failure `code` is 1 and `error.rspCode` is negative:
