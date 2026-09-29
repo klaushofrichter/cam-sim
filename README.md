@@ -26,8 +26,9 @@ One container is one camera. It runs headless by default; an optional
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
 [FTP upload](#ftp-upload) (Plan 6). Still open from the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md): a curated
-set of clips captured for the library, cam-sim's own OSD, and recordings cut
-from the video.
+set of clips captured for the library, drawing the OSD on the video (see
+[What differs](#what-differs-from-the-real-camera)), and recordings cut from
+the video.
 Without a library, pictures, live video and recordings are an ffmpeg
 **test pattern**.
 
@@ -91,7 +92,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
-| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the on-screen name |
+| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (stored, not drawn on the video) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
 | `CAMSIM_SPEED` | `fast` | `real` adds the camera's timings: Login ~0.2 s, Search ~0.3 s, Download 150 KB/s, reboot 60 s, certificate restart 10 s. `fast` keeps the behaviour with short timings |
@@ -272,7 +273,7 @@ post Logout
 | Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation`, `mirroring`, … |
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
-| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | positions `Upper Left` … `Lower Right`; name ≤ 31 bytes |
+| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** (see [What differs](#what-differs-from-the-real-camera)) |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
 | | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |
@@ -484,8 +485,17 @@ the FTP schedule allows is uploaded:
   an overlapping clip. (Pre-record, 4 s, is simulated.) A recording's file is
   always the fixed clip (the 12 s fixture, or the library loop) whatever the
   recording's own duration.
-- **OSD:** `SetOsd` values are stored and validated (positions, name length)
-  but never drawn on the picture.
+- **On-screen overlays (OSD):** the camera name, the date and time, and the
+  Reolink logo (`watermark`) are settings only. `GetOsd`/`SetOsd` store,
+  validate and return them, and they survive a restart, but cam-sim draws
+  none of them. **Video is played as its source is**, in live video,
+  snapshots and recordings alike:
+  - the test pattern has no text on it;
+  - library videos show whatever was in them when they were recorded. A clip
+    recorded on the real camera with its OSD on shows that camera's name and
+    the recording time (not the playing time), and its logo if it was on then.
+    `scripts/capture-clip.py` switches the camera's OSD off for a capture for
+    this reason.
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -683,7 +693,8 @@ The UI has four pages:
   day's recordings with their triggers, playback of the sub or main copy, and
   downloads.
 - **Settings:** recording and schedules, detection sensitivities, image and
-  lights, on-screen text and network services. Each of these cards writes
+  lights, on-screen text (stored only, never drawn on the video) and network
+  services. Each of these cards writes
   whole objects through the camera's own validation, so a rejected value
   shows the camera's error code. Device, storage, certificate and users are
   shown read-only (users change through the camera API). FTP has no card;

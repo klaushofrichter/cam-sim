@@ -267,6 +267,10 @@ paths:
       - { name: key, in: path, required: true, schema: { type: string, enum: [Rec, MdAlarm, Isp, IrLights, WhiteLed, Osd, NetPort, Ftp] } }
     put:
       summary: Write the WHOLE settings object, with the camera's validation
+      description: >
+        Osd (camera name, date and time, the `watermark` logo) is stored, validated and
+        returned like the others, but nothing is drawn on the video: cam-sim plays its
+        source (the test pattern or a library video) as it is.
       responses:
         '200': { description: the stored object }
         '400': { description: 'invalid value: {error: invalid, rspCode}' }
