@@ -121,4 +121,18 @@ describe('SdPipeline', () => {
     expect(msg).not.toContain('/tmp/x');
     expect(msg).toContain('Connection refused');
   });
+
+  // Final review minor 5, re-graded Important (a crash of the whole simulator):
+  // the clock writer survives its temp folder being removed.
+  it('keeps running when its temp folder disappears (no uncaught error)', async () => {
+    const { e, p } = await setup();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    const dir = (p as unknown as { dir: string }).dir;
+    const { rmSync, existsSync } = await import('fs');
+    rmSync(dir, { recursive: true, force: true });
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(existsSync(`${dir}/clock.txt`)).toBe(true); // recreated
+    expect(e.pipeline.on).toBe(true);
+  }, 30_000);
 });

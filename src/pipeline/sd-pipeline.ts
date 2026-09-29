@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process';
-import { mkdtempSync, renameSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Engine } from '../engine/engine';
@@ -84,17 +84,32 @@ export class SdPipeline implements LiveSubSource {
     else if (!this.wanted() && this.proc) this.kill();
   }
 
+  // Never throws: a removed temp folder is recreated, and anything else
+  // (a full disk) is logged, so the simulator can't crash on a clock tick.
   private writeClock(): void {
     const e = this.engine;
-    const t = timeValue(e.clock, e.config.tz).Time;
-    writeFileSync(join(this.dir, 'clock.tmp'), clockText(e.clock.now(), e.config.tz, t));
-    renameSync(join(this.dir, 'clock.tmp'), this.files.clock);
+    const write = () => {
+      const t = timeValue(e.clock, e.config.tz).Time;
+      writeFileSync(join(this.dir, 'clock.tmp'), clockText(e.clock.now(), e.config.tz, t));
+      renameSync(join(this.dir, 'clock.tmp'), this.files.clock);
+    };
+    try {
+      write();
+    } catch {
+      try {
+        mkdirSync(this.dir, { recursive: true });
+        write();
+      } catch (err) {
+        e.log.warn({ err: (err as Error).message }, 'sd_pipeline_clock_write_failed');
+      }
+    }
   }
 
   private start(): void {
     const e = this.engine;
     if (!this.opts.fonts) return void e.pipelineOff('no font for the SD pipeline (install font-dejavu or set CAMSIM_FONT_DIR)');
     const running = e.settings.running as { Osd: any; Isp: any };
+    mkdirSync(this.dir, { recursive: true });
     writeFileSync(this.files.name, String(running.Osd?.osdChannel?.name ?? ''));
     this.writeClock();
     this.clockTimer = setInterval(() => this.writeClock(), 1000);
