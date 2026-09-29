@@ -64,6 +64,49 @@ describe('camera API: Search', () => {
   });
 });
 
+// Measured on the real camera, 2026-09-29 (cams docs/reolink-api.md, Search).
+// cam-sim answers like the firmware even for windows no client of ours sends.
+describe('camera API: Search windows and Status, like the firmware', () => {
+  const at = (day: number, hour: number, min = 0, sec = 0, mon = 9) => ({ year: 2026, mon, day, hour, min, sec });
+  const find = (app: any, t: string, StartTime: object, EndTime: object, onlyStatus = 0) =>
+    post(app, 'Search', { Search: { channel: 0, onlyStatus, streamType: 'sub', StartTime, EndTime } }, t);
+  const starts = (r: any) => (r.reply.value.SearchResult.File ?? []).map((f: any) => `${f.StartTime.day}/${f.StartTime.hour}:${f.StartTime.min}`);
+  async function cam() {
+    // Today (26th): 08:15, 09:30, 12:05, 17:45; yesterday (25th): 07:00, 22:15.
+    const { app } = await makeCamera({ CAMSIM_SEED_CLIPS: 'demo' }, { clock: clock() });
+    return { app, t: await login(app) };
+  }
+
+  it('searches only the start day, from the start to the end time of day', async () => {
+    const { app, t } = await cam();
+    expect(starts(await find(app, t, at(25, 0), at(26, 23, 59, 59)))).toEqual(['25/7:0', '25/22:15']); // the end's date is ignored
+    expect(starts(await find(app, t, at(25, 20), at(26, 10)))).toEqual([]); // 25th, 20:00–10:00
+    expect(starts(await find(app, t, at(26, 0), at(25, 23, 59, 59)))).toHaveLength(4); // reversed dates: the 26th, whole day
+    expect(starts(await find(app, t, at(26, 9), at(26, 13)))).toEqual(['26/9:30', '26/12:5']);
+    expect(starts(await find(app, t, at(26, 12), at(26, 11)))).toEqual([]); // reversed times
+  });
+
+  it('adds Status for the start month when it has recordings, and omits keys that are empty', async () => {
+    const { app, t } = await cam();
+    const day = (await find(app, t, at(26, 0), at(26, 23, 59, 59))).reply.value.SearchResult;
+    expect(Object.keys(day).sort()).toEqual(['File', 'Status', 'channel']);
+    expect(day.Status).toEqual([{ year: 2026, mon: 9, table: expect.stringMatching(/^0{24}110{4}$/) }]);
+    const empty = (await find(app, t, at(20, 0), at(20, 23, 59, 59))).reply.value.SearchResult; // no clips, month has some
+    expect(Object.keys(empty).sort()).toEqual(['Status', 'channel']);
+    expect((await find(app, t, at(20, 0, 0, 0, 8), at(20, 23, 59, 59, 8))).reply.value.SearchResult).toEqual({ channel: 0 }); // August: none
+    expect((await find(app, t, at(5, 0, 0, 0, 10), at(5, 23, 59, 59, 10))).reply.value.SearchResult).toEqual({ channel: 0 }); // the future
+  });
+
+  it('lists month Status only for months with recordings; reversed months are -64', async () => {
+    const { app, t } = await cam();
+    const two = (await find(app, t, at(1, 0, 0, 0, 8), at(30, 23, 59, 59), 1)).reply.value.SearchResult;
+    expect(two.Status.map((x: any) => x.mon)).toEqual([9]); // August has none
+    expect((await find(app, t, at(1, 0, 0, 0, 8), at(31, 23, 59, 59, 8), 1)).reply.value.SearchResult).toEqual({ channel: 0 });
+    expect((await find(app, t, at(1, 0, 0, 0, 11), at(30, 23, 59, 59, 11), 1)).reply.value.SearchResult).toEqual({ channel: 0 });
+    expect((await find(app, t, at(1), at(1, 0, 0, 0, 8), 1)).reply).toEqual({ cmd: 'Search', code: 1, error: { detail: 'err received data from json', rspCode: -64 } });
+  });
+});
+
 describe('camera API: Download', () => {
   it('serves a fragmented MP4', async () => {
     const { files, dl, engine } = await served();
