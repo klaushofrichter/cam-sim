@@ -49,7 +49,7 @@ describe('RLC-1224A profile', () => {
     const f = factorySettings('Cam');
     // The real camera's keys, plus cam-sim's one intended extra (simulator).
     const { simulator, ...dev } = devInfo('Cam', 'S', FIRMWARE.firmVer) as Record<string, unknown>;
-    expect(simulator).toBe('cam-sim');
+    expect(simulator).toMatch(/^cam-sim /);
     expect(shape(dev)).toEqual(shape(ref('GetDevInfo').DevInfo));
     expect(shape(ENC)).toEqual(shape(ref('GetEnc').Enc));
     expect(shape(DEFAULT_NET_PORT)).toEqual(shape(ref('GetNetPort').NetPort));
@@ -68,9 +68,10 @@ describe('RLC-1224A profile', () => {
 });
 
 describe('devInfo identifies the simulator (cams labels it, Klaus 2026-09-28)', () => {
-  it('adds simulator: cam-sim and changes nothing else', () => {
+  it('adds simulator: cam-sim and its version, and changes nothing else', () => {
     const d = devInfo('Den', 'SERIAL', 'v3.2.0.6011_2607012059') as Record<string, unknown>;
-    expect(d.simulator).toBe('cam-sim');
+    // The build's APP_VERSION (the container), else dev (cams issue #69).
+    expect(d.simulator).toBe(`cam-sim ${process.env.APP_VERSION || 'dev'}`);
     expect(d.model).toBe(FIRMWARE.model);
     expect(Object.keys(d)).toHaveLength(21); // the real camera's 20 keys + simulator
   });
