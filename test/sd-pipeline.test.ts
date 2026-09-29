@@ -83,4 +83,33 @@ describe('SdPipeline', () => {
     expect(e.pipeline.error).not.toContain('/nonexistent'); // paths removed
     e.media = media;
   }, 30_000);
+
+  // Final review I3: library preparing/ready events aren't a video switch.
+  it('restarts for a selected video only, not for library progress events', async () => {
+    const { e, p } = await setup();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    const g = p.generation();
+    e.bus.emit('video', { id: 'garden', state: 'preparing' });
+    e.bus.emit('video', { id: 'garden', state: 'ready' });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(p.generation()).toBe(g);
+    e.bus.emit('video', { id: 'garden', selected: true });
+    await until(() => p.generation() === g + 1 && p.active());
+  }, 30_000);
+
+  // Final review I4: a late subscriber starts at once, with the GOP since the last keyframe.
+  it('hands a new subscriber the frames since the last keyframe, keyframe first', async () => {
+    const { e, p } = await setup();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    await new Promise((r) => setTimeout(r, 1500)); // mid-GOP (keyframes every 4 s)
+    const got: FlvTag[] = [];
+    const off = p.subscribe((t) => got.push(t));
+    await new Promise((r) => setTimeout(r, 150));
+    off();
+    const video = got.filter((t) => t.type === 9);
+    expect(video.length).toBeGreaterThan(5); // replayed, not waiting for the next keyframe
+    expect(isKeyframe(video[0])).toBe(true);
+  }, 30_000);
 });

@@ -5,7 +5,7 @@ import { join } from 'path';
 import type { Engine } from '../engine/engine';
 import { timeValue } from '../engine/clock';
 import type { FlvTag } from '../media/flv';
-import { FlvStreamParser, isConfigTag } from '../media/flv-stream';
+import { FlvStreamParser, isConfigTag, isKeyframe } from '../media/flv-stream';
 import { clockText, filterChain, overlayOf } from './overlay';
 import type { LiveSubSource } from './live-sub';
 
@@ -21,6 +21,9 @@ export class SdPipeline implements LiveSubSource {
   private cfg: FlvTag[] = [];
   private ready = false;
   private readonly subs = new Set<(t: FlvTag, gen: number) => void>();
+  // The tags since the last keyframe: a new subscriber starts from there at
+  // once, instead of waiting up to a keyframe interval (4 s).
+  private gop: FlvTag[] = [];
   private readonly dir = mkdtempSync(join(tmpdir(), 'cam-sim-pipeline-'));
   private readonly files = { clock: join(this.dir, 'clock.txt'), name: join(this.dir, 'name.txt') };
   private clockTimer?: NodeJS.Timeout;
@@ -31,6 +34,10 @@ export class SdPipeline implements LiveSubSource {
   private expectedExit = false;
 
   private readonly onSwitch = () => this.follow();
+  // Only a switch of video restarts; library preparing/ready events don't.
+  private readonly onVideo = (v: { selected?: boolean }) => {
+    if (v?.selected) this.onChange();
+  };
   private readonly onChange = () => {
     if (!this.proc) return;
     clearTimeout(this.debounce);
@@ -42,7 +49,7 @@ export class SdPipeline implements LiveSubSource {
     engine.liveSub = this;
     for (const t of ['pipeline', 'state', 'fault', 'video'] as const) engine.bus.on(t, this.onSwitch);
     engine.bus.on('settings', this.onChange);
-    engine.bus.on('video', this.onChange);
+    engine.bus.on('video', this.onVideo);
   }
 
   active(): boolean { return !!this.proc && this.ready; }
@@ -50,6 +57,7 @@ export class SdPipeline implements LiveSubSource {
   header(): Buffer { return this.hdr; }
   configTags(): FlvTag[] { return this.cfg; }
   subscribe(fn: (t: FlvTag, gen: number) => void): () => void {
+    for (const t of this.gop) fn(t, this.gen);
     this.subs.add(fn);
     return () => this.subs.delete(fn);
   }
@@ -90,6 +98,7 @@ export class SdPipeline implements LiveSubSource {
     const gen = ++this.gen;
     this.ready = false;
     this.cfg = [];
+    this.gop = [];
     this.expectedExit = false;
     const parser = new FlvStreamParser();
     parser.on('header', (h: Buffer) => (this.hdr = h));
@@ -102,6 +111,8 @@ export class SdPipeline implements LiveSubSource {
         }
         return;
       }
+      if (isKeyframe(t)) this.gop = [];
+      if (this.gop.length || isKeyframe(t)) this.gop.push(t);
       for (const fn of this.subs) fn(t, gen);
     });
     let lastErr = '';
@@ -166,7 +177,7 @@ export class SdPipeline implements LiveSubSource {
     clearTimeout(this.restartTimer);
     for (const t of ['pipeline', 'state', 'fault', 'video'] as const) this.engine.bus.off(t, this.onSwitch);
     this.engine.bus.off('settings', this.onChange);
-    this.engine.bus.off('video', this.onChange);
+    this.engine.bus.off('video', this.onVideo);
     await this.kill();
     clearInterval(this.clockTimer);
     if (this.engine.liveSub === this) this.engine.liveSub = undefined;

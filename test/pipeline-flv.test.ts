@@ -44,4 +44,32 @@ describe('FLV sub with the SD pipeline', () => {
     expect(isKeyframe(media[firstLive].tag)).toBe(true);
     expect(media.slice(-5).every((x) => !x.live)).toBe(true); // back on the loop
   }, 45_000);
+
+  // Final review I4: a connected viewer sees the pipeline within about a second
+  // of it running, not a keyframe interval (4 s) later.
+  it('switches a connected client to the pipeline without waiting for the next keyframe', async () => {
+    const e = await makeEngine();
+    const app = createCameraApp(e, { port: 'http' });
+    const srv = await listen(app);
+    const p = new SdPipeline(e, { fonts: findFonts() });
+    cleanups.push(srv.close, () => p.stop());
+    const t = await login(app);
+    const fromPipeline = new Set<string>();
+    const offPipe = p.subscribe((x) => fromPipeline.add(x.bytes.subarray(11).toString('base64')));
+    cleanups.push(async () => offPipe());
+    let firstLiveAt = 0;
+    const parser = new FlvStreamParser();
+    parser.on('tag', (tag: FlvTag) => {
+      if (!firstLiveAt && tag.type === 9 && fromPipeline.has(tag.bytes.subarray(11).toString('base64'))) firstLiveAt = Date.now();
+    });
+    const req = http.get(`${srv.url}/flv?port=1935&app=bcs&stream=channel0_sub.bcs&token=${t}`, (res) => res.on('data', (d: Buffer) => parser.push(d)));
+    cleanups.push(async () => void req.destroy());
+    await wait(1000);
+    e.pipelineOn(5);
+    for (let i = 0; i < 150 && !p.active(); i++) await wait(50);
+    const activeAt = Date.now();
+    for (let i = 0; i < 120 && !firstLiveAt; i++) await wait(50);
+    expect(firstLiveAt).toBeGreaterThan(0);
+    expect(firstLiveAt - activeAt).toBeLessThan(2500);
+  }, 45_000);
 });

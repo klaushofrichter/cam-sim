@@ -141,6 +141,16 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
   let pass = 0;
   let next = 0;
   let base = 0;
+  // The highest timestamp sent so far: every switch (into the pipeline, a
+  // pipeline restart, back to the loop) continues from at least here, so a
+  // player never sees time go backwards. A replayed keyframe group puts the
+  // live part slightly ahead of the wall clock.
+  let lastMs = 0;
+  const send = (t: FlvTag, offset: number) => {
+    lastMs = Math.max(lastMs, t.ms + offset);
+    res.write(shifted(t, offset));
+  };
+  const floor = (due: number) => Math.max(due, lastMs + 1);
   // The SD pipeline (spec 2026-09-29): while it runs, sub comes from it.
   // Tags arriving between pumps wait in `queue`; each live part (a start or
   // a restart of the pipeline) begins with its config tags, then a keyframe.
@@ -154,7 +164,8 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
     leaveLive();
     const gen = ls.generation();
     const entry = { gen, off: () => {}, queue: [] as FlvTag[], firstMs: null as number | null };
-    for (const c of ls.configTags()) if (c.type !== 18) res.write(shifted({ ...c, ms: 0 }, due));
+    const start = floor(due);
+    for (const c of ls.configTags()) if (c.type !== 18) send({ ...c, ms: 0 }, start);
     entry.off = ls.subscribe((t, g) => {
       if (g !== gen) return;
       if (entry.firstMs === null) {
@@ -163,7 +174,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
       }
       entry.queue.push(t);
     });
-    base = due;
+    base = start;
     live = entry;
   };
   const pump = () => {
@@ -174,13 +185,13 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
       if (live && !ls?.active()) {
         leaveLive();
         src = load(e.media, false);
-        base = due;
+        base = floor(due);
         pass = 0;
         next = 0;
       }
       if (live) {
         for (const t of live.queue.splice(0)) {
-          res.write(shifted(t, base - (live.firstMs ?? t.ms)));
+          send(t, base - (live.firstMs ?? t.ms));
           if (res.writableLength > e.limits.flvBufferBytes) return void res.destroy();
         }
         return;
@@ -195,7 +206,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
         res.destroy();
         return;
       }
-      base = due;
+      base = floor(due);
       pass = 0;
       next = 0;
     }
@@ -210,7 +221,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
       const t = list[next];
       const at = base + t.ms + pass * src.loopMs;
       if (at > due) break;
-      res.write(shifted(t, base + pass * src.loopMs));
+      send(t, base + pass * src.loopMs);
       next++;
       // A viewer that stops reading is dropped, like a camera does, rather
       // than buffering without bound.
