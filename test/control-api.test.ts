@@ -247,3 +247,19 @@ describe('control API: clear and factory-reset', () => {
     expect((await request(ctl).post('/sim/api/actions/factory-reset').set(auth)).status).toBe(409);
   });
 });
+
+describe('SD pipeline switch', () => {
+  it('switches on for N minutes (default 60, 1..max), answers the state, and off with DELETE', async () => {
+    const { engine, ctl } = await setup({ CAMSIM_PIPELINE_MAX_MIN: '120' });
+    const on = await request(ctl).post('/sim/api/pipeline').set(auth).send({ minutes: 15 });
+    expect(on.status).toBe(200);
+    expect(on.body).toMatchObject({ on: true, until: expect.any(Number) });
+    expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({})).body.until - Date.now()).toBeGreaterThan(59 * 60_000); // default 60
+    for (const minutes of [0, 121, 1.5, '10', -1]) {
+      expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({ minutes })).body).toMatchObject({ error: 'invalid' });
+    }
+    expect((await request(ctl).get('/sim/api/state').set(auth)).body.pipeline).toMatchObject({ on: true });
+    expect((await request(ctl).delete('/sim/api/pipeline').set(auth)).status).toBe(204);
+    expect(engine.pipelineState()).toEqual({ on: false });
+  });
+});

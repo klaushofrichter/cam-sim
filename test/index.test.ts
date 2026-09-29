@@ -83,4 +83,16 @@ describe('control port TLS', () => {
     const ports = await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
     expect((await fetch(`http://127.0.0.1:${ports.control}/healthz`)).status).toBe(200);
   });
+
+  it('wires the SD pipeline into createCamSim: switched on, it reaches running', async () => {
+    const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }] });
+    await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
+    try {
+      sim.engine.pipelineOn(1);
+      for (let i = 0; i < 150 && !(sim.engine.pipelineState() as { running?: boolean }).running; i++) await new Promise((r) => setTimeout(r, 100));
+      expect(sim.engine.pipelineState(), JSON.stringify(sim.engine.pipelineState())).toMatchObject({ on: true, running: true });
+    } finally {
+      await sim.close();
+    }
+  }, 60_000);
 });

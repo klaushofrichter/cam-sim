@@ -73,6 +73,20 @@
     if (!paused) frozen = $feed;
   });
   const rows = $derived(frozen.filter((f) => f.kind === 'request' || f.kind === 'event'));
+
+  // The SD pipeline (spec 2026-09-29): on for a chosen time, then off by itself.
+  let pipeMinutes = $state(60);
+  let nowMs = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (nowMs = Date.now()), 15_000);
+    return () => clearInterval(t);
+  });
+  const pipe = $derived($simState?.pipeline);
+  const pipeLeft = $derived(pipe?.on ? Math.max(0, Math.round((pipe.until - nowMs) / 60_000)) : 0);
+  const togglePipeline = (on: boolean) => {
+    nowMs = Date.now();
+    void run(on ? 'SD pipeline on' : 'SD pipeline off', () => (on ? api('POST', '/pipeline', { minutes: Number(pipeMinutes) }) : api('DELETE', '/pipeline')));
+  };
   const counters = $derived(Object.entries($simState?.counters ?? {}).filter(([, v]) => typeof v === 'number'));
 </script>
 
@@ -98,6 +112,19 @@
       <p class="muted small">Recorded when recording is on and the schedule allows the type. AI types also set motion.</p>
       <h3>Video</h3>
       <VideoPicker />
+    </div>
+
+    <div class="card" data-testid="pipeline-card">
+      <h3>SD pipeline</h3>
+      <label class="switch"><input type="checkbox" data-testid="pipeline-toggle" checked={!!pipe?.on} onchange={(e) => togglePipeline(e.currentTarget.checked)} /> Overlays and flip on live SD</label>
+      <label>For
+        <select data-testid="pipeline-minutes" bind:value={pipeMinutes} disabled={!!pipe?.on}>
+          <option value={15}>15 min</option><option value={60}>1 h</option><option value={240}>4 h</option><option value={1440}>24 h</option>
+        </select>
+      </label>
+      {#if pipe?.on}<p data-testid="pipeline-left">On{pipe.running ? '' : ' (starting)'}, {pipeLeft} min left</p>{/if}
+      {#if pipe && !pipe.on && pipe.error}<p class="err" data-testid="pipeline-error">Stopped: {pipe.error}</p>{/if}
+      <p class="muted small">Applies the name, time, watermark and flip/mirror to the live SD stream only. Uses about 5–10% of a CPU core while on.</p>
     </div>
 
     <div class="card wide">

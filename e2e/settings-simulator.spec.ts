@@ -66,3 +66,15 @@ test('a fault toggle that the API refuses shows the fault as off', async ({ page
   await expect(page.getByRole('status')).toContainText('count');
   await expect(row.getByTestId('fault-toggle')).not.toBeChecked();
 });
+
+// SD pipeline (spec 2026-09-29): switched on for a chosen time, off again.
+test('the SD pipeline card switches on for a chosen time, shows the time left, and off', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#/simulator');
+  const card = page.getByTestId('pipeline-card');
+  await card.getByTestId('pipeline-minutes').selectOption('15');
+  await card.getByTestId('pipeline-toggle').check();
+  await expect(card.getByTestId('pipeline-left')).toHaveText(/1[45] min left/);
+  await card.getByTestId('pipeline-toggle').uncheck();
+  await expect(card.getByTestId('pipeline-left')).toHaveCount(0);
+});

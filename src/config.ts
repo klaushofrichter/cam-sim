@@ -39,6 +39,8 @@ export interface CamSimConfig {
   // The video library's source folder, and the video selected at start.
   libraryDir?: string;
   video?: string;
+  pipelineMaxMin: number; // CAMSIM_PIPELINE_MAX_MIN: the longest SD pipeline switch-on (minutes)
+  fontDir?: string; // CAMSIM_FONT_DIR: a folder with DejaVuSans.ttf and DejaVuSans-Bold.ttf
   // CAMSIM_FTP_*: FTP upload configured and enabled at start.
   ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
 }
@@ -179,5 +181,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     maxVideoS: maxVideoS(env.CAMSIM_MAX_VIDEO_S),
     libraryDir: env.CAMSIM_LIBRARY_DIR || undefined,
     video: env.CAMSIM_VIDEO || undefined,
+    pipelineMaxMin: int('CAMSIM_PIPELINE_MAX_MIN', 1440, 1, 1440),
+    fontDir: env.CAMSIM_FONT_DIR || undefined,
   };
 }

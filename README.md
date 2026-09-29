@@ -136,6 +136,8 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
 | `CAMSIM_MAIN_SIZE` | `4512x2512` | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
 | `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
+| `CAMSIM_PIPELINE_MAX_MIN` | `1440` | the longest [SD pipeline](#sd-pipeline) switch-on, in minutes (1–1440) |
+| `CAMSIM_FONT_DIR` | system fonts | a folder with `DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` for the SD pipeline (the image has DejaVu; on a Mac, Arial is used) |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
 `CAMSIM_MEDIA=video` from the first design is refused; use the library.
@@ -518,7 +520,8 @@ the FTP schedule allows is uploaded:
   `SetIrLights` and `SetWhiteLed` are stored, validated and returned, but
   change nothing in the picture. On the real camera `rotation` turns the
   picture upside down and `mirroring` mirrors it (both = 180°); cam-sim's video
-  stays as its source is.
+  stays as its source is, unless the [SD pipeline](#sd-pipeline) is on: then
+  the live SD stream is flipped and mirrored like the camera's.
 - **On-screen overlays (OSD):** the camera name, the date and time, and the
   Reolink logo (`watermark`) are settings only. `GetOsd`/`SetOsd` store,
   validate and return them, and they survive a restart, but cam-sim draws
@@ -530,6 +533,9 @@ the FTP schedule allows is uploaded:
     the recording time (not the playing time), and its logo if it was on then.
     `scripts/capture-clip.py` switches the camera's OSD off for a capture for
     this reason.
+  - With the [SD pipeline](#sd-pipeline) on, the **live SD stream** shows the
+    name, the date and time and the watermark as set. Main, snapshots and
+    recordings never do.
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -681,6 +687,34 @@ ctl $C/videos
 ctl -X PUT $C/video -d '{"id":"garden-walk"}'
 ```
 
+### SD pipeline
+
+Optional and time-limited: it re-encodes the **live SD stream** (FLV
+`channel0_sub` and RTSP `h264Preview_01_sub`) with the camera's name, date and
+time and watermark (`Osd`) and flip/mirror (`Isp.rotation`, `Isp.mirroring`),
+following setting changes within about a second. The main stream, snapshots,
+recordings, downloads and FTP uploads stay as the source.
+
+- **On:** `POST /sim/api/pipeline` with `{"minutes":60}`, 1 to
+  `CAMSIM_PIPELINE_MAX_MIN` (default 60). It answers
+  `{"on":true,"until":<unix ms>,"running":false}`. `running` turns true once
+  frames flow; calling it again sets a new end time.
+- **Off:** `DELETE /sim/api/pipeline` answers 204, and it switches itself off
+  at `until`.
+- **State:** `pipeline` in `/sim/api/state`, and an SSE `pipeline` event on each
+  change: `{"on":false}`, or `{"on":false,"error":"…"}` after a failure (it
+  restarts once, and a second failure within a minute switches it off).
+- **Never persisted:** off after a restart and after `POST /sim/api/reset`.
+  Power off, a reboot or offline pause it; it resumes if time is left.
+- **Cost:** one ffmpeg (H.264 896×512, 10 fps, about 1 Mb/s): about 3% of a
+  core on an Apple M4, 5–10% on a small server. Library videos should be
+  captured without the camera's OSD, or the text shows twice.
+
+```sh
+ctl -X POST $C/pipeline -d '{"minutes":15}'
+ctl -X DELETE $C/pipeline
+```
+
 ### Reset, request log, live feed
 
 - `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true}`
@@ -737,6 +771,7 @@ The UI has four pages:
   - power off, power on and reboot;
   - events;
   - the video library: pick the video the camera shows;
+  - the SD pipeline: on for 15 min, 1 h, 4 h or 24 h, with the time left;
   - every fault, with its parameters;
   - actions and reset;
   - counters;

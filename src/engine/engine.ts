@@ -1,3 +1,4 @@
+import type { LiveSubSource } from '../pipeline/live-sub';
 import { EventEmitter } from 'events';
 import { join } from 'path';
 import type pino from 'pino';
@@ -65,6 +66,10 @@ export class Engine {
   search = { busy: false, spoiled: false };
   readonly activeFlv = new Set<Response>();
   readonly activeDownloads = new Set<Response>();
+  // The SD pipeline switch (cam-sim spec 2026-09-29): never persisted.
+  pipeline: { on: boolean; until?: number; error?: string } = { on: false };
+  private pipelineTimer?: NodeJS.Timeout;
+  liveSub?: LiveSubSource; // set by SdPipeline
 
   constructor(
     readonly config: CamSimConfig,
@@ -104,6 +109,26 @@ export class Engine {
 
   private newSerial(): string {
     return `SIM${this.rng.hex(12)}`;
+  }
+
+  pipelineOn(minutes: number): void {
+    clearTimeout(this.pipelineTimer);
+    this.pipeline = { on: true, until: Date.now() + minutes * 60_000 };
+    this.pipelineTimer = setTimeout(() => this.pipelineOff(), minutes * 60_000);
+    this.pipelineTimer.unref?.();
+    this.bus.emit('pipeline', this.pipelineState());
+  }
+
+  pipelineOff(error?: string): void {
+    clearTimeout(this.pipelineTimer);
+    this.pipelineTimer = undefined;
+    this.pipeline = error ? { on: false, error } : { on: false };
+    this.bus.emit('pipeline', this.pipelineState());
+  }
+
+  pipelineState(): { on: false; error?: string } | { on: true; until: number; running: boolean } {
+    if (!this.pipeline.on) return this.pipeline.error ? { on: false, error: this.pipeline.error } : { on: false };
+    return { on: true, until: this.pipeline.until!, running: !!this.liveSub?.active() };
   }
 
   // Switches what the camera shows (live, snapshots, RTSP, recordings).
@@ -233,6 +258,7 @@ export class Engine {
     if (all || what.recordings) this.sd.clear();
     if (all || what.counters) this.counters.reset();
     if ((all || what.video) && this.videoId !== 'test-pattern') this.setMedia(this.mediaFor({ video: 'test-pattern' }), 'test-pattern');
+    if (this.pipeline.on || this.pipeline.error) this.pipelineOff();
     this.bus.emit('state', { reset: true });
   }
 
@@ -279,10 +305,12 @@ export class Engine {
       counters: { ...this.counters.snapshot(), activeSessions: this.sessions.count() },
       certificate: { source: this.certificate.source, enable: this.certificate.enable },
       settings: this.settings.running,
+      pipeline: this.pipelineState(),
     };
   }
 
   stop(): void {
+    if (this.pipeline.on) this.pipelineOff();
     this.events.stop();
     this.dropFlv();
     this.dropDownloads();

@@ -53,4 +53,14 @@ curl -s "http://127.0.0.1:$CONTROL/" | grep -q '<div id="app">' || fail "web UI 
 docker exec "$NAME" ffprobe -v error -rtsp_transport tcp -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 \
   "rtsp://smoke:$PW@127.0.0.1:8554/h264Preview_01_sub" | grep -q h264 || fail "RTSP"
 
+# The SD pipeline: on for a minute, running within 20 s, no error, then off.
+P=$(ctl -X POST "http://127.0.0.1:$CONTROL/sim/api/pipeline" -d '{"minutes":1}')
+echo "$P" | jq -e '.on == true' >/dev/null || fail "pipeline on: $P"
+for _ in $(seq 1 20); do
+  [ "$(ctl "http://127.0.0.1:$CONTROL/sim/api/state" | jq -r '.pipeline.running')" = true ] && break
+  sleep 1
+done
+[ "$(ctl "http://127.0.0.1:$CONTROL/sim/api/state" | jq -r '.pipeline.running')" = true ] || fail "pipeline running (fonts or drawtext missing?): $(ctl "http://127.0.0.1:$CONTROL/sim/api/state" | jq -c .pipeline)"
+ctl -X DELETE "http://127.0.0.1:$CONTROL/sim/api/pipeline" -o /dev/null -w '%{http_code}' | grep -q 204 || fail "pipeline off"
+
 echo "smoke: OK"
