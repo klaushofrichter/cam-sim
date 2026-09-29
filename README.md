@@ -1,5 +1,16 @@
 # cam-sim
 
+[![Release](https://img.shields.io/github/v/release/klaushofrichter/cam-sim?label=release&color=blue)](https://github.com/klaushofrichter/cam-sim/releases)
+[![PR checks](https://github.com/klaushofrichter/cam-sim/actions/workflows/pr-checks.yml/badge.svg)](https://github.com/klaushofrichter/cam-sim/actions/workflows/pr-checks.yml)
+[![Build and publish image](https://github.com/klaushofrichter/cam-sim/actions/workflows/build-push.yml/badge.svg?branch=main)](https://github.com/klaushofrichter/cam-sim/actions/workflows/build-push.yml)
+[![Release and deploy](https://github.com/klaushofrichter/cam-sim/actions/workflows/release.yml/badge.svg?branch=production)](https://github.com/klaushofrichter/cam-sim/actions/workflows/release.yml)
+[![cams compatibility (daily)](https://github.com/klaushofrichter/cam-sim/actions/workflows/cams-compat.yml/badge.svg?event=schedule)](https://github.com/klaushofrichter/cam-sim/actions/workflows/cams-compat.yml)
+
+<!-- The release badge is the newest tag, which the release job cuts after
+     cam2 answers /healthz. The cams compatibility badge is the daily run of
+     cams' suites against main. No version numbers in the text below: they go
+     stale; the badge and the releases page carry them. -->
+
 cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
 v3.2.0.6011_2607012059). It speaks the camera's HTTP API, reproduces its
 quirks, and can be made to fail in the ways the real device fails. It exists to
@@ -20,7 +31,7 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** released (latest v2026.09.27.3): the headless core (Plan 1), the
+**Status:** released (see the release badge above): the headless core (Plan 1), the
 [video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
 `cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
@@ -82,8 +93,9 @@ sim.engine.faults.set({ name: 'downloads.refuse' });
 await sim.close();
 ```
 
-Install it from a release tarball, for example
-`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.3/cam-sim-v2026.09.27.3.tgz"`.
+Install it from a release tarball: `"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v<version>/cam-sim-v<version>.tgz"`,
+with `<version>` from the [latest release](https://github.com/klaushofrichter/cam-sim/releases/latest)
+(`YYYY.MM.DD.N`).
 In a vitest `globalSetup`, call `ensureFixtures(defaultFixtureDir(), logger)` so
 the test patterns are built once, not in every worker.
 
@@ -780,7 +792,7 @@ manifests.
   digest in kube-setup's manifest, applies it through the in-cluster runner
   (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
   then tags the release. Releases deploy automatically. cams and cam-proxy
-  each pin a release tarball as a devDependency (now v2026.09.27.3) and need
+  each pin a release tarball as a devDependency and need
   a bump PR after a release; `cams-compat` CI (below) covers cams only, not
   cam-proxy.
 
