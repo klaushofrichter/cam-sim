@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- SD pipeline: an optional, time-limited re-encode of the live SD stream (FLV and RTSP) with the camera's name, date and time, watermark and flip/mirror (`POST/DELETE /sim/api/pipeline`, the Simulator page). Off by default; the main stream, snapshots and recordings are unchanged. New settings `CAMSIM_PIPELINE_MAX_MIN` and `CAMSIM_FONT_DIR`; the image adds `font-dejavu`.
+
 - Search answers like the real camera (measured 2026-09-29): only the start day is searched, from the start to the end time of day; `Status` lists only months with recordings and is added to clips searches; empty keys are left out; `onlyStatus` with reversed months answers `-64`.
 - README: image settings (day/night, rotation, mirroring, lights) are stored but don't change the video.
 
