@@ -17,7 +17,7 @@ type Fonts = { regular: string; bold: string };
 export class SdPipeline implements LiveSubSource {
   private proc?: ChildProcess;
   private gen = 0;
-  private hdr = Buffer.alloc(0);
+  private hdr: Buffer = Buffer.alloc(0);
   private cfg: FlvTag[] = [];
   private ready = false;
   private readonly subs = new Set<(t: FlvTag, gen: number) => void>();
