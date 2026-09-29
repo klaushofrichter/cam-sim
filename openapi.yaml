@@ -74,7 +74,7 @@ paths:
         '200': { description: '{ loggedIn: boolean }' }
   /sim/api/state:
     get:
-      summary: Identity, faults, recent events, SD card, counters and running settings
+      summary: 'Identity, faults, recent events, SD card, counters, running settings and the SD pipeline ({on:false[, error]} or {on:true, until, running})'
       responses:
         '200': { description: state }
         '401': { description: missing or wrong token }
@@ -162,6 +162,25 @@ paths:
       summary: Empty the SD card
       responses:
         '204': { description: emptied }
+  /sim/api/pipeline:
+    post:
+      summary: Switch the SD pipeline on for `minutes` (1 to CAMSIM_PIPELINE_MAX_MIN, default 60); it switches itself off then
+      description: >
+        Re-encodes the live SD stream (FLV channel0_sub, RTSP h264Preview_01_sub) with the camera's
+        name, date and time, watermark (Osd) and flip/mirror (Isp.rotation, Isp.mirroring). Main,
+        snapshots, recordings and downloads are unchanged. Never persisted: off after a restart or reset.
+        Calling it while on sets a new end time.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { minutes: { type: integer, minimum: 1, maximum: 1440 } } }
+      responses:
+        '200': { description: '{on:true, until:<unix ms>, running:<bool>}' }
+        '400': { description: 'invalid minutes: {error: invalid, detail}' }
+    delete:
+      summary: Switch the SD pipeline off
+      responses:
+        '204': { description: off }
   /sim/api/faults:
     get:
       summary: Active faults
