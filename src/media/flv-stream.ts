@@ -9,7 +9,7 @@ export const isKeyframe = (t: FlvTag) => t.type === 9 && t.bytes[11] >> 4 === 1;
 // FLV from a pipe (ffmpeg -f flv pipe:1): the header once, then whole tags
 // as they complete, whatever the chunk boundaries.
 export class FlvStreamParser extends EventEmitter {
-  private buf = Buffer.alloc(0);
+  private buf: Buffer = Buffer.alloc(0);
   private headerDone = false;
 
   push(chunk: Buffer): void {
