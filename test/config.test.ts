@@ -116,3 +116,15 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...base, CAMSIM_SEED: '42' }).seed).toBe(42);
   });
 });
+
+describe('loadConfig: SD pipeline', () => {
+  it('reads CAMSIM_PIPELINE_MAX_MIN (1–1440, default 1440) and CAMSIM_FONT_DIR', () => {
+    const base = { CAMSIM_USERS: 'a:admin:pw' };
+    expect(loadConfig(base).pipelineMaxMin).toBe(1440);
+    expect(loadConfig({ ...base, CAMSIM_PIPELINE_MAX_MIN: '90' }).pipelineMaxMin).toBe(90);
+    expect(() => loadConfig({ ...base, CAMSIM_PIPELINE_MAX_MIN: '0' })).toThrow(/CAMSIM_PIPELINE_MAX_MIN/);
+    expect(() => loadConfig({ ...base, CAMSIM_PIPELINE_MAX_MIN: '1441' })).toThrow(/CAMSIM_PIPELINE_MAX_MIN/);
+    expect(loadConfig(base).fontDir).toBeUndefined();
+    expect(loadConfig({ ...base, CAMSIM_FONT_DIR: '/fonts' }).fontDir).toBe('/fonts');
+  });
+});

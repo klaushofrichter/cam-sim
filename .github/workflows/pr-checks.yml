@@ -21,6 +21,8 @@ jobs:
       # ffmpeg generates the test-pattern fixtures (src/media/fixtures.ts).
       - name: Ensure ffmpeg
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+      - name: Ensure DejaVu fonts (SD pipeline tests)
+        run: test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf || (sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-dejavu-core)
       - name: Install MediaMTX (RTSP tests)
         run: |
           p=$(scripts/install-mediamtx.sh "$RUNNER_TEMP/mediamtx")
@@ -52,6 +54,8 @@ jobs:
       - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
       - name: Ensure ffmpeg (fixtures)
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+      - name: Ensure DejaVu fonts (SD pipeline tests)
+        run: test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf || (sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-dejavu-core)
       - run: npm run build
       - run: npm run check
       # Chrome (not the bundled Chromium): it plays H.264/AAC, as users' browsers do.

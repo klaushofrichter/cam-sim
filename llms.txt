@@ -1,0 +1,37 @@
+# cam-sim
+
+> A simulated Reolink RLC-1224A camera (firmware v3.2.0.6011_2607012059) for testing software written against the camera. It answers the camera's HTTP API with the real device's quirks, and serves FLV, RTSP, ONVIF events and FTP upload. A separate control API triggers events, injects faults and resets state.
+
+Things to know before using it:
+
+- **Two APIs.** The simulated camera API is on the camera ports: HTTPS 8443 and HTTP 8080 in the container, with RTSP 8554 and ONVIF 8000. A client can't tell it from the real camera. The control API is `/sim/api` on port 9443 and needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`. Without that token configured, the control API answers 404.
+- **Camera commands:**
+  - `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON array body. The reply is an array in the same order.
+  - Every JSON reply has `Content-Type: text/html`, as on the camera.
+  - Errors have `code: 1` and a negative `error.rspCode`.
+- **Write whole settings objects.** A partial `Set` answers success, but the keys it leaves out are reset in the saved configuration at the next reboot, as on the real camera. Read the object, change your keys, and send the whole object back.
+- **The overlays are settings only.** `GetOsd`/`SetOsd` (camera name, date and time, the Reolink logo `watermark`) are stored and validated, but nothing is drawn on the video. Video is played as its source is: an ffmpeg test pattern without a library, or the library's videos as recorded.
+- **SD pipeline (optional, time-limited):** `POST /sim/api/pipeline {"minutes":N}` re-encodes the live SD stream with the OSD (name, time, watermark) and flip/mirror; main, snapshots and recordings stay as the source.
+- **It identifies itself.** `GetDevInfo` also returns `simulator: "cam-sim <version>"`, the one field the real camera doesn't send.
+- **Ways to run it:** one container is one camera (`ghcr.io/klaushofrichter/cam-sim`). `docker compose up` starts three. In Node tests, call `createCamSim()` from the release tarball, with no container.
+
+## Docs
+
+- [README](https://github.com/klaushofrichter/cam-sim/blob/main/README.md): the complete guide, covering the quick start, configuration, the camera API, the control API, the web UI and development
+- [Simulated camera API](https://github.com/klaushofrichter/cam-sim/blob/main/README.md#simulated-camera-api): commands, ports, login and tokens, settings, live video, snapshots, Search, Download, RTSP, ONVIF and FTP
+- [What differs from the real camera](https://github.com/klaushofrichter/cam-sim/blob/main/README.md#what-differs-from-the-real-camera): what the simulator does not do, or had to choose because it wasn't measured
+- [Control API](https://github.com/klaushofrichter/cam-sim/blob/main/README.md#control-api): state, power, events, recordings, faults, videos and reset
+- [openapi.yaml](https://github.com/klaushofrichter/cam-sim/blob/main/openapi.yaml): the control API schema
+- [Configuration](https://github.com/klaushofrichter/cam-sim/blob/main/README.md#configuration): the `CAMSIM_*` environment variables and the video library
+
+## Reference
+
+- [cams' guide to the real camera](https://github.com/klaushofrichter/cams/blob/main/docs/reolink-api.md): the measured behaviour of the real RLC-1224A, which the simulator follows
+- [Captured camera replies](https://github.com/klaushofrichter/cam-sim/tree/main/reference/rlc-1224a): the real camera's JSON replies (`GetDevInfo.json`, `GetOsd.json`, …) and its ONVIF messages
+- [Releases](https://github.com/klaushofrichter/cam-sim/releases): versions `vYYYY.MM.DD.N` and the npm tarball for tests
+
+## Optional
+
+- [Design spec](https://github.com/klaushofrichter/cam-sim/blob/main/docs/superpowers/specs/2026-09-26-cam-sim-design.md): the original design and its decisions
+- [CHANGELOG](https://github.com/klaushofrichter/cam-sim/blob/main/CHANGELOG.md): unreleased changes
+- [cam2 in the cluster](https://github.com/klaushofrichter/cam-sim/blob/main/README.md#cam2-in-the-cluster): how the simulator runs as `cam2` in the Kubernetes cluster

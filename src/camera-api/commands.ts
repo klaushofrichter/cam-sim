@@ -15,6 +15,7 @@ const DETAIL: Record<number, string> = {
   [-9]: 'not support', // measured
   [-54]: 'the respode of msg is err', // measured
   [-56]: 'err get data from json', // measured (GetPushV20)
+  [-64]: 'err received data from json', // measured (Search, onlyStatus with reversed months)
   [-67]: 'param error',
 };
 
@@ -96,11 +97,17 @@ const HANDLERS: Record<string, Handler> = {
       const s = c.param?.Search ?? {};
       const stream = s.streamType === 'main' ? 'main' : 'sub';
       if (!s.StartTime || !s.EndTime) return fail(c.cmd, -4);
+      // Firmware (measured 2026-09-29): Status lists only months with
+      // recordings, and empty keys are left out; months in reverse are -64.
       if (s.onlyStatus === 1) {
-        return ok(c.cmd, { SearchResult: { channel: 0, Status: [e.sd.status(stream, s.StartTime.year, s.StartTime.mon)] } });
+        const ym = (x: any) => x.year * 12 + x.mon;
+        if (ym(s.EndTime) < ym(s.StartTime)) return fail(c.cmd, -64);
+        const Status = e.sd.statuses(stream, s.StartTime, s.EndTime);
+        return ok(c.cmd, { SearchResult: { channel: 0, ...(Status.length ? { Status } : {}) } });
       }
       const File = e.sd.search(stream, s.StartTime, s.EndTime);
-      return ok(c.cmd, { SearchResult: { channel: 0, ...(File.length ? { File } : {}) } });
+      const Status = e.sd.statuses(stream, s.StartTime, s.StartTime);
+      return ok(c.cmd, { SearchResult: { channel: 0, ...(File.length ? { File } : {}), ...(Status.length ? { Status } : {}) } });
     } finally {
       e.search = { busy: false, spoiled: false };
     }

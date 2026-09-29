@@ -1,5 +1,19 @@
 # cam-sim
 
+[![Release](https://img.shields.io/github/v/release/klaushofrichter/cam-sim?label=release&color=blue)](https://github.com/klaushofrichter/cam-sim/releases)
+[![PR checks](https://github.com/klaushofrichter/cam-sim/actions/workflows/pr-checks.yml/badge.svg)](https://github.com/klaushofrichter/cam-sim/actions/workflows/pr-checks.yml)
+[![Build and publish image](https://github.com/klaushofrichter/cam-sim/actions/workflows/build-push.yml/badge.svg?branch=main)](https://github.com/klaushofrichter/cam-sim/actions/workflows/build-push.yml)
+[![Release and deploy](https://github.com/klaushofrichter/cam-sim/actions/workflows/release.yml/badge.svg?branch=production)](https://github.com/klaushofrichter/cam-sim/actions/workflows/release.yml)
+[![cams compatibility (daily)](https://github.com/klaushofrichter/cam-sim/actions/workflows/cams-compat.yml/badge.svg?event=schedule)](https://github.com/klaushofrichter/cam-sim/actions/workflows/cams-compat.yml)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](https://github.com/klaushofrichter/cam-sim/security/dependabot)
+
+<!-- The release badge is the newest tag, which the release job cuts after
+     cam2 answers /healthz. The cams compatibility badge is the daily run of
+     cams' suites against main. Dependabot is a static badge (it has no status
+     endpoint); alerts and security updates are on in the repository settings,
+     version updates come from .github/dependabot.yml. No version numbers in the text below: they go
+     stale; the badge and the releases page carry them. -->
+
 cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
 v3.2.0.6011_2607012059). It speaks the camera's HTTP API, reproduces its
 quirks, and can be made to fail in the ways the real device fails. It exists to
@@ -20,14 +34,15 @@ Each simulator has two faces:
 One container is one camera. It runs headless by default; an optional
 [web UI](#web-ui) shows the camera and the simulator's controls.
 
-**Status:** released (latest v2026.09.27.3): the headless core (Plan 1), the
+**Status:** released (see the release badge above): the headless core (Plan 1), the
 [video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
 `cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
 [FTP upload](#ftp-upload) (Plan 6). Still open from the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md): a curated
-set of clips captured for the library, cam-sim's own OSD, and recordings cut
-from the video.
+set of clips captured for the library, drawing the OSD on the video (see
+[What differs](#what-differs-from-the-real-camera)), and recordings cut from
+the video.
 Without a library, pictures, live video and recordings are an ffmpeg
 **test pattern**.
 
@@ -41,6 +56,10 @@ Without a library, pictures, live video and recordings are an ffmpeg
 - [cam2 in the cluster](#cam2-in-the-cluster)
 - [Secrets](#secrets)
 - [Development](#development)
+
+For LLMs and coding agents, [llms.txt](llms.txt) is a short summary of this
+README, with links to its sections, the control API schema and the real
+camera's measured behaviour.
 
 ## Quick start
 
@@ -77,8 +96,9 @@ sim.engine.faults.set({ name: 'downloads.refuse' });
 await sim.close();
 ```
 
-Install it from a release tarball, for example
-`"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v2026.09.27.3/cam-sim-v2026.09.27.3.tgz"`.
+Install it from a release tarball: `"cam-sim": "https://github.com/klaushofrichter/cam-sim/releases/download/v<version>/cam-sim-v<version>.tgz"`,
+with `<version>` from the [latest release](https://github.com/klaushofrichter/cam-sim/releases/latest)
+(`YYYY.MM.DD.N`).
 In a vitest `globalSetup`, call `ensureFixtures(defaultFixtureDir(), logger)` so
 the test patterns are built once, not in every worker.
 
@@ -91,7 +111,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
-| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the on-screen name |
+| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (stored, not drawn on the video) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
 | `CAMSIM_SPEED` | `fast` | `real` adds the camera's timings: Login ~0.2 s, Search ~0.3 s, Download 150 KB/s, reboot 60 s, certificate restart 10 s. `fast` keeps the behaviour with short timings |
@@ -116,6 +136,8 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
 | `CAMSIM_MAIN_SIZE` | `4512x2512` | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
 | `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
+| `CAMSIM_PIPELINE_MAX_MIN` | `1440` | the longest [SD pipeline](#sd-pipeline) switch-on, in minutes (1–1440) |
+| `CAMSIM_FONT_DIR` | system fonts | a folder with `DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` for the SD pipeline (the image has DejaVu; on a Mac, Arial is used) |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
 `CAMSIM_MEDIA=video` from the first design is refused; use the library.
@@ -182,11 +204,11 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 ```
 
 ```json
-[{ "cmd": "GetDevInfo", "code": 0, "value": { "DevInfo": { "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059", "serial": "SIM3F0A…", "name": "Cam", "simulator": "cam-sim", "…": "…" } } }]
+[{ "cmd": "GetDevInfo", "code": 0, "value": { "DevInfo": { "model": "RLC-1224A", "firmVer": "v3.2.0.6011_2607012059", "serial": "SIM3F0A…", "name": "Cam", "simulator": "cam-sim 2026.09.29.1", "…": "…" } } }]
 ```
 
-`GetDevInfo` also answers `simulator: "cam-sim"`, the one field the real
-camera doesn't send, so clients (cams) can label the camera as simulated.
+`GetDevInfo` also answers `simulator: "cam-sim <version>"` (`cam-sim main` from a
+`:main` image, `cam-sim dev` outside an image), the one field the real camera doesn't send, so clients (cams) can label the camera as simulated.
 
 - **Every JSON reply is `Content-Type: text/html`**, as on the camera.
 - On failure `code` is 1 and `error.rspCode` is negative:
@@ -269,10 +291,10 @@ post Logout
 | | `GetAiAlarm` / `SetAiAlarm` | `{channel:0,ai_type}` / `{AiAlarm:{…,ai_type}}` | per `people`, `vehicle`, `dog_cat`; `sensitivity` 0–100 |
 | | `GetMdState` | `{channel:0}` | `{state:0\|1}`: 1 while an event is active |
 | | `GetAiState` | `{channel:0}` | `{channel:0,people:{alarm_state,support},vehicle:{…},dog_cat:{…},face:{alarm_state:0,support:0}}` |
-| Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation`, `mirroring`, … |
+| Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation` (upside down), `mirroring` (left–right), …; stored only, the video doesn't change (see [What differs](#what-differs-from-the-real-camera)) |
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
-| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | positions `Upper Left` … `Lower Right`; name ≤ 31 bytes |
+| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** (see [What differs](#what-differs-from-the-real-camera)) |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
 | | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |
@@ -329,7 +351,7 @@ post Search '{"Search":{"channel":0,"onlyStatus":1,"streamType":"main",
 **Clips of one day** (`onlyStatus: 0`):
 
 ```json
-{ "SearchResult": { "channel": 0, "File": [ {
+{ "SearchResult": { "channel": 0, "Status": [ { "year": 2026, "mon": 9, "table": "…" } ], "File": [ {
   "name": "/mnt/sda/Mp4Record/2026-09-26/RecS0A_DST20260926_065221_065241_0_55148080000000_AAE60.mp4",
   "size": "700000", "type": "sub", "frameRate": 0, "width": 0, "height": 0,
   "StartTime": { "year": 2026, "mon": 9, "day": 26, "hour": 6, "min": 52, "sec": 21 },
@@ -339,6 +361,16 @@ post Search '{"Search":{"channel":0,"onlyStatus":1,"streamType":"main",
 - **One Search at a time, across the whole camera.** An overlapping Search
   answers `-54`, and the one already running comes back with no `File`.
 - `size` is a string. A day without clips has **no `File` key**.
+- **Only the start day is searched**, from `StartTime`'s time of day to
+  `EndTime`'s; `EndTime`'s date is ignored. A window from 28th 00:00 to 29th
+  23:59 lists only the 28th, 28th 12:00 to 29th 12:00 lists nothing, and
+  reversed dates (29th to 28th) list the 29th. Reversed times list nothing.
+  This matches the real camera (measured 2026-09-29); ask one day at a time.
+- **`Status`:** a clips search also returns the start month's table. Status
+  lists only months that have recordings (`onlyStatus: 1` over several months
+  too), and an empty key is left out: a past month without recordings or a
+  future one answers `{"channel":0}`. `onlyStatus: 1` with the end month
+  before the start month answers `-64` ("err received data from json").
 - A recording still in progress is listed with end `000000`.
 - The main copy of a recording ends 2 s after the sub copy.
 - A clip that crosses midnight is named by its start date, and its `EndTime`
@@ -484,8 +516,26 @@ the FTP schedule allows is uploaded:
   an overlapping clip. (Pre-record, 4 s, is simulated.) A recording's file is
   always the fixed clip (the 12 s fixture, or the library loop) whatever the
   recording's own duration.
-- **OSD:** `SetOsd` values are stored and validated (positions, name length)
-  but never drawn on the picture.
+- **Image settings:** `SetIsp` (day/night, `rotation` and `mirroring`),
+  `SetIrLights` and `SetWhiteLed` are stored, validated and returned, but
+  change nothing in the picture. On the real camera `rotation` turns the
+  picture upside down and `mirroring` mirrors it (both = 180°); cam-sim's video
+  stays as its source is, unless the [SD pipeline](#sd-pipeline) is on: then
+  the live SD stream is flipped and mirrored like the camera's.
+- **On-screen overlays (OSD):** the camera name, the date and time, and the
+  Reolink logo (`watermark`) are settings only. `GetOsd`/`SetOsd` store,
+  validate and return them, and they survive a restart, but cam-sim draws
+  none of them. **Video is played as its source is**, in live video,
+  snapshots and recordings alike:
+  - the test pattern has no text on it;
+  - library videos show whatever was in them when they were recorded. A clip
+    recorded on the real camera with its OSD on shows that camera's name and
+    the recording time (not the playing time), and its logo if it was on then.
+    `scripts/capture-clip.py` switches the camera's OSD off for a capture for
+    this reason.
+  - With the [SD pipeline](#sd-pipeline) on, the **live SD stream** shows the
+    name, the date and time and the watermark as set. Main, snapshots and
+    recordings never do.
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -637,6 +687,34 @@ ctl $C/videos
 ctl -X PUT $C/video -d '{"id":"garden-walk"}'
 ```
 
+### SD pipeline
+
+Optional and time-limited: it re-encodes the **live SD stream** (FLV
+`channel0_sub` and RTSP `h264Preview_01_sub`) with the camera's name, date and
+time and watermark (`Osd`) and flip/mirror (`Isp.rotation`, `Isp.mirroring`),
+following setting changes within about a second. The main stream, snapshots,
+recordings, downloads and FTP uploads stay as the source.
+
+- **On:** `POST /sim/api/pipeline` with `{"minutes":60}`, 1 to
+  `CAMSIM_PIPELINE_MAX_MIN` (default 60). It answers
+  `{"on":true,"until":<unix ms>,"running":false}`. `running` turns true once
+  frames flow; calling it again sets a new end time.
+- **Off:** `DELETE /sim/api/pipeline` answers 204, and it switches itself off
+  at `until`.
+- **State:** `pipeline` in `/sim/api/state`, and an SSE `pipeline` event on each
+  change: `{"on":false}`, or `{"on":false,"error":"…"}` after a failure (it
+  restarts once, and a second failure within a minute switches it off).
+- **Never persisted:** off after a restart and after `POST /sim/api/reset`.
+  Power off, a reboot or offline pause it; it resumes if time is left.
+- **Cost:** one ffmpeg (H.264 896×512, 10 fps, about 1 Mb/s): about 3% of a
+  core on an Apple M4, 5–10% on a small server. Library videos should be
+  captured without the camera's OSD, or the text shows twice.
+
+```sh
+ctl -X POST $C/pipeline -d '{"minutes":15}'
+ctl -X DELETE $C/pipeline
+```
+
 ### Reset, request log, live feed
 
 - `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true}`
@@ -683,7 +761,8 @@ The UI has four pages:
   day's recordings with their triggers, playback of the sub or main copy, and
   downloads.
 - **Settings:** recording and schedules, detection sensitivities, image and
-  lights, on-screen text and network services. Each of these cards writes
+  lights, on-screen text (stored only, never drawn on the video) and network
+  services. Each of these cards writes
   whole objects through the camera's own validation, so a rejected value
   shows the camera's error code. Device, storage, certificate and users are
   shown read-only (users change through the camera API). FTP has no card;
@@ -692,6 +771,7 @@ The UI has four pages:
   - power off, power on and reboot;
   - events;
   - the video library: pick the video the camera shows;
+  - the SD pipeline: on for 15 min, 1 h, 4 h or 24 h, with the time left;
   - every fault, with its parameters;
   - actions and reset;
   - counters;
@@ -765,7 +845,7 @@ manifests.
   digest in kube-setup's manifest, applies it through the in-cluster runner
   (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
   then tags the release. Releases deploy automatically. cams and cam-proxy
-  each pin a release tarball as a devDependency (now v2026.09.27.3) and need
+  each pin a release tarball as a devDependency and need
   a bump PR after a release; `cams-compat` CI (below) covers cams only, not
   cam-proxy.
 

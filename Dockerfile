@@ -10,8 +10,9 @@ RUN npm run build
 
 FROM node:26-alpine
 WORKDIR /app
-# ffmpeg builds the test-pattern fixtures and publishes the RTSP streams.
-RUN apk add --no-cache ffmpeg
+# ffmpeg builds the test-pattern fixtures and publishes the RTSP streams; the
+# fonts are for the optional SD pipeline's on-screen text.
+RUN apk add --no-cache ffmpeg font-dejavu
 # MediaMTX serves RTSP (the camera's port 554), checksum-verified.
 ARG TARGETARCH
 ARG MEDIAMTX_VERSION=v1.21.1

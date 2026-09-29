@@ -144,6 +144,20 @@ export function createControlApp(engine: Engine): express.Express {
     res.status(204).end();
   });
 
+  // The SD pipeline (spec 2026-09-29): on for N minutes, then off by itself.
+  api.post('/pipeline', (req, res) => {
+    const minutes = req.body?.minutes ?? 60;
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > e.config.pipelineMaxMin) {
+      return bad(res, `minutes must be an integer from 1 to ${e.config.pipelineMaxMin}`);
+    }
+    e.pipelineOn(minutes);
+    res.json(e.pipelineState());
+  });
+  api.delete('/pipeline', (_req, res) => {
+    e.pipelineOff();
+    res.status(204).end();
+  });
+
   api.post('/actions/:name', (req, res) => {
     const name = req.params.name;
     if (!(ACTION_NAMES as readonly string[]).includes(name)) return bad(res, `action must be one of ${ACTION_NAMES.join(', ')}`);

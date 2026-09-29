@@ -9,6 +9,8 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { Library } from '../src/media/library';
+import { SdPipeline } from '../src/pipeline/sd-pipeline';
+import { findFonts } from '../src/pipeline/fonts';
 
 const run = promisify(execFile);
 const mediamtx = findMediaMtx();
@@ -189,4 +191,65 @@ describe('RTSP availability', () => {
     expect(svc.running()).toBe(false);
     await svc.stop();
   });
+
+  it.skipIf(!mediamtx)('serves the pipeline on h264Preview_01_sub while it runs, and the copy again after', async () => {
+    const e = await makeEngine();
+    const rtsp = new RtspService(e, { port: await freePort(), mediamtx });
+    services.push(rtsp);
+    await rtsp.start();
+    const p = new SdPipeline(e, { fonts: findFonts(), rtspUrl: () => rtsp.publisherUrl('sub'), onProcess: (up: boolean) => rtsp.setSubSource(up ? 'pipeline' : 'copy') });
+    const url = `rtsp://cams:cams-pw@127.0.0.1:${rtsp.port()}/h264Preview_01_sub`;
+    try {
+      e.pipelineOn(5);
+      for (let i = 0; i < 150 && !p.active(); i++) await new Promise((r) => setTimeout(r, 100));
+      expect(p.active()).toBe(true); // its FLV side works too (tee)
+      expect(rtsp.publishing()).toBe(1); // only main's copy: the pipeline publishes sub
+      expect(await probe(url)).toMatchObject({ codec: 'h264', width: 896 });
+      e.pipelineOff();
+      await new Promise((r) => setTimeout(r, 2500));
+      expect(rtsp.publishing()).toBe(2); // sub's copy is back
+      expect(await probe(url)).toMatchObject({ codec: 'h264', width: 896 });
+    } finally {
+      await p.stop();
+    }
+  }, 60_000);
+
+  // Final review I1: without MediaMTX, a pipeline on/off must not start a
+  // publisher that respawns every second.
+  it('starts no sub publisher on a pipeline hand-back when MediaMTX is missing', async () => {
+    const engine = await makeEngine();
+    const svc = new RtspService(engine, { port: await freePort(), host: '127.0.0.1', mediamtx: undefined });
+    await svc.start();
+    svc.setSubSource('pipeline');
+    svc.setSubSource('copy');
+    let most = 0;
+    for (let i = 0; i < 25; i++) {
+      most = Math.max(most, svc.publishing());
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(most).toBe(0);
+    await svc.stop();
+  });
+
+  // Final review I2: rtsp.reset cuts sub readers while the pipeline publishes sub.
+  it.skipIf(!mediamtx)('cuts sub readers under rtsp.reset while the pipeline publishes', async () => {
+    const e = await makeEngine();
+    const rtsp = new RtspService(e, { port: 0, host: '127.0.0.1', mediamtx: mediamtx! });
+    services.push(rtsp);
+    await rtsp.start();
+    const p = new SdPipeline(e, { fonts: findFonts(), rtspUrl: () => rtsp.publisherUrl('sub'), onProcess: (up: boolean) => rtsp.setSubSource(up ? 'pipeline' : 'copy') });
+    rtsp.onDropReaders(() => p.restartNow());
+    try {
+      e.pipelineOn(5);
+      for (let i = 0; i < 150 && !p.active(); i++) await new Promise((r) => setTimeout(r, 100));
+      const reader = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-i', `rtsp://cams:cams-pw@127.0.0.1:${rtsp.port()}/h264Preview_01_sub`, '-f', 'null', '-']);
+      const exited = new Promise((r) => reader.once('exit', r));
+      await new Promise((r) => setTimeout(r, 1500));
+      e.faults.set({ name: 'rtsp.reset' });
+      await Promise.race([exited, new Promise((_, rej) => setTimeout(() => rej(new Error('reader not cut (pipeline)')), 15_000))]);
+    } finally {
+      e.faults.clearAll();
+      await p.stop();
+    }
+  }, 60_000);
 });

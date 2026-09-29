@@ -52,6 +52,10 @@ export class RtspService {
   private boundPort = 0;
   private starting?: Promise<void>;
   private readonly pubPassword = randomBytes(16).toString('hex');
+  // Who publishes sub: the stream copy, or the SD pipeline while it runs.
+  private subMode: 'copy' | 'pipeline' = 'copy';
+  // Others that publish (the SD pipeline) and must drop their readers too.
+  private readonly dropHooks: Array<() => void> = [];
 
   // Changes that must cut connected readers, like a camera that goes down.
   private readonly onState = (s: { power?: string; rebooting?: boolean }) => {
@@ -223,9 +227,23 @@ export class RtspService {
     return !!u && same(a.password ?? '', u.password);
   }
 
+  // The SD pipeline publishes sub itself while it runs (spec 2026-09-29).
+  publisherUrl(stream: Stream): string | undefined {
+    if (!this.up || this.mtxExited) return undefined;
+    return `rtsp://camsim-publisher:${this.pubPassword}@127.0.0.1:${this.boundPort}/${RTSP_PATHS[stream]}`;
+  }
+
+  setSubSource(mode: 'copy' | 'pipeline'): void {
+    if (mode === this.subMode) return;
+    this.subMode = mode;
+    if (mode === 'pipeline') this.publishers.get('sub')?.kill('SIGTERM');
+    else if (this.up && !this.publishers.has('sub')) this.publish('sub'); // never without MediaMTX
+  }
+
   private publish(stream: Stream): void {
     const e = this.engine;
     if (this.stopping || this.mtxExited) return;
+    if (stream === 'sub' && this.subMode === 'pipeline') return;
     const url = `rtsp://camsim-publisher:${this.pubPassword}@127.0.0.1:${this.boundPort}/${RTSP_PATHS[stream]}`;
     const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', '-i', e.media.clipPath(stream),
       '-c', 'copy', '-f', 'rtsp', '-rtsp_transport', 'tcp', url], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -234,7 +252,7 @@ export class RtspService {
     p.on('exit', () => {
       if (this.publishers.get(stream) === p) this.publishers.delete(stream);
       // Restarted while MediaMTX runs; readers cut by dropReaders reconnect.
-      if (!this.stopping && !this.mtxExited) setTimeout(() => this.publish(stream), 1000).unref();
+      if (!this.stopping && !this.mtxExited && !(stream === 'sub' && this.subMode === 'pipeline')) setTimeout(() => this.publish(stream), 1000).unref();
     });
     this.publishers.set(stream, p);
   }
@@ -242,6 +260,13 @@ export class RtspService {
   // Readers drop when their publisher goes away; it restarts a second later.
   dropReaders(): void {
     for (const p of this.publishers.values()) p.kill('SIGTERM');
+    for (const fn of this.dropHooks) fn();
+  }
+
+  // The SD pipeline restarts when readers must be cut (rtsp.reset, offline,
+  // power off), like the copy publishers.
+  onDropReaders(fn: () => void): void {
+    this.dropHooks.push(fn);
   }
 
   private stopPublishers(): void {

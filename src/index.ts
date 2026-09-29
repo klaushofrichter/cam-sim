@@ -9,6 +9,8 @@ import { startListeners, type Listeners } from './camera-api/listeners';
 import { FtpUploader } from './ftp/uploader';
 import { RtspService, findMediaMtx } from './rtsp/rtsp';
 import { Library } from './media/library';
+import { SdPipeline } from './pipeline/sd-pipeline';
+import { findFonts } from './pipeline/fonts';
 import { createOnvifApp, type OnvifApp } from './onvif/server';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -45,6 +47,8 @@ export interface CamSimOptions {
   fixtureDir?: string;
   libraryDir?: string; // videos to offer besides the test pattern
   video?: string; // selected once it is ready
+  pipelineMaxMin?: number; // the longest SD pipeline switch-on (minutes, default 1440)
+  fontDir?: string; // fonts for the SD pipeline (default: system DejaVu, or Arial on a Mac)
   mainSize?: string;
   maxVideoS?: number;
   logLevel?: string;
@@ -93,6 +97,8 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     maxVideoS: o.maxVideoS ?? 60,
     libraryDir: o.libraryDir,
     video: o.video,
+    pipelineMaxMin: o.pipelineMaxMin ?? 1440,
+    fontDir: o.fontDir,
   };
 }
 
@@ -112,6 +118,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   let camera: Listeners | undefined;
   let control: http.Server | https.Server | undefined;
   let rtsp: RtspService | undefined;
+  let pipeline: SdPipeline | undefined;
   let onvif: http.Server | undefined;
   let onvifApp: OnvifApp | undefined;
 
@@ -148,6 +155,13 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
       // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
+      // The optional SD pipeline (off until switched on; spec 2026-09-29).
+      pipeline = new SdPipeline(engine, {
+        fonts: findFonts(config.fontDir),
+        rtspUrl: () => rtsp?.publisherUrl('sub'),
+        onProcess: (up) => rtsp?.setSubSource(up ? 'pipeline' : 'copy'),
+      });
+      rtsp.onDropReaders(() => pipeline?.restartNow());
       if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
       preparing ??= library.prepareAll().then(() => {
         const why = config.video ? library.select(config.video) : null;
@@ -159,6 +173,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
       ftp.stop();
       library.stop();
       await preparing?.catch(() => undefined);
+      await pipeline?.stop();
       await rtsp?.stop();
       onvifApp?.stop();
       engine.stop();
