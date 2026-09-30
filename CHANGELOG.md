@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.09.30.2
+
 - Recordings follow the camera's 4 s keyframe grid (measured on cam1, 37 back-to-back clips): a clip starts one step before the detection and ends at the first step after its post-record, and may start up to 4 s before the previous one ended. The FTP picture is named at the detection, 4 s after its clip. Clip names and lengths shift by up to 4 s from before.
 
 ## v2026.09.30.1
