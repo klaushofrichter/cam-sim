@@ -15,6 +15,10 @@ export interface Recording {
   mainEnd: string | null;
   triggers: Trigger[];
   dst: boolean;
+  // Camera-local YYYYMMDDHHMMSS of the event that started it: the FTP
+  // picture's name (the clip's own name is its start, up to 4 s earlier
+  // with pre-record; measured on cam1 2026-09-30). Unset for seeded clips.
+  picture?: string;
   // The library video it was recorded from ('test-pattern' when unset).
   video?: string;
   files: Record<Stream, { name: string; size: number }>;
@@ -158,13 +162,14 @@ export class SdCard {
     return r && this.withFiles(r);
   }
 
-  add(rec: { date: string; start: string; triggers: Trigger[]; dst: boolean; end?: string; mainEnd?: string }): Recording {
+  add(rec: { date: string; start: string; triggers: Trigger[]; dst: boolean; end?: string; mainEnd?: string; picture?: string }): Recording {
     const r: Stored = {
       id: `r${++this.seq}-${rec.date}-${rec.start}`,
       date: rec.date, start: rec.start, end: rec.end ?? null, mainEnd: rec.mainEnd ?? rec.end ?? null,
       triggers: [...new Set(rec.triggers)], dst: rec.dst,
       sizes: { ...this.currentSizes() },
       video: this.opts.currentVideo?.() ?? 'test-pattern',
+      ...(rec.picture ? { picture: rec.picture } : {}),
     };
     this.recs.push(r);
     this.recs.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
