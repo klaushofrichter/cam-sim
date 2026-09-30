@@ -145,10 +145,11 @@ export class FtpUploader {
       const media = e.mediaFor(rec);
       const target = ftp as FtpTarget;
       // The camera sends the snapshot in a second session while the clip
-      // is still uploading.
+      // is still uploading, named after the event rather than the clip.
+      const picture = rec.picture ? `${e.config.name}_00_${rec.picture}` : stem;
       await Promise.all([
         uploadOne(target, dir, media.clipPath(stream), `${stem}.mp4`),
-        media.snapshot().then((jpeg) => uploadOne(target, dir, Readable.from(jpeg), `${stem}.jpg`)),
+        media.snapshot().then((jpeg) => uploadOne(target, dir, Readable.from(jpeg), `${picture}.jpg`)),
       ]);
       e.counters.ftpUploads++;
       e.bus.emit('ftp', { file, ok: true });

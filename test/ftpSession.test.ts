@@ -156,9 +156,11 @@ describe('pre-record (#25)', () => {
     expect(engine.settings.running.Rec.preRec).toBe(1);
     const { recording } = engine.events.trigger('motion', 1);
     expect(recording!.start).toBe('065217'); // 06:52:21 CDT − 4 s
+    expect(recording!.picture).toBe('20260926065221'); // the picture: the event itself
     vi.advanceTimersByTime(60_000);
     engine.settings.running.Rec.preRec = 0;
     const { recording: r2 } = engine.events.trigger('motion', 1);
     expect(r2!.start).toBe('065321');
+    expect(r2!.picture).toBe('20260926065321');
   });
 });
