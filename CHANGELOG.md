@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The FTP picture (`.jpg`) is named after the event that started the recording, 4 s after the clip's name with pre-record on, like the camera (measured 2026-09-30); it was named like the clip. README: how recordings cover several events and end `postRec` after the last one.
 - The manual light reports its new state late, like the camera (measured 2026-09-30): `GetWhiteLed` shows the new `state` about 1 s after switching on and 3 s after switching off; a newer write, a reboot or a factory reset replaces a switch still pending.
 
 ## v2026.09.29.3

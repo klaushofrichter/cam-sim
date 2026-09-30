@@ -72,7 +72,8 @@ export class Events extends EventEmitter {
         // measured, cam-sim#25), never before the previous one ended.
         const startMs = rec.preRec === 1 ? Math.max(now.getTime() - PRE_REC_MS, this.lastEndMs) : now.getTime();
         const s = localParts(this.o.clock, this.o.tz, new Date(startMs));
-        recording = this.o.sd.add({ date: s.date, start: s.hms, triggers: scheduled, dst: isDstOn(this.o.tz, s.date) });
+        const at = localParts(this.o.clock, this.o.tz, now);
+        recording = this.o.sd.add({ date: s.date, start: s.hms, triggers: scheduled, dst: isDstOn(this.o.tz, s.date), picture: `${at.date.replaceAll('-', '')}${at.hms}` });
         this.scheduleEnd(recording.id, startMs, endsAt);
       }
     }

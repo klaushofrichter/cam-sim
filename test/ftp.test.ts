@@ -76,9 +76,11 @@ describe('FTP upload', () => {
     engine.events.trigger('motion', 2);
     vi.advanceTimersByTime(20_000);
     vi.useRealTimers();
+    // The JPEG is named after the event (06:52:21), the clip after its
+    // start 4 s earlier (pre-record), as on cam1 (measured 2026-09-30).
     await expect.poll(() => files(s.root), { timeout: 10_000 }).toEqual([
-      'cams/den/2026/09/26/Den_00_20260926065217.jpg',
       'cams/den/2026/09/26/Den_00_20260926065217.mp4',
+      'cams/den/2026/09/26/Den_00_20260926065221.jpg',
     ]);
     // The clip and the JPEG upload in parallel sessions: the file is there
     // before all of it is.
@@ -168,7 +170,9 @@ describe('FTP end to end', () => {
     sim.engine.settings.running.Rec.postRec = '1 Seconds';
     sim.engine.events.trigger('vehicle', 1);
     await expect.poll(() => files(s.root).filter((f) => f.startsWith('in/')).length, { timeout: 15_000 }).toBe(2);
-    expect(files(s.root)[0]).toMatch(/^in\/\d{4}\/\d{2}\/\d{2}\/Gate_00_\d{14}\.jpg$/);
+    const up = files(s.root).filter((f) => f.startsWith('in/'));
+    expect(up.filter((f) => /^in\/\d{4}\/\d{2}\/\d{2}\/Gate_00_\d{14}\.jpg$/.test(f))).toHaveLength(1);
+    expect(up.filter((f) => /^in\/\d{4}\/\d{2}\/\d{2}\/Gate_00_\d{14}\.mp4$/.test(f))).toHaveLength(1);
   }, 20_000);
 });
 

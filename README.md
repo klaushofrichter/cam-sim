@@ -284,7 +284,7 @@ post Logout
 | | `GetNetPort` / `SetNetPort` | `{}` / `{NetPort:{…}}` | ports and `*Enable` flags |
 | | `GetAbility` | `{User:{userName}}` | the camera's capability flags |
 | | `Reboot` | `{}` | `{rspCode:200}`, **or the connection drops first** (half the time, seeded) |
-| Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec`, `preRec` (1: recordings start 4 s before the event), `saveDay`, `schedule.table` (168 characters per trigger type) |
+| Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec` (`"15 Seconds"`, `"30 Seconds"`, `"1 Minute"`: how long a recording runs on after its last event; the camera's "Post-Motion Record"), `preRec` (1: recordings start 4 s before the event), `saveDay`, `schedule.table` (168 characters per trigger type) |
 | | `Search` | see [Search](#recordings-search) | `{SearchResult:{…}}` |
 | | `CheckDownload` | `{filename}` | `{downloadTask:0\|1}`; `-4` for an unknown name |
 | Detection | `GetMdAlarm` / `SetMdAlarm` | `{channel:0}` / `{MdAlarm:{…}}` | `newSens.sensDef` 1–50, **lower is more sensitive** |
@@ -476,8 +476,12 @@ Like the camera, the simulator is an FTP **client**. With `Ftp.enable: 1`
 the FTP schedule allows is uploaded:
 
 - `<remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.mp4`, with the start time in
-  camera-local time and the date folders when `autoDir` is 1, plus a `.jpg`
-  with the same name. No trigger information, as on the camera.
+  camera-local time and the date folders when `autoDir` is 1, plus a `.jpg`.
+  No trigger information, as on the camera.
+- **The `.jpg` is named after the event that started the recording, not the
+  clip:** with pre-record on, its name is 4 s later than the clip's (on cam1
+  3–5 s, never the same; measured 2026-09-30). A receiver pairs them by time,
+  not by name.
 - The main-stream clip by default; `streamType: 1` sends the sub clip.
 - FTPS (explicit TLS, certificate not verified) when `onlyFtps` is 1, the
   camera's default; plain FTP when 0.
@@ -493,7 +497,9 @@ the FTP schedule allows is uploaded:
   uploading.
 - **Pre-record:** with `Rec.preRec` 1 (the default), a triggered recording,
   and so its file name, starts 4 s before the event, never before the previous
-  recording ended.
+  recording ended. (On cam1 a new clip sometimes starts up to 4 s before the
+  previous one ended, repeating its tail, and sometimes right at its end; the
+  simulator always does the latter.)
 - One recording at a time. A failure is logged and counted (`ftpFailures`), not
   retried. At most 20 wait; more are dropped and counted (`ftpDropped`).
 - Each upload is reported on the SSE feed as an `ftp` event
@@ -513,7 +519,10 @@ the FTP schedule allows is uploaded:
   main stream is 1280×720 (and a converted video's is `CAMSIM_MAIN_SIZE`),
   while `GetEnc` always reports 4512×2512.
 - **Recordings:** an event during a recording extends it instead of starting
-  an overlapping clip. (Pre-record, 4 s, is simulated.) A recording's file is
+  a second clip, so one clip often covers several events (on cam1 over 24 h:
+  23 of 44 clips, events of one clip up to 25 s apart). The recording ends
+  `postRec` (15 s, 30 s or 1 min) after the last event ends. (Pre-record, 4 s,
+  is simulated.) A recording's file is
   always the fixed clip (the 12 s fixture, or the library loop) whatever the
   recording's own duration.
 - **Image settings:** `SetIsp` (day/night, `rotation` and `mirroring`),
@@ -619,7 +628,8 @@ answers 201 `{event, recording}`.
 - The event sets `GetMdState`, and `GetAiState` for AI types.
 - It starts or extends a recording when `Rec.enable` is 1 and the schedule
   allows that type at that hour of the week. Otherwise `recording` is `null`.
-- The recording ends `postRec` after the event.
+- The recording ends `postRec` after the event ends (`durationS` later);
+  another event before then extends it, as on the camera.
 - While the camera is off, the answer is 409 `powered_off`.
 
 `GET /sim/api/events?limit=50` lists recent events, newest first.
