@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recordings follow the camera's 4 s keyframe grid (measured on cam1, 37 back-to-back clips): a clip starts one step before the detection and ends at the first step after its post-record, and may start up to 4 s before the previous one ended. The FTP picture is named at the detection, 4 s after its clip. Clip names and lengths shift by up to 4 s from before.
+
+## v2026.09.30.1
+
 - The FTP picture (`.jpg`) is named after the event that started the recording, 4 s after the clip's name with pre-record on, like the camera (measured 2026-09-30); it was named like the clip. README: how recordings cover several events and end `postRec` after the last one.
 - The manual light reports its new state late, like the camera (measured 2026-09-30): `GetWhiteLed` shows the new `state` about 1 s after switching on and 3 s after switching off; a newer write, a reboot or a factory reset replaces a switch still pending.
 

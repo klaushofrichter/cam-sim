@@ -76,15 +76,16 @@ describe('FTP upload', () => {
     engine.events.trigger('motion', 2);
     vi.advanceTimersByTime(20_000);
     vi.useRealTimers();
-    // The JPEG is named after the event (06:52:21), the clip after its
-    // start 4 s earlier (pre-record), as on cam1 (measured 2026-09-30).
+    // The JPEG is named after the detection (06:52:20 on the 4 s grid), the
+    // clip after its start one step earlier (pre-record), as on cam1
+    // (measured 2026-09-30).
     await expect.poll(() => files(s.root), { timeout: 10_000 }).toEqual([
-      'cams/den/2026/09/26/Den_00_20260926065217.mp4',
-      'cams/den/2026/09/26/Den_00_20260926065221.jpg',
+      'cams/den/2026/09/26/Den_00_20260926065216.mp4',
+      'cams/den/2026/09/26/Den_00_20260926065220.jpg',
     ]);
     // The clip and the JPEG upload in parallel sessions: the file is there
     // before all of it is.
-    const mp4 = join(s.root, 'cams/den/2026/09/26/Den_00_20260926065217.mp4');
+    const mp4 = join(s.root, 'cams/den/2026/09/26/Den_00_20260926065216.mp4');
     await expect.poll(() => readFileSync(mp4).length, { timeout: 10_000 }).toBe(engine.media.clipSize('main'));
     // The server shows the files a moment before the client's upload returns.
     await expect.poll(() => engine.counters.ftpUploads).toBe(1);
