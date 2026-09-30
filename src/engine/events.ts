@@ -5,8 +5,18 @@ import { addSeconds, type SdCard, type Recording } from './sdcard';
 import type { SettingsStore } from './settings';
 import type { Trigger } from './types';
 
+// Clips follow the sub stream's keyframes, every 4 s (measured on cam1,
+// 2026-09-28 to 30, 37 back-to-back clips): a detection lands on that grid,
+// a clip starts one step before it (the pre-record) and ends at the first
+// step after its post-record, so its length is a multiple of 4 s. A new clip
+// may therefore start up to 4 s before the previous one ended. The grid's
+// phase here is the epoch's; on the camera it shifts now and then.
+const GOP_MS = 4_000;
+const PRE_REC_MS = GOP_MS;
+const gridFloor = (ms: number) => ms - (((ms % GOP_MS) + GOP_MS) % GOP_MS);
+const gridCeil = (ms: number) => gridFloor(ms + GOP_MS - 1);
+
 // "15 Seconds", "1 Minute", "2 Minutes" → seconds.
-const PRE_REC_MS = 4_000;
 
 export function postRecSeconds(v: unknown): number {
   const m = /^(\d+)\s*(Second|Minute)/i.exec(String(v));
@@ -61,18 +71,19 @@ export class Events extends EventEmitter {
     const slot = p.weekday * 24 + p.hour;
     const scheduled = types.filter((t) => String(rec.schedule?.table?.[SCHEDULE_KEY[t]] ?? '')[slot] === '1');
     if (rec.enable === 1 && scheduled.length) {
-      const endsAt = now.getTime() + (durationS + postRecSeconds(rec.postRec)) * 1000;
+      const detected = gridFloor(now.getTime());
+      const endsAt = gridCeil(now.getTime() + (durationS + postRecSeconds(rec.postRec)) * 1000);
       if (this.current) {
         this.o.sd.extend(this.current.id, scheduled);
         if (endsAt > this.current.endsAt) this.scheduleEnd(this.current.id, this.current.startMs, endsAt);
         recording = this.o.sd.byId(this.current.id) ?? null;
       } else {
         // Pre-record (Rec.preRec 1, the firmware's default): the recording,
-        // and its file name, start a few seconds before the event (4 s
-        // measured, cam-sim#25), never before the previous one ended.
-        const startMs = rec.preRec === 1 ? Math.max(now.getTime() - PRE_REC_MS, this.lastEndMs) : now.getTime();
+        // and its file name, start one grid step (4 s) before the detection
+        // (cam-sim#25), even when that is before the previous one ended.
+        const startMs = rec.preRec === 1 ? detected - PRE_REC_MS : detected;
         const s = localParts(this.o.clock, this.o.tz, new Date(startMs));
-        const at = localParts(this.o.clock, this.o.tz, now);
+        const at = localParts(this.o.clock, this.o.tz, new Date(detected));
         recording = this.o.sd.add({ date: s.date, start: s.hms, triggers: scheduled, dst: isDstOn(this.o.tz, s.date), picture: `${at.date.replaceAll('-', '')}${at.hms}` });
         this.scheduleEnd(recording.id, startMs, endsAt);
       }
@@ -84,8 +95,6 @@ export class Events extends EventEmitter {
     return { recording };
   }
 
-  private lastEndMs = 0;
-
   private scheduleEnd(id: string, startMs: number, endsAt: number): void {
     if (this.current) clearTimeout(this.current.timer);
     const timer = setTimeout(() => {
@@ -96,7 +105,6 @@ export class Events extends EventEmitter {
         this.o.sd.retention(Number(this.o.settings.running.Rec.saveDay) || 7);
         this.emit('recording', this.o.sd.byId(id));
       }
-      this.lastEndMs = endsAt;
       this.current = null;
     }, Math.max(0, endsAt - this.o.clock.now().getTime()));
     this.current = { id, startMs, endsAt, timer };

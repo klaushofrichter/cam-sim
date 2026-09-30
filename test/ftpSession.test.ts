@@ -155,12 +155,58 @@ describe('pre-record (#25)', () => {
     vi.useFakeTimers({ now: new Date('2026-09-26T11:52:21Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
     expect(engine.settings.running.Rec.preRec).toBe(1);
     const { recording } = engine.events.trigger('motion', 1);
-    expect(recording!.start).toBe('065217'); // 06:52:21 CDT − 4 s
-    expect(recording!.picture).toBe('20260926065221'); // the picture: the event itself
+    // 06:52:21 CDT: the detection lands on the 4 s grid (06:52:20), the
+    // clip starts one step earlier (measured on cam1 2026-09-30).
+    expect(recording!.start).toBe('065216');
+    expect(recording!.picture).toBe('20260926065220'); // the picture: the detection
     vi.advanceTimersByTime(60_000);
     engine.settings.running.Rec.preRec = 0;
     const { recording: r2 } = engine.events.trigger('motion', 1);
-    expect(r2!.start).toBe('065321');
-    expect(r2!.picture).toBe('20260926065321');
+    expect(r2!.start).toBe('065320');
+    expect(r2!.picture).toBe('20260926065320');
   });
 });
+
+// Measured on cam1 (2026-09-28 to 30, 37 back-to-back clips): clips start and
+// end on the sub stream's 4 s keyframe grid; a clip starts one step before
+// the detection and ends at the first step after the post-record; a new clip
+// may start up to 4 s before the previous one ended.
+describe('clips on the 4 s grid', () => {
+  const at = (hms: string) => new Date(`2026-09-26T${hms}Z`); // 11:52:21Z = 06:52:21 CDT
+  async function engineAt(hms: string) {
+    const engine = await makeEngine();
+    vi.useFakeTimers({ now: at(hms), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    return engine;
+  }
+  const stepTo = (hms: string) => vi.advanceTimersByTime(at(hms).getTime() - Date.now());
+
+  it('ends at the first step after the post-record', async () => {
+    const engine = await engineAt('11:52:21');
+    const { recording } = engine.events.trigger('motion', 2); // detection 06:52:20; ends 06:52:23 + 15 s = 06:52:38
+    vi.advanceTimersByTime(60_000);
+    const done = engine.sd.byId(recording!.id)!;
+    expect(done.start).toBe('065216');
+    expect(done.end).toBe('065240'); // 24 s: a multiple of 4
+  });
+
+  it.each([
+    ['11:52:42', '065236'], // 2 s after the previous end: starts 4 s before it
+    ['11:52:45', '065240'], // 5 s after: starts right at it
+    ['11:52:49', '065244'], // 9 s after: starts 4 s after it
+  ])('a detection at %s after a clip ending 06:52:40 starts the next at %s', async (next, start) => {
+    const engine = await engineAt('11:52:21');
+    engine.events.trigger('motion', 2);
+    stepTo('11:52:40');
+    stepTo(next);
+    const { recording } = engine.events.trigger('motion', 1);
+    expect(recording!.start).toBe(start);
+  });
+
+  it('extends a recording that is still going instead', async () => {
+    const engine = await engineAt('11:52:21');
+    const { recording } = engine.events.trigger('motion', 2);
+    stepTo('11:52:35');
+    expect(engine.events.trigger('person', 1).recording!.id).toBe(recording!.id);
+  });
+});
+
