@@ -293,7 +293,7 @@ post Logout
 | | `GetAiState` | `{channel:0}` | `{channel:0,people:{alarm_state,support},vehicle:{…},dog_cat:{…},face:{alarm_state:0,support:0}}` |
 | Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation` (upside down), `mirroring` (left–right), …; stored only, the video doesn't change (see [What differs](#what-differs-from-the-real-camera)) |
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
-| | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100 |
+| | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100; `state` is the manual light switch, 0 off / 1 on (only the numbers 0 and 1, otherwise `-56`), and stays on until switched off (measured 2026-09-29) |
 | | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** (see [What differs](#what-differs-from-the-real-camera)) |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
 | | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
@@ -517,8 +517,8 @@ the FTP schedule allows is uploaded:
   always the fixed clip (the 12 s fixture, or the library loop) whatever the
   recording's own duration.
 - **Image settings:** `SetIsp` (day/night, `rotation` and `mirroring`),
-  `SetIrLights` and `SetWhiteLed` are stored, validated and returned, but
-  change nothing in the picture. On the real camera `rotation` turns the
+  `SetIrLights` and `SetWhiteLed` (including the manual light, `state`) are
+  stored, validated and returned, but change nothing in the picture. On the real camera `rotation` turns the
   picture upside down and `mirroring` mirrors it (both = 180°); cam-sim's video
   stays as its source is, unless the [SD pipeline](#sd-pipeline) is on: then
   the live SD stream is flipped and mirrored like the camera's.

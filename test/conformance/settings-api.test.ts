@@ -38,6 +38,17 @@ describe('camera API: settings', () => {
     expect((await post(app, 'SetFtpV20', { Ftp: { server: '' } }, t)).reply.error.rspCode).toBe(-4);
   });
 
+  it('WhiteLed.state is the manual light switch (measured 2026-09-29)', async () => {
+    const { app } = await makeCamera();
+    const t = await login(app);
+    const before = (await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed;
+    expect(before.state).toBe(0);
+    expect((await post(app, 'SetWhiteLed', { WhiteLed: { ...before, state: 1 } }, t)).reply.code).toBe(0);
+    expect((await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed).toEqual({ ...before, state: 1 });
+    expect((await post(app, 'SetWhiteLed', { WhiteLed: { ...before, state: 2 } }, t)).reply.error.rspCode).toBe(-56);
+    expect((await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed.state).toBe(1);
+  });
+
   it('settings.fail and settings.ignore faults', async () => {
     const { app, engine } = await makeCamera({ CAMSIM_FAULTS: '[{"name":"settings.fail","cmds":["SetWhiteLed"]},{"name":"settings.ignore","cmds":["SetIrLights"]}]' });
     const t = await login(app);
