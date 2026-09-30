@@ -34,12 +34,13 @@ describe('Events', () => {
     const { recording } = events.trigger('motion', 5);
     expect(recording).not.toBeNull();
     expect(events.mdState()).toEqual({ state: 1 });
-    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('RecS0A_DST20260926_065217_000000_0_55148080000000_'); // pre-record: 4 s before the event
+    // Pre-record: one 4 s grid step before the detection (06:52:20).
+    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('RecS0A_DST20260926_065216_000000_0_55148080000000_');
     vi.advanceTimersByTime(5_000);
     expect(events.mdState()).toEqual({ state: 0 });
-    vi.advanceTimersByTime(15_000);
-    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065217_065241_');
-    expect(sd.search('main', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065217_065243_');
+    vi.advanceTimersByTime(18_000); // 06:52:41 (event end + 15 s) → the next step, 06:52:44
+    expect(sd.search('sub', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065216_065244_');
+    expect(sd.search('main', day(2026, 9, 26), day(2026, 9, 26))[0].name).toContain('_065216_065246_');
   });
 
   it('AI events also set motion, and show in GetAiState', () => {
@@ -55,10 +56,10 @@ describe('Events', () => {
     vi.advanceTimersByTime(10_000);
     events.trigger('vehicle', 5);
     expect(sd.all()).toHaveLength(1);
-    vi.advanceTimersByTime(19_000);
+    vi.advanceTimersByTime(20_000);
     expect(sd.all()[0].end).toBeNull();
     vi.advanceTimersByTime(1_000);
-    expect(sd.all()[0].end).toBe('065251');
+    expect(sd.all()[0].end).toBe('065252'); // 06:52:51 → the next 4 s step
     expect(sd.all()[0].triggers.sort()).toEqual(['motion', 'vehicle']);
   });
 
@@ -98,7 +99,7 @@ describe('Events', () => {
     vi.advanceTimersByTime(30_000);
     const [r] = sd.all();
     expect(r.date).toBe('2026-09-26');
-    expect(r.files.sub.name).toContain('RecS0A_DST20260926_235946_000010_');
+    expect(r.files.sub.name).toContain('RecS0A_DST20260926_235944_000012_'); // on the 4 s grid
   });
 
   it('has no DST marker on the fall-back day', () => {
