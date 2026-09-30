@@ -81,6 +81,7 @@ export class SettingsStore {
   saved: Settings;
   private readonly name: string;
   private readonly file?: string;
+  private lightTimer?: ReturnType<typeof setTimeout>;
 
   constructor(opts: { name: string; file?: string; log: pino.Logger }) {
     this.name = opts.name;
@@ -114,6 +115,7 @@ export class SettingsStore {
     if (rsp !== null) return { rspCode: rsp };
     const sent = (param?.[key] ?? {}) as Record<string, any>;
     const defaults = resetDefaults();
+    const lightWas = this.running.WhiteLed.state;
     if (key === 'AiAlarm') {
       const t = sent.ai_type as AiType;
       this.saved.AiAlarm[t] = deepMerge(defaults.AiAlarm[t], sent);
@@ -122,15 +124,37 @@ export class SettingsStore {
       this.saved[key] = deepMerge(defaults[key] as Record<string, any>, sent) as any;
       this.running[key] = (opts.strictPartial ? clone(this.saved[key]) : deepMerge(this.running[key] as Record<string, any>, sent)) as any;
     }
+    if (key === 'WhiteLed') this.lightLate(lightWas);
     this.persist();
     return null;
   }
 
+  // The manual light (WhiteLed.state) switches at once, but GetWhiteLed
+  // reports the new state only about 1 s later when it goes on and 3 s when
+  // it goes off (measured on cam1 2026-09-30). A newer write replaces a
+  // switch still pending.
+  private lightLate(was: unknown): void {
+    clearTimeout(this.lightTimer);
+    this.lightTimer = undefined;
+    const want = this.running.WhiteLed.state;
+    if (want === was) return;
+    this.running.WhiteLed.state = was;
+    this.lightTimer = setTimeout(() => {
+      this.lightTimer = undefined;
+      this.running.WhiteLed.state = want;
+    }, want === 1 ? 1000 : 3000);
+    this.lightTimer.unref?.();
+  }
+
   applySavedOnReboot(): void {
+    clearTimeout(this.lightTimer);
+    this.lightTimer = undefined;
     this.running = clone(this.saved);
   }
 
   resetFactory(): void {
+    clearTimeout(this.lightTimer);
+    this.lightTimer = undefined;
     this.saved = factorySettings(this.name);
     this.running = clone(this.saved);
     this.persist();

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -160,4 +160,50 @@ describe('SettingsStore', () => {
   it('does not accept unknown commands', () => {
     expect(() => make().set('SetBogus', {}, ok)).toThrow();
   });
+
+  // Measured on cam1 2026-09-30: after SetWhiteLed switches the light,
+  // GetWhiteLed still reports the old state for about 1 s (on) or 3 s (off).
+  describe('the manual light reports its new state late', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+    const light = (s: SettingsStore, state: number) => s.set('SetWhiteLed', { WhiteLed: { ...s.get('WhiteLed'), state } }, ok);
+
+    it('on after 1 s, off after 3 s; the other keys at once', () => {
+      const s = make();
+      expect(light(s, 1)).toBeNull();
+      expect(s.get('WhiteLed').state).toBe(0);
+      expect(s.saved.WhiteLed.state).toBe(1);
+      vi.advanceTimersByTime(999);
+      expect(s.get('WhiteLed').state).toBe(0);
+      vi.advanceTimersByTime(1);
+      expect(s.get('WhiteLed').state).toBe(1);
+      s.set('SetWhiteLed', { WhiteLed: { ...s.get('WhiteLed'), state: 0, bright: 40 } }, ok);
+      expect(s.get('WhiteLed')).toMatchObject({ state: 1, bright: 40 });
+      vi.advanceTimersByTime(2999);
+      expect(s.get('WhiteLed').state).toBe(1);
+      vi.advanceTimersByTime(1);
+      expect(s.get('WhiteLed').state).toBe(0);
+    });
+
+    it('a new switch replaces one still pending', () => {
+      const s = make();
+      light(s, 1);
+      vi.advanceTimersByTime(500);
+      light(s, 0); // reported state is still 0: nothing to wait for
+      expect(s.get('WhiteLed').state).toBe(0);
+      vi.advanceTimersByTime(5000);
+      expect(s.get('WhiteLed').state).toBe(0);
+    });
+
+    it('a reboot or factory reset drops a pending switch', () => {
+      const s = make();
+      light(s, 1);
+      s.applySavedOnReboot();
+      expect(s.get('WhiteLed').state).toBe(1); // the saved value, at once
+      s.resetFactory();
+      vi.advanceTimersByTime(5000);
+      expect(s.get('WhiteLed').state).toBe(0);
+    });
+  });
 });
+

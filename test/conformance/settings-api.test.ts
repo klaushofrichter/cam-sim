@@ -44,6 +44,9 @@ describe('camera API: settings', () => {
     const before = (await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed;
     expect(before.state).toBe(0);
     expect((await post(app, 'SetWhiteLed', { WhiteLed: { ...before, state: 1 } }, t)).reply.code).toBe(0);
+    // Reported about 1 s late, like the camera (measured 2026-09-30).
+    expect((await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed.state).toBe(0);
+    await new Promise((r) => setTimeout(r, 1100));
     expect((await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed).toEqual({ ...before, state: 1 });
     expect((await post(app, 'SetWhiteLed', { WhiteLed: { ...before, state: 2 } }, t)).reply.error.rspCode).toBe(-56);
     expect((await post(app, 'GetWhiteLed', { channel: 0 }, t)).reply.value.WhiteLed.state).toBe(1);
