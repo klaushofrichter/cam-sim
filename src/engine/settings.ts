@@ -59,6 +59,8 @@ function validate(cmd: string, p: any): number | null {
     const w = p?.WhiteLed ?? {};
     if (w.mode !== undefined && ![0, 1, 2, 3].includes(w.mode)) return -67;
     if (w.bright !== undefined && !int(w.bright, 0, 100)) return -56;
+    // The manual light: only the numbers 0 and 1 (measured 2026-09-29).
+    if (w.state !== undefined && w.state !== 0 && w.state !== 1) return -56;
   }
   if (cmd === 'SetOsd') {
     const o = p?.Osd ?? {};

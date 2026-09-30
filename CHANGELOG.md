@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `SetWhiteLed` accepts only the numbers 0 and 1 for `state`, the manual light switch, and answers `-56` otherwise, like the real camera (measured 2026-09-29).
+
+## v2026.09.29.1 – v2026.09.29.2
+
 - SD pipeline: an optional, time-limited re-encode of the live SD stream (FLV and RTSP) with the camera's name, date and time, watermark and flip/mirror (`POST/DELETE /sim/api/pipeline`, the Simulator page). Off by default; the main stream, snapshots and recordings are unchanged. New settings `CAMSIM_PIPELINE_MAX_MIN` and `CAMSIM_FONT_DIR`; the image adds `font-dejavu`.
 
 - Search answers like the real camera (measured 2026-09-29): only the start day is searched, from the start to the end time of day; `Status` lists only months with recordings and is added to clips searches; empty keys are left out; `onlyStatus` with reversed months answers `-64`.

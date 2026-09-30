@@ -71,6 +71,11 @@ describe('SettingsStore', () => {
     ['SetIrLights', { IrLights: { state: 'On' } }, -67],
     ['SetWhiteLed', { WhiteLed: { mode: 4 } }, -67],
     ['SetWhiteLed', { WhiteLed: { bright: 101 } }, -56],
+    // The manual light switch takes only the numbers 0 and 1 (measured 2026-09-29).
+    ['SetWhiteLed', { WhiteLed: { state: 2 } }, -56],
+    ['SetWhiteLed', { WhiteLed: { state: -1 } }, -56],
+    ['SetWhiteLed', { WhiteLed: { state: '1' } }, -56],
+    ['SetWhiteLed', { WhiteLed: { state: true } }, -56],
     ['SetOsd', { Osd: { osdTime: { pos: 'Middle' } } }, -67],
     ['SetOsd', { Osd: { osdChannel: { name: 'x'.repeat(32) } } }, -56],
     ['SetOsd', { Osd: { osdChannel: { name: 'a\u0007b' } } }, -56],
