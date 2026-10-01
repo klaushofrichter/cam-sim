@@ -3,6 +3,7 @@ import { makeEngine } from './helpers';
 import { SdPipeline, scrubError } from '../src/pipeline/sd-pipeline';
 import { findFonts } from '../src/pipeline/fonts';
 import { isKeyframe } from '../src/media/flv-stream';
+import { existsSync, readFileSync } from 'fs';
 import type { FlvTag } from '../src/media/flv';
 
 const pipes: SdPipeline[] = [];
@@ -12,9 +13,9 @@ const until = async (f: () => boolean, ms = 15_000) => {
   throw new Error('timed out');
 };
 
-async function setup(fonts = findFonts()) {
+async function setup(fonts = findFonts(), opts: Partial<ConstructorParameters<typeof SdPipeline>[1]> = {}) {
   const e = await makeEngine();
-  const p = new SdPipeline(e, { fonts });
+  const p = new SdPipeline(e, { fonts, ...opts });
   pipes.push(p);
   return { e, p };
 }
@@ -42,7 +43,11 @@ describe('SdPipeline', () => {
     e.pipelineOn(5);
     await until(() => p.active());
     const g = p.generation();
-    for (let i = 0; i < 5; i++) e.bus.emit('settings', { cmd: 'SetOsd' });
+    const osd = (e.settings.running as { Osd: { watermark: number } }).Osd;
+    for (let i = 0; i < 5; i++) {
+      osd.watermark = osd.watermark ? 0 : 1;
+      e.bus.emit('settings', { cmd: 'SetOsd' });
+    }
     await until(() => p.generation() === g + 1 && p.active());
     await new Promise((r) => setTimeout(r, 1500));
     expect(p.generation()).toBe(g + 1);
@@ -134,5 +139,90 @@ describe('SdPipeline', () => {
     await new Promise((r) => setTimeout(r, 2500));
     expect(existsSync(`${dir}/clock.txt`)).toBe(true); // recreated
     expect(e.pipeline.on).toBe(true);
+  }, 30_000);
+
+  // Issue #46 from here on.
+  it('restarts for a changed filter chain only; a new name is written to its file', async () => {
+    const { e, p } = await setup();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    const g = p.generation();
+    e.bus.emit('settings', { cmd: 'SetRec' });
+    e.bus.emit('settings', { cmd: 'SetFtp' });
+    const ch = (e.settings.running as { Osd: { osdChannel: { name: string } } }).Osd.osdChannel;
+    ch.name = 'Renamed';
+    e.bus.emit('settings', { cmd: 'SetOsd' });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(p.generation()).toBe(g);
+    const dir = (p as unknown as { dir: string }).dir;
+    expect(readFileSync(`${dir}/name.txt`, 'utf8')).toBe('Renamed');
+    const isp = (e.settings.running as { Isp: { mirroring: number } }).Isp;
+    isp.mirroring = isp.mirroring ? 0 : 1;
+    e.bus.emit('settings', { cmd: 'SetIsp' });
+    await until(() => p.generation() === g + 1 && p.active());
+  }, 30_000);
+
+  it('treats a failed spawn (no exit event) as a failure, and stop() still returns', async () => {
+    const { e, p } = await setup(findFonts(), { ffmpeg: '/nonexistent/ffmpeg' });
+    const g0 = p.generation();
+    e.pipelineOn(5);
+    await until(() => !e.pipeline.on, 10_000);
+    expect(p.generation() - g0).toBe(2);
+    expect(e.pipeline.error).toBeTruthy();
+    expect(e.pipeline.error).not.toContain('/nonexistent');
+    const t = Date.now();
+    await pipes.pop()!.stop();
+    expect(Date.now() - t).toBeLessThan(1000);
+  }, 30_000);
+
+  it('gives a new switch-on its own restart, whatever failed in the run before', async () => {
+    const { e, p } = await setup(findFonts(), { ffmpeg: '/nonexistent/ffmpeg' });
+    e.pipelineOn(5);
+    await until(() => !e.pipeline.on, 10_000);
+    const g = p.generation();
+    e.pipelineOn(5);
+    await until(() => !e.pipeline.on, 10_000);
+    expect(p.generation() - g).toBe(2); // restarted once again, not off at the first failure
+  }, 30_000);
+
+  it('makes its temp folder only when it starts', async () => {
+    const { e, p } = await setup();
+    expect((p as unknown as { dir?: string }).dir).toBeUndefined();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    expect(existsSync((p as unknown as { dir: string }).dir)).toBe(true);
+  }, 30_000);
+
+  it('announces states in order: the switch-on before a refusal (no font)', async () => {
+    const { e } = await setup(null);
+    const seen: Array<{ on: boolean }> = [];
+    e.bus.on('pipeline', (s) => seen.push(s)); // after the pipeline's own listener, like SSE
+    e.pipelineOn(5);
+    await until(() => !e.pipeline.on);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(seen.map((s) => s.on)).toEqual([true, false]);
+  });
+
+  it('gives up when its RTSP output fails, instead of carrying on with FLV only', async () => {
+    const url = 'rtsp://camsim-publisher:pw0123@127.0.0.1:1/h264Preview_01_sub'; // nothing listens
+    const { e } = await setup(findFonts(), { rtspUrl: () => url });
+    e.pipelineOn(5);
+    await until(() => !e.pipeline.on, 20_000);
+    expect(e.pipeline.error).toBeTruthy();
+    expect(e.pipeline.error).not.toContain('pw0123');
+  }, 30_000);
+
+  it('hands the RTSP sub path back on a switch-off, but not while closing', async () => {
+    const calls: boolean[] = [];
+    const { e, p } = await setup(findFonts(), { onProcess: (up) => calls.push(up) });
+    e.pipelineOn(5);
+    await until(() => p.active());
+    e.pipelineOff();
+    await until(() => calls.length === 2);
+    expect(calls).toEqual([true, false]);
+    e.pipelineOn(5);
+    await until(() => p.active());
+    await pipes.pop()!.stop();
+    expect(calls).toEqual([true, false, true]);
   }, 30_000);
 });

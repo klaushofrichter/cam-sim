@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- SD pipeline: Sets that don't change what it draws (`SetRec`, `SetFtp`, …) no longer restart it, and a new camera name shows without a restart, so RTSP sub readers aren't cut for them. A failing RTSP output now counts as a pipeline failure (restart once, then off with the error) instead of leaving RTSP sub without a publisher. A font folder or `TMPDIR` path with `:`, `'`, `\`, `[`, `]`, `,` or `;` works. A new switch-on gets its own restart after a failure, and a missing `ffmpeg` switches it off with an error instead of leaving it stuck.
+
 ## v2026.09.30.2
 
 - Recordings follow the camera's 4 s keyframe grid (measured on cam1, 37 back-to-back clips): a clip starts one step before the detection and ends at the first step after its post-record, and may start up to 4 s before the previous one ended. The FTP picture is named at the detection, 4 s after its clip. Clip names and lengths shift by up to 4 s from before.
