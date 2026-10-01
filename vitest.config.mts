@@ -5,6 +5,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     globalSetup: ['./test/global-setup.ts'],
     testTimeout: 15_000,
+    setupFiles: ['./test/setup.ts'],
     env: { TZ: 'America/Chicago' },
   },
 });
