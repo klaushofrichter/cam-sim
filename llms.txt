@@ -10,7 +10,7 @@ Things to know before using it:
   - Every JSON reply has `Content-Type: text/html`, as on the camera.
   - Errors have `code: 1` and a negative `error.rspCode`.
 - **Write whole settings objects.** A partial `Set` answers success, but the keys it leaves out are reset in the saved configuration at the next reboot, as on the real camera. Read the object, change your keys, and send the whole object back.
-- **The overlays are settings only.** `GetOsd`/`SetOsd` (camera name, date and time, the Reolink logo `watermark`) are stored and validated, but nothing is drawn on the video. Video is played as its source is: an ffmpeg test pattern without a library, or the library's videos as recorded.
+- **The overlays are settings only, unless the SD pipeline is on.** `GetOsd`/`SetOsd` (camera name, date and time, the Reolink logo `watermark`) are stored and validated, but nothing is drawn on the video unless the SD pipeline (below) is on, and then only on live SD. Video is played as its source is: an ffmpeg test pattern without a library, or the library's videos as recorded.
 - **SD pipeline (optional, time-limited):** `POST /sim/api/pipeline {"minutes":N}` re-encodes the live SD stream with the OSD (name, time, watermark) and flip/mirror; main, snapshots and recordings stay as the source.
 - **It identifies itself.** `GetDevInfo` also returns `simulator: "cam-sim <version>"`, the one field the real camera doesn't send.
 - **Ways to run it:** one container is one camera (`ghcr.io/klaushofrichter/cam-sim`). `docker compose up` starts three. In Node tests, call `createCamSim()` from the release tarball, with no container.
