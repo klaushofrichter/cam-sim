@@ -23,4 +23,6 @@ export const SIM_ENV: Record<string, string> = {
   // A generated video besides the test pattern (e2e/make-library.mjs).
   CAMSIM_LIBRARY_DIR: join(tmpdir(), 'cam-sim-e2e-library'),
   CAMSIM_MAIN_SIZE: '640x360',
+  // Not a preset of the SD pipeline card: it becomes its last choice.
+  CAMSIM_PIPELINE_MAX_MIN: '300',
 };

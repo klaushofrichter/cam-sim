@@ -137,7 +137,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
     e.counters.streamsOpened++;
   }
   e.activeFlv.add(res);
-  const began = Date.now();
+  let began = Date.now();
   let pass = 0;
   let next = 0;
   let base = 0;
@@ -185,6 +185,10 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
       if (live && !ls?.active()) {
         leaveLive();
         src = load(e.media, false);
+        // The live part ran ahead of the wall clock by its replayed keyframe
+        // group: the loop keeps that lead and goes on at once, instead of
+        // pausing until the clock catches up.
+        began -= Math.max(0, lastMs + 1 - due);
         base = floor(due);
         pass = 0;
         next = 0;

@@ -36,28 +36,43 @@ export class SdPipeline implements LiveSubSource {
   // The tags since the last keyframe: a new subscriber starts from there at
   // once, instead of waiting up to a keyframe interval (4 s).
   private gop: FlvTag[] = [];
-  private readonly dir = mkdtempSync(join(tmpdir(), 'cam-sim-pipeline-'));
-  private readonly files = { clock: join(this.dir, 'clock.txt'), name: join(this.dir, 'name.txt') };
+  // The clock and name files, in a temp folder made at the first start.
+  private dir?: string;
+  private vf = ''; // the running process's filter chain
+  private videoChanged = false;
   private clockTimer?: NodeJS.Timeout;
+  private startSoon?: NodeJS.Immediate;
   private restartTimer?: NodeJS.Timeout;
   private debounce?: NodeJS.Timeout;
   private lastFailure = 0;
+  private run?: number; // the switch-on (its end time) that lastFailure belongs to
   private stopping = false;
   private expectedExit = false;
 
   private readonly onSwitch = () => this.follow();
   // Only a switch of video restarts; library preparing/ready events don't.
   private readonly onVideo = (v: { selected?: boolean }) => {
-    if (v?.selected) this.onChange();
+    if (!v?.selected || !this.proc) return;
+    this.videoChanged = true;
+    this.onChange();
   };
+  // Settings restart it only when the filter chain changes (Osd, Isp); a new
+  // name goes to its file, which drawtext reloads. Other Sets change nothing.
   private readonly onChange = () => {
     if (!this.proc) return;
     clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => this.restart(), 500);
+    this.debounce = setTimeout(() => {
+      if (!this.proc) return;
+      const running = this.engine.settings.running as { Osd: any; Isp: any };
+      this.writeName(running);
+      const restart = this.videoChanged || this.chainOf(running) !== this.vf;
+      this.videoChanged = false;
+      if (restart) this.restart();
+    }, 500);
     this.debounce.unref?.();
   };
 
-  constructor(private readonly engine: Engine, private readonly opts: { fonts: Fonts | null; rtspUrl?: () => string | undefined; onProcess?: (up: boolean) => void }) {
+  constructor(private readonly engine: Engine, private readonly opts: { fonts: Fonts | null; rtspUrl?: () => string | undefined; onProcess?: (up: boolean) => void; ffmpeg?: string }) {
     engine.liveSub = this;
     for (const t of ['pipeline', 'state', 'fault', 'video'] as const) engine.bus.on(t, this.onSwitch);
     engine.bus.on('settings', this.onChange);
@@ -79,25 +94,53 @@ export class SdPipeline implements LiveSubSource {
     return e.pipeline.on && e.power === 'on' && !e.rebooting && !e.offline() && !this.stopping;
   }
 
+  // Starts on the next turn, so a start's own announcements (a refusal)
+  // reach listeners after the one that caused it.
   private follow(): void {
-    if (this.wanted() && !this.proc && !this.restartTimer) this.start();
-    else if (!this.wanted() && this.proc) this.kill();
+    const startable = () => this.wanted() && !this.proc && !this.restartTimer;
+    if (startable()) {
+      this.startSoon ??= setImmediate(() => {
+        this.startSoon = undefined;
+        if (startable()) this.start();
+      });
+    } else if (!this.wanted() && this.proc) void this.kill();
+  }
+
+  private files(): { dir: string; clock: string; name: string } {
+    this.dir ??= mkdtempSync(join(tmpdir(), 'cam-sim-pipeline-'));
+    return { dir: this.dir, clock: join(this.dir, 'clock.txt'), name: join(this.dir, 'name.txt') };
+  }
+
+  private chainOf(running: { Osd: any; Isp: any }): string {
+    return filterChain(overlayOf(running), this.files(), this.opts.fonts!);
+  }
+
+  // Replaced in one step: drawtext rereads the file on every frame.
+  private writeName(running: { Osd: any }): void {
+    const f = this.files();
+    try {
+      writeFileSync(join(f.dir, 'name.tmp'), String(running.Osd?.osdChannel?.name ?? ''));
+      renameSync(join(f.dir, 'name.tmp'), f.name);
+    } catch (err) {
+      this.engine.log.warn({ err: (err as Error).message }, 'sd_pipeline_name_write_failed');
+    }
   }
 
   // Never throws: a removed temp folder is recreated, and anything else
   // (a full disk) is logged, so the simulator can't crash on a clock tick.
   private writeClock(): void {
     const e = this.engine;
+    const f = this.files();
     const write = () => {
       const t = timeValue(e.clock, e.config.tz).Time;
-      writeFileSync(join(this.dir, 'clock.tmp'), clockText(e.clock.now(), e.config.tz, t));
-      renameSync(join(this.dir, 'clock.tmp'), this.files.clock);
+      writeFileSync(join(f.dir, 'clock.tmp'), clockText(e.clock.now(), e.config.tz, t));
+      renameSync(join(f.dir, 'clock.tmp'), f.clock);
     };
     try {
       write();
     } catch {
       try {
-        mkdirSync(this.dir, { recursive: true });
+        mkdirSync(f.dir, { recursive: true });
         write();
       } catch (err) {
         e.log.warn({ err: (err as Error).message }, 'sd_pipeline_clock_write_failed');
@@ -108,16 +151,22 @@ export class SdPipeline implements LiveSubSource {
   private start(): void {
     const e = this.engine;
     if (!this.opts.fonts) return void e.pipelineOff('no font for the SD pipeline (install font-dejavu or set CAMSIM_FONT_DIR)');
+    // A new switch-on starts with a clean record: only failures of this run count.
+    if (this.run !== e.pipeline.until) {
+      this.run = e.pipeline.until;
+      this.lastFailure = 0;
+    }
     const running = e.settings.running as { Osd: any; Isp: any };
-    mkdirSync(this.dir, { recursive: true });
-    writeFileSync(this.files.name, String(running.Osd?.osdChannel?.name ?? ''));
+    mkdirSync(this.files().dir, { recursive: true });
+    this.writeName(running);
     this.writeClock();
     this.clockTimer = setInterval(() => this.writeClock(), 1000);
     this.clockTimer.unref?.();
-    const vf = filterChain(overlayOf(running), this.files, this.opts.fonts);
+    const vf = (this.vf = this.chainOf(running));
+    this.videoChanged = false;
     const rtsp = this.opts.rtspUrl?.();
     const out = rtsp
-      ? ['-f', 'tee', '-map', '0:v', '-map', '0:a?', `[f=rtsp:rtsp_transport=tcp]${rtsp}|[f=flv]pipe:1`]
+      ? ['-f', 'tee', '-map', '0:v', '-map', '0:a?', `[f=rtsp:rtsp_transport=tcp:onfail=abort]${rtsp}|[f=flv]pipe:1`]
       : ['-map', '0:v', '-map', '0:a?', '-f', 'flv', 'pipe:1'];
     const args = ['-hide_banner', '-loglevel', 'warning', '-re', '-stream_loop', '-1', '-i', e.media.clipPath('sub'),
       '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
@@ -143,20 +192,22 @@ export class SdPipeline implements LiveSubSource {
       for (const fn of this.subs) fn(t, gen);
     });
     let lastErr = '';
-    const p = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn(this.opts.ffmpeg ?? 'ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     p.stdout!.on('data', (d: Buffer) => parser.push(d));
     p.stderr!.on('data', (d) => {
       const text = String(d).trim();
       lastErr = text.split('\n').pop() ?? lastErr;
       e.log.debug({ ffmpeg: rtsp ? text.replaceAll(rtsp, '<rtsp>') : text }, 'sd_pipeline');
     });
-    p.on('error', (err) => (lastErr = err.message));
-    p.on('exit', () => {
+    // A failed spawn (ENOENT, EAGAIN) gives 'error' and 'close' but no
+    // 'exit': whichever comes first ends this process.
+    const ended = () => {
       if (this.proc !== p) return;
       this.proc = undefined;
       this.ready = false;
       clearInterval(this.clockTimer);
-      this.opts.onProcess?.(false);
+      // Closing: the RTSP service stops next, and needs no stream copy for sub.
+      if (!this.stopping) this.opts.onProcess?.(false);
       // Decide first, then announce: the announcement re-runs follow(),
       // which must see a pending restart (or the switch already off).
       if (this.expectedExit || this.stopping) {
@@ -175,21 +226,34 @@ export class SdPipeline implements LiveSubSource {
       }, 1000);
       this.restartTimer.unref?.();
       e.bus.emit('pipeline', e.pipelineState());
-    });
+    };
+    p.on('error', (err) => (lastErr = err.message));
+    p.on('exit', ended);
+    p.on('close', ended);
     this.proc = p;
     // RTSP: the stream copy stands down before this process connects, so
     // neither takes the sub path from the other.
     this.opts.onProcess?.(true);
   }
 
+  // Resolves when the process has ended, or at the latest 5 s after it.
   private kill(): Promise<void> {
     const p = this.proc;
     if (!p) return Promise.resolve();
     this.expectedExit = true;
     return new Promise((r) => {
-      p.once('exit', () => r());
+      const done = () => {
+        clearTimeout(hard);
+        clearTimeout(give);
+        r();
+      };
+      p.once('exit', done);
+      p.once('close', done);
+      const hard = setTimeout(() => p.kill('SIGKILL'), 3000);
+      const give = setTimeout(done, 5000);
+      hard.unref();
+      give.unref();
       p.kill('SIGTERM');
-      setTimeout(() => p.kill('SIGKILL'), 3000).unref();
     });
   }
 
@@ -207,12 +271,13 @@ export class SdPipeline implements LiveSubSource {
     this.stopping = true;
     clearTimeout(this.debounce);
     clearTimeout(this.restartTimer);
+    if (this.startSoon) clearImmediate(this.startSoon);
     for (const t of ['pipeline', 'state', 'fault', 'video'] as const) this.engine.bus.off(t, this.onSwitch);
     this.engine.bus.off('settings', this.onChange);
     this.engine.bus.off('video', this.onVideo);
     await this.kill();
     clearInterval(this.clockTimer);
     if (this.engine.liveSub === this) this.engine.liveSub = undefined;
-    rmSync(this.dir, { recursive: true, force: true });
+    if (this.dir) rmSync(this.dir, { recursive: true, force: true });
   }
 }

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signIn, resetSim, camLogin, camCmd } from './helpers';
-import { CAM_PORT } from './env';
+import { CAM_PORT, TOKEN, UI_PORT } from './env';
 
 test.beforeEach(async ({ request }) => resetSim(request));
 
@@ -77,4 +77,49 @@ test('the SD pipeline card switches on for a chosen time, shows the time left, a
   await expect(card.getByTestId('pipeline-left')).toHaveText(/1[45] min left/);
   await card.getByTestId('pipeline-toggle').uncheck();
   await expect(card.getByTestId('pipeline-left')).toHaveCount(0);
+});
+
+// Issue #46: the card's choices, a refused switch-on, and a camera that is off.
+test('the SD pipeline card offers durations up to CAMSIM_PIPELINE_MAX_MIN', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#/simulator');
+  await expect(page.getByTestId('pipeline-card').getByTestId('pipeline-minutes').locator('option')).toHaveText(['15 min', '1 h', '4 h', '5 h']);
+});
+
+test('a refused SD pipeline switch-on leaves the switch off', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#/simulator');
+  await page.route('**/sim/api/pipeline', (r) => r.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"invalid","detail":"refused for the test"}' }));
+  const card = page.getByTestId('pipeline-card');
+  await card.getByTestId('pipeline-toggle').click();
+  await expect(page.getByRole('status')).toContainText('refused for the test');
+  await expect(card.getByTestId('pipeline-toggle')).not.toBeChecked();
+});
+
+test('the SD pipeline card says it waits while the camera is off', async ({ page, request }) => {
+  await signIn(page);
+  await page.goto('/#/simulator');
+  const card = page.getByTestId('pipeline-card');
+  await card.getByTestId('pipeline-toggle').check();
+  await expect(card.getByTestId('pipeline-left')).toBeVisible();
+  await request.post(`http://127.0.0.1:${UI_PORT}/sim/api/actions/power-off`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+  await expect(card.getByTestId('pipeline-left')).toContainText('waiting for the camera');
+  await expect(card.getByTestId('pipeline-left')).not.toContainText('starting');
+});
+
+test('with CAMSIM_PIPELINE_MAX_MIN below 60, the SD pipeline card starts at the max and sends it', async ({ page }) => {
+  // The simulator runs with 300; the state read by the page says 30.
+  await page.route('**/sim/api/state', async (r) => {
+    const res = await r.fetch();
+    await r.fulfill({ response: res, json: { ...(await res.json()), pipelineMaxMin: 30 } });
+  });
+  await signIn(page);
+  await page.goto('/#/simulator');
+  const card = page.getByTestId('pipeline-card');
+  await expect(card.getByTestId('pipeline-minutes').locator('option')).toHaveText(['15 min', '30 min']);
+  await expect(card.getByTestId('pipeline-minutes')).toHaveValue('30');
+  const sent = page.waitForRequest((r) => r.url().endsWith('/sim/api/pipeline') && r.method() === 'POST');
+  await card.getByTestId('pipeline-toggle').check();
+  expect((await sent).postDataJSON()).toEqual({ minutes: 30 });
+  await expect(card.getByTestId('pipeline-left')).toHaveText(/(29|30) min left/);
 });
