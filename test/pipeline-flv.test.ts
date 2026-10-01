@@ -72,4 +72,41 @@ describe('FLV sub with the SD pipeline', () => {
     expect(firstLiveAt).toBeGreaterThan(0);
     expect(firstLiveAt - activeAt).toBeLessThan(2500);
   }, 45_000);
+
+  // Issue #46: a client that joined mid-GOP got the replayed keyframe group
+  // ahead of the wall clock; after a switch-off the loop waited that long.
+  it('goes back to the loop at once after a switch-off, also for a client that joined mid-GOP', async () => {
+    const e = await makeEngine();
+    const app = createCameraApp(e, { port: 'http' });
+    const srv = await listen(app);
+    const p = new SdPipeline(e, { fonts: findFonts() });
+    cleanups.push(srv.close, () => p.stop());
+    const t = await login(app);
+    const fromPipeline = new Set<string>();
+    let keyAt = 0;
+    const offPipe = p.subscribe((x) => {
+      fromPipeline.add(x.bytes.subarray(11).toString('base64'));
+      if (isKeyframe(x)) keyAt = Date.now();
+    });
+    cleanups.push(async () => offPipe());
+    e.pipelineOn(5);
+    for (let i = 0; i < 300 && !p.active(); i++) await wait(50);
+    for (let i = 0; i < 200 && !(keyAt && Date.now() - keyAt > 2500); i++) await wait(20); // 2.5 s into a GOP
+    const live: number[] = [], loop: number[] = [];
+    const parser = new FlvStreamParser();
+    parser.on('tag', (tag: FlvTag) => {
+      if (tag.type !== 9 || isConfigTag(tag)) return;
+      (fromPipeline.has(tag.bytes.subarray(11).toString('base64')) ? live : loop).push(Date.now());
+    });
+    const req = http.get(`${srv.url}/flv?port=1935&app=bcs&stream=channel0_sub.bcs&token=${t}`, (res) => res.on('data', (d: Buffer) => parser.push(d)));
+    cleanups.push(async () => void req.destroy());
+    for (let i = 0; i < 100 && !live.length; i++) await wait(20);
+    expect(live.length).toBeGreaterThan(10); // the replayed group
+    await wait(300);
+    const offAt = Date.now();
+    e.pipelineOff();
+    for (let i = 0; i < 200 && !loop.length; i++) await wait(20);
+    expect(loop.length).toBeGreaterThan(0);
+    expect(loop[0] - offAt).toBeLessThan(1000);
+  }, 45_000);
 });
