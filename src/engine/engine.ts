@@ -306,6 +306,7 @@ export class Engine {
       certificate: { source: this.certificate.source, enable: this.certificate.enable },
       settings: this.settings.running,
       pipeline: this.pipelineState(),
+      pipelineMaxMin: this.config.pipelineMaxMin,
     };
   }
 

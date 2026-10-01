@@ -83,10 +83,20 @@
   });
   const pipe = $derived($simState?.pipeline);
   const pipeLeft = $derived(pipe?.on ? Math.max(0, Math.round((pipe.until - nowMs) / 60_000)) : 0);
-  const togglePipeline = (on: boolean) => {
+  // The choices up to CAMSIM_PIPELINE_MAX_MIN, which is the last one when it isn't a preset.
+  const pipeMax = $derived($simState?.pipelineMaxMin ?? 1440);
+  const pipeChoices = $derived([...[15, 60, 240, 1440].filter((m) => m < pipeMax), pipeMax]);
+  const minLabel = (m: number) => (m % 60 ? `${m} min` : `${m / 60} h`);
+  // Waiting for the camera, not starting, while it is off.
+  const pipeWaiting = $derived(!!$simState && ($simState.power !== 'on' || $simState.rebooting || $simState.offline));
+  async function togglePipeline(box: HTMLInputElement) {
     nowMs = Date.now();
-    void run(on ? 'SD pipeline on' : 'SD pipeline off', () => (on ? api('POST', '/pipeline', { minutes: Number(pipeMinutes) }) : api('DELETE', '/pipeline')));
-  };
+    const on = box.checked;
+    const minutes = Math.min(Number(pipeMinutes), pipeMax);
+    await run(on ? 'SD pipeline on' : 'SD pipeline off', () => (on ? api('POST', '/pipeline', { minutes }) : api('DELETE', '/pipeline')));
+    // The box shows the real state, also when the API refused the change.
+    box.checked = !!(await api<{ pipeline?: { on: boolean } }>('GET', '/state').catch(() => null))?.pipeline?.on;
+  }
   const counters = $derived(Object.entries($simState?.counters ?? {}).filter(([, v]) => typeof v === 'number'));
 </script>
 
@@ -116,13 +126,13 @@
 
     <div class="card" data-testid="pipeline-card">
       <h3>SD pipeline</h3>
-      <label class="switch"><input type="checkbox" data-testid="pipeline-toggle" checked={!!pipe?.on} onchange={(e) => togglePipeline(e.currentTarget.checked)} /> Overlays and flip on live SD</label>
+      <label class="switch"><input type="checkbox" data-testid="pipeline-toggle" checked={!!pipe?.on} onchange={(e) => togglePipeline(e.currentTarget)} /> Overlays and flip on live SD</label>
       <label>For
         <select data-testid="pipeline-minutes" bind:value={pipeMinutes} disabled={!!pipe?.on}>
-          <option value={15}>15 min</option><option value={60}>1 h</option><option value={240}>4 h</option><option value={1440}>24 h</option>
+          {#each pipeChoices as m (m)}<option value={m}>{minLabel(m)}</option>{/each}
         </select>
       </label>
-      {#if pipe?.on}<p data-testid="pipeline-left">On{pipe.running ? '' : ' (starting)'}, {pipeLeft} min left</p>{/if}
+      {#if pipe?.on}<p data-testid="pipeline-left">On{pipe.running ? '' : pipeWaiting ? ' (waiting for the camera to be on)' : ' (starting)'}, {pipeLeft} min left</p>{/if}
       {#if pipe && !pipe.on && pipe.error}<p class="err" data-testid="pipeline-error">Stopped: {pipe.error}</p>{/if}
       <p class="muted small">Applies the name, time, watermark and flip/mirror to the live SD stream only. Uses about 5–10% of a CPU core while on.</p>
     </div>

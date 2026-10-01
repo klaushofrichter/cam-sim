@@ -74,7 +74,7 @@ paths:
         '200': { description: '{ loggedIn: boolean }' }
   /sim/api/state:
     get:
-      summary: 'Identity, faults, recent events, SD card, counters, running settings and the SD pipeline ({on:false[, error]} or {on:true, until, running})'
+      summary: 'Identity, faults, recent events, SD card, counters, running settings, the SD pipeline ({on:false[, error]} or {on:true, until, running}) and pipelineMaxMin (CAMSIM_PIPELINE_MAX_MIN)'
       responses:
         '200': { description: state }
         '401': { description: missing or wrong token }

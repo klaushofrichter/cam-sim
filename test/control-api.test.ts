@@ -259,6 +259,7 @@ describe('SD pipeline switch', () => {
       expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({ minutes })).body).toMatchObject({ error: 'invalid' });
     }
     expect((await request(ctl).get('/sim/api/state').set(auth)).body.pipeline).toMatchObject({ on: true });
+    expect((await request(ctl).get('/sim/api/state').set(auth)).body.pipelineMaxMin).toBe(120); // the web UI's longest choice
     expect((await request(ctl).delete('/sim/api/pipeline').set(auth)).status).toBe(204);
     expect(engine.pipelineState()).toEqual({ on: false });
   });

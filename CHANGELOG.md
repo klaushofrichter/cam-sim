@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simulator page, SD pipeline card: the durations stop at `CAMSIM_PIPELINE_MAX_MIN` (the state has a new `pipelineMaxMin`), the switch shows off again when a switch-on is refused, and it says it is waiting for the camera, not starting, while the camera is off.
+- `POST /sim/api/pipeline` answers 400 for `{"minutes": null}`; only a missing value means 60.
 - SD pipeline: Sets that don't change what it draws (`SetRec`, `SetFtp`, …) no longer restart it, and a new camera name shows without a restart, so RTSP sub readers aren't cut for them. A failing RTSP output now counts as a pipeline failure (restart once, then off with the error) instead of leaving RTSP sub without a publisher. A font folder or `TMPDIR` path with `:`, `'`, `\`, `[`, `]`, `,` or `;` works. A new switch-on gets its own restart after a failure, and a missing `ffmpeg` switches it off with an error instead of leaving it stuck.
 
 ## v2026.09.30.2
