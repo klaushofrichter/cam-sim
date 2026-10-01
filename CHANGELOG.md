@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.01.1
+
 - FLV sub goes back to the looped video at once when the SD pipeline switches off; a client that had joined mid keyframe group paused for up to 4 s.
 - Simulator page, SD pipeline card: the durations stop at `CAMSIM_PIPELINE_MAX_MIN` (the state has a new `pipelineMaxMin`), the choice starts at the maximum when that is below 60 min, the switch shows off again when a switch-on is refused, and it says it is waiting for the camera, not starting, while the camera is off.
 - `POST /sim/api/pipeline` answers 400 for `{"minutes": null}`; only a missing value means 60.
