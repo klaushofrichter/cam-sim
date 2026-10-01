@@ -43,7 +43,7 @@ describe('SdPipeline', () => {
     e.pipelineOn(5);
     await until(() => p.active());
     const g = p.generation();
-    const osd = (e.settings.running as { Osd: { watermark: number } }).Osd;
+    const osd = (e.settings.running as unknown as { Osd: { watermark: number } }).Osd;
     for (let i = 0; i < 5; i++) {
       osd.watermark = osd.watermark ? 0 : 1;
       e.bus.emit('settings', { cmd: 'SetOsd' });
@@ -149,14 +149,14 @@ describe('SdPipeline', () => {
     const g = p.generation();
     e.bus.emit('settings', { cmd: 'SetRec' });
     e.bus.emit('settings', { cmd: 'SetFtp' });
-    const ch = (e.settings.running as { Osd: { osdChannel: { name: string } } }).Osd.osdChannel;
+    const ch = (e.settings.running as unknown as { Osd: { osdChannel: { name: string } } }).Osd.osdChannel;
     ch.name = 'Renamed';
     e.bus.emit('settings', { cmd: 'SetOsd' });
     await new Promise((r) => setTimeout(r, 1500));
     expect(p.generation()).toBe(g);
     const dir = (p as unknown as { dir: string }).dir;
     expect(readFileSync(`${dir}/name.txt`, 'utf8')).toBe('Renamed');
-    const isp = (e.settings.running as { Isp: { mirroring: number } }).Isp;
+    const isp = (e.settings.running as unknown as { Isp: { mirroring: number } }).Isp;
     isp.mirroring = isp.mirroring ? 0 : 1;
     e.bus.emit('settings', { cmd: 'SetIsp' });
     await until(() => p.generation() === g + 1 && p.active());
