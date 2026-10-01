@@ -36,8 +36,10 @@ export function clockText(at: Date, tz: string, fmt: { timeFmt: string; hourFmt:
 const MARGIN = 10;
 const LINE = 28; // 20 px text plus spacing
 const WATERMARK_H = 44; // below the 34 px watermark
-// A value for a filter option, quoted; ffmpeg's quoting has no escape inside '…'.
-const q = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
+// A file path as a filter option value. ffmpeg unescapes it twice: once
+// as an option value (\ ' :), then, before that, as part of the filter
+// graph (\ ' [ ] , ;). Escaped for the option first, then for the graph.
+const q = (s: string) => s.replace(/[\\':]/g, '\\$&').replace(/[\\'[\],;]/g, '\\$&');
 
 function place(pos: string, slot: number, belowWatermark: boolean): string {
   const x = /Left/.test(pos) ? `${MARGIN}` : /Right/.test(pos) ? `w-text_w-${MARGIN}` : '(w-text_w)/2';
