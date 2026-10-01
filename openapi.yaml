@@ -169,11 +169,12 @@ paths:
         Re-encodes the live SD stream (FLV channel0_sub, RTSP h264Preview_01_sub) with the camera's
         name, date and time, watermark (Osd) and flip/mirror (Isp.rotation, Isp.mirroring). Main,
         snapshots, recordings and downloads are unchanged. Never persisted: off after a restart or reset.
-        Calling it while on sets a new end time.
+        Calling it while on sets a new end time. A refusal found when starting (no font) arrives a moment
+        after the answer, as the state's pipeline {on:false, error} and an SSE pipeline event.
       requestBody:
         content:
           application/json:
-            schema: { type: object, properties: { minutes: { type: integer, minimum: 1, maximum: 1440 } } }
+            schema: { type: object, properties: { minutes: { type: integer, minimum: 1, description: 'at most CAMSIM_PIPELINE_MAX_MIN (1 to 1440, default 1440), which /sim/api/state reports as pipelineMaxMin' } } }
       responses:
         '200': { description: '{on:true, until:<unix ms>, running:<bool>}' }
         '400': { description: 'invalid minutes: {error: invalid, detail}' }

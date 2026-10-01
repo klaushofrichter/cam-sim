@@ -86,6 +86,10 @@
   // The choices up to CAMSIM_PIPELINE_MAX_MIN, which is the last one when it isn't a preset.
   const pipeMax = $derived($simState?.pipelineMaxMin ?? 1440);
   const pipeChoices = $derived([...[15, 60, 240, 1440].filter((m) => m < pipeMax), pipeMax]);
+  // 60 when it is a choice, else the max (a CAMSIM_PIPELINE_MAX_MIN below 60).
+  $effect(() => {
+    if (!pipeChoices.includes(Number(pipeMinutes))) pipeMinutes = Math.min(60, pipeMax);
+  });
   const minLabel = (m: number) => (m % 60 ? `${m} min` : `${m / 60} h`);
   // Waiting for the camera, not starting, while it is off.
   const pipeWaiting = $derived(!!$simState && ($simState.power !== 'on' || $simState.rebooting || $simState.offline));

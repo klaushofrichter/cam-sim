@@ -3,8 +3,9 @@
 ## Unreleased
 
 - FLV sub goes back to the looped video at once when the SD pipeline switches off; a client that had joined mid keyframe group paused for up to 4 s.
-- Simulator page, SD pipeline card: the durations stop at `CAMSIM_PIPELINE_MAX_MIN` (the state has a new `pipelineMaxMin`), the switch shows off again when a switch-on is refused, and it says it is waiting for the camera, not starting, while the camera is off.
+- Simulator page, SD pipeline card: the durations stop at `CAMSIM_PIPELINE_MAX_MIN` (the state has a new `pipelineMaxMin`), the choice starts at the maximum when that is below 60 min, the switch shows off again when a switch-on is refused, and it says it is waiting for the camera, not starting, while the camera is off.
 - `POST /sim/api/pipeline` answers 400 for `{"minutes": null}`; only a missing value means 60.
+- `POST /sim/api/pipeline` without a font now answers `{"on":true,…}`; the switch-off with the font error follows a moment later in the state and as an SSE `pipeline` event (it answered `{"on":false,"error":…}` at once before).
 - SD pipeline: Sets that don't change what it draws (`SetRec`, `SetFtp`, …) no longer restart it, and a new camera name shows without a restart, so RTSP sub readers aren't cut for them. A failing RTSP output now counts as a pipeline failure (restart once, then off with the error) instead of leaving RTSP sub without a publisher. A font folder or `TMPDIR` path with `:`, `'`, `\`, `[`, `]`, `,` or `;` works. A new switch-on gets its own restart after a failure, and a missing `ffmpeg` switches it off with an error instead of leaving it stuck.
 
 ## v2026.09.30.2
