@@ -111,7 +111,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
-| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (stored, not drawn on the video) |
+| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (stored; drawn on live SD only while the [SD pipeline](#sd-pipeline) is on) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
 | `CAMSIM_SPEED` | `fast` | `real` adds the camera's timings: Login ~0.2 s, Search ~0.3 s, Download 150 KB/s, reboot 60 s, certificate restart 10 s. `fast` keeps the behaviour with short timings |
@@ -294,7 +294,7 @@ post Logout
 | Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation` (upside down), `mirroring` (left–right), …; stored only, the video doesn't change (see [What differs](#what-differs-from-the-real-camera)) |
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100; `state` is the manual light switch, 0 off / 1 on (only the numbers 0 and 1, otherwise `-56`), and stays on until switched off (measured 2026-09-29); `GetWhiteLed` reports a new `state` late, about 1 s after switching on and 3 s after switching off (measured 2026-09-30) |
-| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** (see [What differs](#what-differs-from-the-real-camera)) |
+| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** unless the [SD pipeline](#sd-pipeline) is on (live SD only; see [What differs](#what-differs-from-the-real-camera)) |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
 | | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |
@@ -717,7 +717,7 @@ recordings, downloads and FTP uploads stay as the source.
   frames flow; calling it again sets a new end time.
 - **Off:** `DELETE /sim/api/pipeline` answers 204, and it switches itself off
   at `until`.
-- **State:** `pipeline` in `/sim/api/state`, and an SSE `pipeline` event on each
+- **State:** `pipeline` (and the longest switch-on, `pipelineMaxMin`) in `/sim/api/state`, and an SSE `pipeline` event on each
   change: `{"on":false}`, or `{"on":false,"error":"…"}` after a failure (it
   restarts once, and a second failure within a minute switches it off).
 - **Never persisted:** off after a restart and after `POST /sim/api/reset`.
@@ -777,7 +777,8 @@ The UI has four pages:
   day's recordings with their triggers, playback of the sub or main copy, and
   downloads.
 - **Settings:** recording and schedules, detection sensitivities, image and
-  lights, on-screen text (stored only, never drawn on the video) and network
+  lights, on-screen text (stored only; drawn on live SD only while the SD
+  pipeline is on) and network
   services. Each of these cards writes
   whole objects through the camera's own validation, so a rejected value
   shows the camera's error code. Device, storage, certificate and users are
@@ -787,7 +788,8 @@ The UI has four pages:
   - power off, power on and reboot;
   - events;
   - the video library: pick the video the camera shows;
-  - the SD pipeline: on for 15 min, 1 h, 4 h or 24 h, with the time left;
+  - the SD pipeline: on for 15 min, 1 h, 4 h or 24 h (up to
+    `CAMSIM_PIPELINE_MAX_MIN`), with the time left;
   - every fault, with its parameters;
   - actions and reset;
   - counters;

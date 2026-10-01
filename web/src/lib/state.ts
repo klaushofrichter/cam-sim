@@ -17,6 +17,7 @@ export interface SimState {
   certificate: { source: string; enable: number };
   video: string;
   pipeline: { on: false; error?: string } | { on: true; until: number; running: boolean };
+  pipelineMaxMin: number;
 }
 
 export interface RequestRecord {

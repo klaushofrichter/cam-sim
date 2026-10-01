@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'child_process';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { clockText, filterChain, overlayOf, type OverlaySettings } from '../src/pipeline/overlay';
@@ -41,8 +41,8 @@ describe('filterChain', () => {
   });
   it('reads name and time from files with expansion off (review focus 1)', () => {
     const f = filterChain({ ...off, name: { enable: 1, pos: 'Lower Right' }, time: { enable: 1, pos: 'Top Center' } }, files, fonts);
-    expect(f).toContain(`textfile='${files.name}'`);
-    expect(f).toContain(`textfile='${files.clock}'`);
+    expect(f).toContain(`textfile=${files.name}`);
+    expect(f).toContain(`textfile=${files.clock}`);
     expect(f.match(/reload=1/g)).toHaveLength(2);
     expect(f.match(/expansion=none/g)).toHaveLength(2);
   });
@@ -57,11 +57,11 @@ describe('filterChain', () => {
   });
   it('stacks time above name at a shared position, and moves Upper Left text below the watermark', () => {
     const bottom = filterChain({ ...off, name: { enable: 1, pos: 'Lower Left' }, time: { enable: 1, pos: 'Lower Left' } }, files, fonts);
-    expect(bottom).toMatch(new RegExp(`textfile='${files.name}'[^,]*y=h-th-10`));
-    expect(bottom).toMatch(new RegExp(`textfile='${files.clock}'[^,]*y=h-th-38`));
+    expect(bottom).toMatch(new RegExp(`textfile=${files.name}[^,]*y=h-th-10`));
+    expect(bottom).toMatch(new RegExp(`textfile=${files.clock}[^,]*y=h-th-38`));
     const top = filterChain({ ...off, watermark: 1, time: { enable: 1, pos: 'Upper Left' } }, files, fonts);
     expect(top).toMatch(/text='Reolink'[^,]*x=10:y=10/);
-    expect(top).toMatch(new RegExp(`textfile='${files.clock}'[^,]*x=10:y=54`));
+    expect(top).toMatch(new RegExp(`textfile=${files.clock}[^,]*x=10:y=54`));
   });
   it('maps the settings objects', () => {
     expect(overlayOf({ Isp: { rotation: 1, mirroring: 0 }, Osd: { watermark: 1, osdChannel: { enable: 1, name: 'Den', pos: 'Lower Right' }, osdTime: { enable: 0, pos: 'Top Center' } } }))
@@ -99,5 +99,22 @@ describe('filterChain in ffmpeg', () => {
     };
     expect(diff(W - 300, H - 40, W - 10, H - 10)).toBeGreaterThan(200); // text drawn bottom right
     expect(diff(10, 10, 300, 40)).toBe(0); // nothing top left
+  });
+  // Issue #46: font and temp paths come from CAMSIM_FONT_DIR and TMPDIR, and
+  // may hold characters that both levels of ffmpeg's filter-graph syntax use.
+  it("takes font and text file paths with :, ', \\, [, ], comma and ; in them", () => {
+    const d = mkdtempSync(join(tmpdir(), 'ovl-'));
+    const odd = join(d, `a:b'c\\d[e],f;g`);
+    mkdirSync(odd);
+    const f = { clock: join(odd, 'clock.txt'), name: join(odd, 'name.txt') };
+    writeFileSync(f.clock, '09/29/2026 11:51:48 am TUE');
+    writeFileSync(f.name, 'Den');
+    const oddFonts = { regular: join(odd, 'regular.ttf'), bold: join(odd, 'bold.ttf') };
+    copyFileSync(fonts.regular, oddFonts.regular);
+    copyFileSync(fonts.bold, oddFonts.bold);
+    const plain = frame('null', d);
+    const drawn = frame(filterChain({ ...off, watermark: 1, name: { enable: 1, pos: 'Lower Right' }, time: { enable: 1, pos: 'Lower Left' } }, f, oddFonts), d);
+    expect(drawn.length).toBe(plain.length);
+    expect(drawn.equals(plain)).toBe(false);
   });
 });

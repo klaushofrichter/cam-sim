@@ -12,6 +12,10 @@ async function setup(env: Record<string, string> = {}) {
   return { engine, ctl: createControlApp(engine), cam: createCameraApp(engine, { port: 'http' }) };
 }
 
+const until = async (f: () => boolean, ms = 5000) => {
+  for (const t = Date.now(); !f(); await new Promise((r) => setTimeout(r, 10))) if (Date.now() - t > ms) throw new Error('timed out');
+};
+
 const closers: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
   while (closers.length) await closers.pop()!();
@@ -127,10 +131,11 @@ describe('control API: faults, actions, reset', () => {
     expect((await request(ctl).post('/sim/api/actions/reboot').set(auth)).status).toBe(409);
     const serial = s.serial;
 
-    expect((await request(ctl).post('/sim/api/actions/power-on').set(auth).send({ ms: 60 })).status).toBe(202);
+    // Long enough that a loaded full run still sees it booting (60 ms wasn't).
+    expect((await request(ctl).post('/sim/api/actions/power-on').set(auth).send({ ms: 1000 })).status).toBe(202);
     expect((await request(ctl).get('/sim/api/state').set(auth)).body.power).toBe('booting');
     expect(engine.offline()).toBe(true);
-    await new Promise((r) => setTimeout(r, 120));
+    await until(() => engine.power === 'on');
     s = (await request(ctl).get('/sim/api/state').set(auth)).body;
     expect(s.power).toBe('on');
     expect(s.serial).not.toBe(serial);
@@ -145,7 +150,7 @@ describe('control API: faults, actions, reset', () => {
     expect(engine.settings.running.Isp.rotation).toBe(0);
     await request(ctl).post('/sim/api/actions/power-off').set(auth);
     await request(ctl).post('/sim/api/actions/power-on').set(auth).send({ ms: 1 });
-    await new Promise((r) => setTimeout(r, 30));
+    await until(() => engine.power === 'on');
     expect(engine.settings.running.Isp.rotation).toBe(1);
   });
 
@@ -255,10 +260,11 @@ describe('SD pipeline switch', () => {
     expect(on.status).toBe(200);
     expect(on.body).toMatchObject({ on: true, until: expect.any(Number) });
     expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({})).body.until - Date.now()).toBeGreaterThan(59 * 60_000); // default 60
-    for (const minutes of [0, 121, 1.5, '10', -1]) {
+    for (const minutes of [0, 121, 1.5, '10', -1, null]) {
       expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({ minutes })).body).toMatchObject({ error: 'invalid' });
     }
     expect((await request(ctl).get('/sim/api/state').set(auth)).body.pipeline).toMatchObject({ on: true });
+    expect((await request(ctl).get('/sim/api/state').set(auth)).body.pipelineMaxMin).toBe(120); // the web UI's longest choice
     expect((await request(ctl).delete('/sim/api/pipeline').set(auth)).status).toBe(204);
     expect(engine.pipelineState()).toEqual({ on: false });
   });

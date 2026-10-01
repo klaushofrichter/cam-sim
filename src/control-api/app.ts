@@ -146,7 +146,8 @@ export function createControlApp(engine: Engine): express.Express {
 
   // The SD pipeline (spec 2026-09-29): on for N minutes, then off by itself.
   api.post('/pipeline', (req, res) => {
-    const minutes = req.body?.minutes ?? 60;
+    // Missing means 60; null is a value, and not a valid one.
+    const minutes = req.body?.minutes === undefined ? 60 : req.body.minutes;
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > e.config.pipelineMaxMin) {
       return bad(res, `minutes must be an integer from 1 to ${e.config.pipelineMaxMin}`);
     }
