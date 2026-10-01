@@ -255,7 +255,7 @@ describe('SD pipeline switch', () => {
     expect(on.status).toBe(200);
     expect(on.body).toMatchObject({ on: true, until: expect.any(Number) });
     expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({})).body.until - Date.now()).toBeGreaterThan(59 * 60_000); // default 60
-    for (const minutes of [0, 121, 1.5, '10', -1]) {
+    for (const minutes of [0, 121, 1.5, '10', -1, null]) {
       expect((await request(ctl).post('/sim/api/pipeline').set(auth).send({ minutes })).body).toMatchObject({ error: 'invalid' });
     }
     expect((await request(ctl).get('/sim/api/state').set(auth)).body.pipeline).toMatchObject({ on: true });
