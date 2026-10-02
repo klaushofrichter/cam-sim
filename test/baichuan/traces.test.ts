@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { readTrace, TRACE_DIR } from './trace';
 import { decodeHeader, encodeHeader } from '../../src/baichuan/frame';
 import { LOGIN_REPLY_LINES } from '../../src/baichuan/device-info';
-import { EXT_BINARY, EXT_CHUNK, LINK_TYPE_XML, LOGIN_ERR_XML, PUSHES, fileInfoXml, loginReplyXml, nonceXml, tagValue } from '../../src/baichuan/xml';
+import { EXT_BINARY, EXT_CHUNK, LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, PUSHES, fileInfoXml, loginReplyXml, nonceXml, tagValue } from '../../src/baichuan/xml';
 import { chunkSizes, infoRecord } from '../../src/baichuan/records';
 
 const camera = (file: string, cmd: number) => readTrace(file).filter((m) => m.dir === 'out' && m.cmd === cmd);
@@ -47,16 +48,37 @@ describe('the traces (reference/rlc-1224a/baichuan)', () => {
     expect(Buffer.byteLength(LINK_TYPE_XML)).toBe(len(link));
   });
 
-  it('the eight pushes: cmds, XML, lengths, and 0.04-0.5 s after login', () => {
+  it('the eight pushes: cmds, XML, lengths and triggers (idle.txt)', () => {
     const traced = readTrace('idle.txt').filter((m) => m.dir === 'out' && decodeHeader(m.header).msgId === 0 && m.xml);
     expect(PUSHES.map((p) => p.cmd)).toEqual([78, 79, 464, 547, 291, 677, 600, 669]);
     for (const p of PUSHES) {
       const m = traced.find((x) => x.cmd === p.cmd)!;
       expect(p.xml, `cmd ${p.cmd}`).toBe(m.xml);
       expect(Buffer.byteLength(p.xml)).toBe(len(m));
-      expect(p.afterMs).toBeGreaterThanOrEqual(40);
-      expect(p.afterMs).toBeLessThanOrEqual(500);
     }
+    const when = (cmd: number) => PUSHES.find((p) => p.cmd === cmd)!;
+    for (const c of [78, 79]) expect(when(c)).toMatchObject({ trigger: 'afterLogin', delayMs: 300 });
+    for (const c of [464, 547]) expect(when(c)).toMatchObject({ trigger: 'afterLogin', delayMs: 400 });
+    for (const c of [291, 677, 600, 669]) expect(when(c)).toMatchObject({ trigger: 'beforeIdleClose', delayMs: 500 });
+    expect(LATE_AFTER_LINK_TYPE_MS).toBe(3);
+  });
+
+  it('the push timings match the timestamps in idle.txt', () => {
+    // Session 1: login reply at t0; 78/79 at t0+0.30, 464/547 at t0+0.40; the late group 0.5 s before the close.
+    const at = (re: RegExp) => Number(re.exec(idle)![1]);
+    const idle = readFileSync(join(TRACE_DIR, 'idle.txt'), 'utf8');
+    const login = at(/^\s+([\d.]+)\s+<- cmd 1 hdr\[24\].*len=5136/m);
+    expect(Math.round((at(/^\s+([\d.]+)\s+<- cmd 78 /m) - login) * 10)).toBe(3);
+    expect(Math.round((at(/^\s+([\d.]+)\s+<- cmd 464 /m) - login) * 10)).toBe(4);
+    const late = at(/^\s+([\d.]+)\s+<- cmd 291 /m);
+    const closed = at(/^\s+([\d.]+)\s+A <- eof after/m);
+    expect(Math.round((closed - late) * 1000)).toBeLessThan(10); // pushed as the close happens: idle - 0.5 s is the sim's choice
+    // Session 2: the group follows the client's first message after login by milliseconds.
+    const link = at(/^\s+([\d.]+)\s+-> cmd 93 \(A: LinkType/m);
+    const lines = idle.split('\n');
+    const from = lines.findIndex((l) => /-> cmd 93 \(A: LinkType/.test(l));
+    const lateAfterLink = Number(/^\s+([\d.]+)\s+<- cmd 291 /m.exec(lines.slice(from).join('\n'))![1]);
+    expect(Math.round((lateAfterLink - link) * 1000)).toBeLessThanOrEqual(LATE_AFTER_LINK_TYPE_MS + 1);
   });
 
   it('the cmd-8 extensions: 106 and 136 bytes', () => {

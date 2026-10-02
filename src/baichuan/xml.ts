@@ -30,21 +30,38 @@ export function loginReplyXml(secretCode: string, bootSecret: string): string {
   return doc(LOGIN_REPLY_LINES.map((l) => (l === SECRET_CODE ? `<secretCode>${secretCode}</secretCode>` : l === BOOT_SECRET ? `<bootSecret>${bootSecret}</bootSecret>` : l)));
 }
 
-// Measured (idle.txt): unsolicited after a login, message id 0, channel 0.
+// Unsolicited pushes, message id 0, channel 0, as measured in
+// reference/rlc-1224a/baichuan/idle.txt (first experiment, session A):
+//   afterLogin:      cmds 78 and 79 come 0.30 s after the login reply, 464 and 547 0.40 s after it.
+//   beforeIdleClose: cmds 291, 677, 600 and 669 come once, as the camera closes an idle session
+//                    (32 s after the client's last message). The server sends them delayMs before
+//                    its own idle close (config idle timeout minus delayMs), so shortened test
+//                    timeouts stay consistent. The camera sent them within milliseconds of the
+//                    close; 500 ms is the sim's margin so the client reads them first.
+//   afterLinkType:   in the second experiment the same group came LATE_AFTER_LINK_TYPE_MS after a
+//                    client's first message after login (cmd 93 from A; B sent cmd 4000 and got
+//                    the group too, so the trigger may be any client message). Once per session.
+// Not mirrored: the second 78/79/464/547 round about 1 s after login (idle.txt, second
+// experiment). The trace interleaves two sessions, so which one it belongs to is not reliable.
+export type PushTrigger = 'afterLogin' | 'beforeIdleClose' | 'afterLinkType';
 export interface PushMessage {
   cmd: number;
-  afterMs: number; // after the login reply
+  trigger: PushTrigger;
+  delayMs: number; // after the login reply / after the cmd 93 / before the idle close
   xml: string;
 }
+export const LATE_AFTER_LINK_TYPE_MS = 3;
+const afterLogin = (cmd: number, delayMs: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'afterLogin', delayMs, xml: bodyXml(inner) });
+const late = (cmd: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'beforeIdleClose', delayMs: 500, xml: bodyXml(inner) });
 export const PUSHES: readonly PushMessage[] = [
-  { cmd: 78, afterMs: 40, xml: bodyXml(['<VideoInput version="1.1">', '<channelId>0</channelId>', '<bright>128</bright>', '<contrast>128</contrast>', '<saturation>128</saturation>', '<hue>128</hue>', '</VideoInput>']) },
-  { cmd: 79, afterMs: 40, xml: bodyXml(['<Serial version="1.1">', '<channelId>0</channelId>', '<baudRate>9600</baudRate>', '<dataBit>CS8</dataBit>', '<stopBit>1</stopBit>', '<parity>none</parity>', '<flowControl>none</flowControl>', '<controlProtocol>PELCO_D</controlProtocol>', '<controlAddress>1</controlAddress>', '</Serial>']) },
-  { cmd: 464, afterMs: 300, xml: bodyXml(['<NetInfo version="1.1">', '<net_type>wire</net_type>', '<signal>100</signal>', '</NetInfo>']) },
-  { cmd: 547, afterMs: 300, xml: bodyXml(['<SirenStatusList version="1.1" />']) },
-  { cmd: 291, afterMs: 500, xml: bodyXml(['<FloodlightStatusList version="1.1">', '<FloodlightStatus>', '<channel>0</channel>', '<status>0</status>', '<brightness>100</brightness>', '</FloodlightStatus>', '</FloodlightStatusList>']) },
-  { cmd: 677, afterMs: 500, xml: bodyXml(['<ioStatus version="1.1">', '<statusList>', '<channel>0</channel>', '</statusList>', '</ioStatus>']) },
-  { cmd: 600, afterMs: 500, xml: bodyXml(['<yoloWorldEventList version="1.1" />']) },
-  { cmd: 669, afterMs: 500, xml: bodyXml(['<AiModelList version="1.1">', '<AiModelItem>', '<name>clip</name>', '<version>1</version>', '</AiModelItem>', '</AiModelList>']) },
+  afterLogin(78, 300, ['<VideoInput version="1.1">', '<channelId>0</channelId>', '<bright>128</bright>', '<contrast>128</contrast>', '<saturation>128</saturation>', '<hue>128</hue>', '</VideoInput>']),
+  afterLogin(79, 300, ['<Serial version="1.1">', '<channelId>0</channelId>', '<baudRate>9600</baudRate>', '<dataBit>CS8</dataBit>', '<stopBit>1</stopBit>', '<parity>none</parity>', '<flowControl>none</flowControl>', '<controlProtocol>PELCO_D</controlProtocol>', '<controlAddress>1</controlAddress>', '</Serial>']),
+  afterLogin(464, 400, ['<NetInfo version="1.1">', '<net_type>wire</net_type>', '<signal>100</signal>', '</NetInfo>']),
+  afterLogin(547, 400, ['<SirenStatusList version="1.1" />']),
+  late(291, ['<FloodlightStatusList version="1.1">', '<FloodlightStatus>', '<channel>0</channel>', '<status>0</status>', '<brightness>100</brightness>', '</FloodlightStatus>', '</FloodlightStatusList>']),
+  late(677, ['<ioStatus version="1.1">', '<statusList>', '<channel>0</channel>', '</statusList>', '</ioStatus>']),
+  late(600, ['<yoloWorldEventList version="1.1" />']),
+  late(669, ['<AiModelList version="1.1">', '<AiModelItem>', '<name>clip</name>', '<version>1</version>', '</AiModelItem>', '</AiModelList>']),
 ];
 
 // Camera-local date and time, as the FileInfo XML and the info record carry it.

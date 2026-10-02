@@ -63,8 +63,12 @@ decoded fields, then the decrypted XML.
   - cmds 78 (`VideoInput`), 79 (`Serial`), 464 (`NetInfo`), 547 (`SirenStatusList`),
     291 (`FloodlightStatusList`), 677 (`ioStatus`), 600 (`yoloWorldEventList`)
     and 669 (`AiModelList`);
-  - they come about 0.04–0.5 s after the login, and sometimes in two batches
-    (the second about 32 s later);
+  - timing (idle.txt): 78 and 79 about 0.30 s after the login reply, 464 and 547
+    about 0.40 s after it; 291, 677, 600 and 669 once, at about 32.5 s as an idle
+    session is closed, or, when the client sends something at 20 s (cmd 93 or an
+    unknown cmd), within milliseconds of that message. A second 78/79/464/547
+    round about 1 s after login shows up in one trace, with two sessions
+    interleaved, so it is not established;
   - they can arrive between a request and its reply. A client must match
     replies by cmd **and** message id, and ignore the rest.
 - **Replies echo the request's message id** (and channel 250). That includes
