@@ -137,18 +137,41 @@ describe('Baichuan server: pushes after login (idle.txt)', () => {
     expect(pushes(c).map((f) => f.header.cmd).sort((a, b) => a - b)).toEqual(PUSHES.map((p) => p.cmd).sort((a, b) => a - b));
   });
 
-  it('without a message after login, the late group comes 500 ms before the idle close', async () => {
+  it('a burst of messages does not postpone the late group past the first one', async () => {
+    const { loggedIn } = await startBc();
+    const c = await loggedIn();
+    await c.waitFor((f) => f.header.cmd === 547, 2000);
+    const t0 = Date.now();
+    let stop = false;
+    const burst = (async () => {
+      while (!stop) {
+        c.send(93);
+        await new Promise((r) => setTimeout(r, 1));
+      }
+    })();
+    await c.waitFor((f) => f.header.cmd === 669, 1000);
+    const took = Date.now() - t0;
+    stop = true;
+    await burst;
+    expect(took).toBeLessThan(30);
+  });
+
+  // idle.txt: the group at 32.514 s, the close at 32.515 s.
+  it('without a message after login, the late group comes just before the idle close', async () => {
     const { loggedIn } = await startBc({ idleMs: 1200 });
     const c = await loggedIn();
     const t0 = loginAt(c);
     await c.waitFor((f) => f.header.cmd === 669, 2000);
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(600);
-    expect(c.closed).toBe(false);
+    const groupAt = c.times[c.frames.findIndex((f) => f.header.cmd === 291)] - t0;
+    expect(groupAt).toBeGreaterThanOrEqual(1150);
     expect(await c.ended).toBe('eof');
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(1100);
+    const closedAt = Date.now() - t0;
+    expect(closedAt).toBeGreaterThanOrEqual(1150);
+    expect(closedAt - groupAt).toBeLessThan(50);
     expect(pushes(c).map((f) => f.header.cmd)).toEqual([78, 79, 464, 547, 291, 677, 600, 669]);
   });
 });
+
 describe('Baichuan server: the device state', () => {
   it('offline drops the connections and refuses new ones until cleared', async () => {
     const { loggedIn, connect, engine } = await startBc();

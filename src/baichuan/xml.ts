@@ -36,8 +36,8 @@ export function loginReplyXml(secretCode: string, bootSecret: string): string {
 //   beforeIdleClose: cmds 291, 677, 600 and 669 come once, as the camera closes an idle session
 //                    (32 s after the client's last message). The server sends them delayMs before
 //                    its own idle close (config idle timeout minus delayMs), so shortened test
-//                    timeouts stay consistent. The camera sent them within milliseconds of the
-//                    close; 500 ms is the sim's margin so the client reads them first.
+//                    timeouts stay consistent. The camera sent them 1 ms before the close
+//                    (group at 32.514 s, close at 32.515 s).
 //   afterLinkType:   in the second experiment the same group came LATE_AFTER_LINK_TYPE_MS after a
 //                    client's first message after login (cmd 93 from A; B sent cmd 4000 and got
 //                    the group too, so the trigger may be any client message). Once per session.
@@ -52,7 +52,7 @@ export interface PushMessage {
 }
 export const LATE_AFTER_LINK_TYPE_MS = 3;
 const afterLogin = (cmd: number, delayMs: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'afterLogin', delayMs, xml: bodyXml(inner) });
-const late = (cmd: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'beforeIdleClose', delayMs: 500, xml: bodyXml(inner) });
+const late = (cmd: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'beforeIdleClose', delayMs: 1, xml: bodyXml(inner) });
 export const PUSHES: readonly PushMessage[] = [
   afterLogin(78, 300, ['<VideoInput version="1.1">', '<channelId>0</channelId>', '<bright>128</bright>', '<contrast>128</contrast>', '<saturation>128</saturation>', '<hue>128</hue>', '</VideoInput>']),
   afterLogin(79, 300, ['<Serial version="1.1">', '<channelId>0</channelId>', '<baudRate>9600</baudRate>', '<dataBit>CS8</dataBit>', '<stopBit>1</stopBit>', '<parity>none</parity>', '<flowControl>none</flowControl>', '<controlProtocol>PELCO_D</controlProtocol>', '<controlAddress>1</controlAddress>', '</Serial>']),

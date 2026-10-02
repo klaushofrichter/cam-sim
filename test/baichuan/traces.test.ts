@@ -59,7 +59,7 @@ describe('the traces (reference/rlc-1224a/baichuan)', () => {
     const when = (cmd: number) => PUSHES.find((p) => p.cmd === cmd)!;
     for (const c of [78, 79]) expect(when(c)).toMatchObject({ trigger: 'afterLogin', delayMs: 300 });
     for (const c of [464, 547]) expect(when(c)).toMatchObject({ trigger: 'afterLogin', delayMs: 400 });
-    for (const c of [291, 677, 600, 669]) expect(when(c)).toMatchObject({ trigger: 'beforeIdleClose', delayMs: 500 });
+    for (const c of [291, 677, 600, 669]) expect(when(c)).toMatchObject({ trigger: 'beforeIdleClose', delayMs: 1 });
     expect(LATE_AFTER_LINK_TYPE_MS).toBe(3);
   });
 

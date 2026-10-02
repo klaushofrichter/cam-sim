@@ -36,6 +36,7 @@ class Conn {
   idle?: NodeJS.Timeout;
   pushTimers: NodeJS.Timeout[] = [];
   late?: NodeJS.Timeout; // the 291/677/600/669 group, before it went out
+  lateArmedByMessage = false; // the first message after login set its timer
   lateSent = false;
   transfer?: TransferLike;
 
@@ -47,7 +48,7 @@ class Conn {
 type Log = (status: number, replyLen?: number) => void;
 
 // The late push group goes this long before the idle close (PUSHES delayMs).
-const LATE_BEFORE_IDLE_MS = PUSHES.find((p) => p.trigger === 'beforeIdleClose')?.delayMs ?? 500;
+const LATE_BEFORE_IDLE_MS = PUSHES.find((p) => p.trigger === 'beforeIdleClose')?.delayMs ?? 1;
 
 // The traced nonce is 29 characters; its alphabet was redacted.
 const newNonce = () => randomBytes(15).toString('hex').toUpperCase().slice(0, 29);
@@ -183,10 +184,12 @@ export class BaichuanServer {
     clearTimeout(c.idle);
     c.idle = setTimeout(() => {
       if (c.transfer && !c.transfer.done) return this.armIdle(c, ms);
-      c.socket.destroy();
+      // The late group goes out before the close, whatever the timers did.
+      if (c.key && !c.lateSent) this.sendLate(c);
+      this.closeAfterFlush(c);
     }, ms);
     c.idle.unref();
-    if (c.key && !c.lateSent) this.armLate(c, Math.max(0, ms - LATE_BEFORE_IDLE_MS));
+    if (c.key && !c.lateSent && !c.lateArmedByMessage) this.armLate(c, Math.max(0, ms - LATE_BEFORE_IDLE_MS));
   }
 
   private handle(c: Conn, f: BcFrame): void {
@@ -200,15 +203,18 @@ export class BaichuanServer {
     this.armIdle(c, this.idleMs);
     if (!c.key) return this.login(c, f, log);
     // Measured: the client's first message after login brings the late group
-    // (this replaces the timer armIdle set for it).
-    if (!c.lateSent) this.armLate(c, LATE_AFTER_LINK_TYPE_MS);
+    // (this replaces the timer armIdle set for it). Only the first: later
+    // messages must not postpone it.
+    if (!c.lateSent && !c.lateArmedByMessage) {
+      c.lateArmedByMessage = true;
+      this.armLate(c, LATE_AFTER_LINK_TYPE_MS);
+    }
     switch (cmd) {
       case 2: {
         // Logout: 200, then the camera closes the connection.
         log(200, this.reply(c, cmd, msgId, 200));
-        c.ending = true;
         c.transfer?.cancel();
-        c.socket.destroySoon();
+        this.closeAfterFlush(c);
         return;
       }
       case 93:
@@ -278,11 +284,24 @@ export class BaichuanServer {
   // first. Each call replaces the pending timer.
   private armLate(c: Conn, ms: number): void {
     clearTimeout(c.late);
-    c.late = setTimeout(() => {
-      c.lateSent = true;
-      this.sendPushes(c, PUSHES.filter((p) => p.trigger === 'beforeIdleClose'));
-    }, ms);
+    c.late = setTimeout(() => this.sendLate(c), ms);
     c.late.unref();
+  }
+
+  private sendLate(c: Conn): void {
+    clearTimeout(c.late);
+    if (c.lateSent) return;
+    c.lateSent = true;
+    this.sendPushes(c, PUSHES.filter((p) => p.trigger === 'beforeIdleClose'));
+  }
+
+  // Logout and the idle close: an orderly end (FIN) after the queued frames, as the
+  // camera's eof; a peer that does not read is cut off after a second.
+  private closeAfterFlush(c: Conn): void {
+    c.ending = true;
+    c.socket.destroySoon();
+    c.idle = setTimeout(() => c.socket.destroy(), 1000);
+    c.idle.unref();
   }
 
   private sendPushes(c: Conn, pushes: readonly PushMessage[]): void {
