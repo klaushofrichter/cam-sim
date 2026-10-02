@@ -27,12 +27,15 @@ const TIMINGS = {
 
 export interface RequestRecord {
   at: string;
-  port: 'http' | 'https';
+  port: 'http' | 'https' | 'baichuan';
   method: string;
   path: string;
   cmd: string;
   status: number;
   ms: number;
+  // Baichuan only: the request's and the direct reply's body lengths, never the bodies.
+  len?: number;
+  replyLen?: number;
 }
 
 // One simulated camera: every surface (camera API, control API, in-process
@@ -70,6 +73,8 @@ export class Engine {
   pipeline: { on: boolean; until?: number; error?: string } = { on: false };
   private pipelineTimer?: NodeJS.Timeout;
   liveSub?: LiveSubSource; // set by SdPipeline
+  // Set by the Baichuan server (src/baichuan/server.ts): device actions reach port 9000.
+  baichuan?: { dropAll(): void; dropTransfers(): void };
 
   constructor(
     readonly config: CamSimConfig,
@@ -195,6 +200,7 @@ export class Engine {
     this.rebooting = true;
     this.dropFlv();
     this.dropDownloads();
+    this.baichuan?.dropAll();
     this.bus.emit('state', { rebooting: true });
     await this.boot(opts.ms);
     this.rebooting = false;
@@ -220,6 +226,7 @@ export class Engine {
     this.sessions.revokeAll();
     this.dropFlv();
     this.dropDownloads();
+    this.baichuan?.dropAll();
     this.bus.emit('state', { power: 'off' });
     return true;
   }
@@ -240,8 +247,10 @@ export class Engine {
     for (const res of this.activeFlv) res.destroy();
   }
 
+  // HTTP downloads in flight, and Baichuan transfers (their connections close).
   dropDownloads(): void {
     for (const res of this.activeDownloads) res.destroy();
+    this.baichuan?.dropTransfers();
   }
 
   recordRequest(r: RequestRecord): void {

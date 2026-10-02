@@ -77,4 +77,30 @@ describe('Sessions', () => {
     expect(s.delUser('g')).toBe(-4);
     expect(s.modifyUser('nobody', { password: 'x' })).toBe(-4);
   });
+
+  it('lists Baichuan sessions in online() with the shared ids, not in count(); a revoke leaves them', () => {
+    const { s } = make();
+    s.login('admin', 'a', '10.0.0.1');
+    const id = s.openBaichuan({ name: 'cams', level: 'admin', password: 'c' }, '10.0.0.2');
+    expect(id).toBe(11);
+    expect(s.online()).toEqual([
+      { canbeDisconn: 0, ip: '10.0.0.1', level: 'admin', sessionId: 10, userName: 'admin' },
+      { canbeDisconn: 0, ip: '10.0.0.2', level: 'admin', sessionId: 11, userName: 'cams' },
+    ]);
+    expect(s.count()).toBe(1);
+    s.revokeAll();
+    expect(s.online().map((o) => o.sessionId)).toEqual([11]);
+    s.closeBaichuan(id);
+    expect(s.online()).toEqual([]);
+  });
+
+  it('findUser answers a copy of the current user', () => {
+    const { s } = make();
+    expect(s.modifyUser('cams', { password: 'new' })).toBeNull();
+    const u = s.findUser((x) => x.name === 'cams')!;
+    expect(u.password).toBe('new');
+    u.password = 'changed';
+    expect(s.findUser((x) => x.name === 'cams')!.password).toBe('new');
+    expect(s.findUser(() => false)).toBeUndefined();
+  });
 });

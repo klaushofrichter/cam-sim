@@ -4,7 +4,7 @@
 
 Things to know before using it:
 
-- **Two APIs.** The simulated camera API is on the camera ports: HTTPS 8443 and HTTP 8080 in the container, with RTSP 8554 and ONVIF 8000. A client can't tell it from the real camera. The control API is `/sim/api` on port 9443 and needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`. Without that token configured, the control API answers 404.
+- **Two APIs.** The simulated camera API is on the camera ports: HTTPS 8443 and HTTP 8080 in the container, with RTSP 8554, ONVIF 8000 and Baichuan 9000 (`CAMSIM_BAICHUAN_PORT`: set it to enable Baichuan; the image sets 9000). A client can't tell it from the real camera. The control API is `/sim/api` on port 9443 and needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`. Without that token configured, the control API answers 404.
 - **Camera commands:**
   - `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON array body. The reply is an array in the same order.
   - Every JSON reply has `Content-Type: text/html`, as on the camera.
@@ -12,6 +12,7 @@ Things to know before using it:
 - **Write whole settings objects.** A partial `Set` answers success, but the keys it leaves out are reset in the saved configuration at the next reboot, as on the real camera. Read the object, change your keys, and send the whole object back.
 - **The overlays are settings only, unless the SD pipeline is on.** `GetOsd`/`SetOsd` (camera name, date and time, the Reolink logo `watermark`) are stored and validated, but nothing is drawn on the video unless the SD pipeline (below) is on, and then only on live SD. Video is played as its source is: an ffmpeg test pattern without a library, or the library's videos as recorded.
 - **SD pipeline (optional, time-limited):** `POST /sim/api/pipeline {"minutes":N}` re-encodes the live SD stream with the OSD (name, time, watermark) and flip/mirror; main, snapshots and recordings stay as the source.
+- **Baichuan (TCP 9000):** the camera's own protocol, for login and recordings download (cmd 8, byte-equal to HTTP `Download`), as measured on the real camera (`reference/rlc-1224a/baichuan/`). With the `downloads.refuse` fault it reproduces the real camera's current state: HTTP Download refused, Baichuan works (history in the README's Baichuan section). Faults `baichuan.*`.
 - **It identifies itself.** `GetDevInfo` also returns `simulator: "cam-sim <version>"`, the one field the real camera doesn't send.
 - **Ways to run it:** one container is one camera (`ghcr.io/klaushofrichter/cam-sim`). `docker compose up` starts three. In Node tests, call `createCamSim()` from the release tarball, with no container.
 

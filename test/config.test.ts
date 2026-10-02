@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig, ConfigError } from '../src/config';
+import { loadConfig, ConfigError, BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS, BAICHUAN_SESSION_LIMIT } from '../src/config';
 
 const base = { CAMSIM_USERS: 'admin:admin:pw1;cams:admin:pw2' };
 
@@ -114,6 +114,15 @@ describe('loadConfig', () => {
 
   it('uses CAMSIM_SEED when set', () => {
     expect(loadConfig({ ...base, CAMSIM_SEED: '42' }).seed).toBe(42);
+  });
+
+  it('reads CAMSIM_BAICHUAN_PORT (Baichuan off when unset) and has the measured Baichuan limits', () => {
+    expect(loadConfig(base).ports.baichuan).toBeNull();
+    expect(loadConfig({ ...base, CAMSIM_BAICHUAN_PORT: '9000' }).ports.baichuan).toBe(9000);
+    expect(loadConfig({ ...base, CAMSIM_BAICHUAN_PORT: '0' }).ports.baichuan).toBe(0);
+    expect(() => loadConfig({ ...base, CAMSIM_BAICHUAN_PORT: '70000' })).toThrow(/CAMSIM_BAICHUAN_PORT/);
+    expect(loadConfig(base).baichuan).toEqual({ idleMs: 32_000, firstMessageMs: 12_500 });
+    expect([BAICHUAN_IDLE_MS, BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_SESSION_LIMIT]).toEqual([32_000, 12_500, 12]);
   });
 });
 

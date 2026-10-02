@@ -21,6 +21,7 @@ export class Sessions {
   private readonly userList: User[];
   private readonly tokens = new Map<string, SessionInfo>();
   private nextId = FIRST_SESSION_ID;
+  private readonly baichuan = new Map<number, { user: User; ip: string }>();
 
   constructor(users: User[], private readonly clock: Clock) {
     this.userList = users.map((u) => ({ ...u }));
@@ -57,11 +58,18 @@ export class Sessions {
     for (const [t, s] of this.tokens) if (s.user.name === name) this.tokens.delete(t);
   }
 
+  // HTTP sessions only (the state's activeSessions).
   count(): number {
-    return this.online().length;
+    return this.httpOnline().length;
   }
 
+  // GetOnline: HTTP and Baichuan sessions, by session id, as on the camera.
   online() {
+    const bc = [...this.baichuan].map(([sessionId, s]) => ({ canbeDisconn: 0, ip: s.ip, level: s.user.level, sessionId, userName: s.user.name }));
+    return [...this.httpOnline(), ...bc].sort((a, b) => a.sessionId - b.sessionId);
+  }
+
+  private httpOnline() {
     const now = this.clock.now().getTime();
     const out = [];
     for (const [t, s] of this.tokens) {
@@ -72,6 +80,25 @@ export class Sessions {
       out.push({ canbeDisconn: 0, ip: s.ip, level: s.user.level, sessionId: s.sessionId, userName: s.user.name });
     }
     return out;
+  }
+
+  // Baichuan (port 9000) sessions: one per logged-in TCP connection. They take
+  // session ids from the same counter and show in GetOnline, but they are not
+  // tokens: the connection ends them, not a lease, a logout or a revoke.
+  openBaichuan(user: User, ip: string): number {
+    const sessionId = this.nextId++;
+    this.baichuan.set(sessionId, { user: { ...user }, ip });
+    return sessionId;
+  }
+
+  closeBaichuan(sessionId: number): void {
+    this.baichuan.delete(sessionId);
+  }
+
+  // A copy of the first user that matches (the Baichuan login compares hashes).
+  findUser(match: (u: User) => boolean): User | undefined {
+    const u = this.userList.find(match);
+    return u && { ...u };
   }
 
   users() {

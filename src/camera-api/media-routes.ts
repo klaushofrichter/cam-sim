@@ -56,6 +56,9 @@ export async function download(engine: Engine, req: Request, res: Response): Pro
 
   const media = e.mediaFor(found.rec);
   const path = media.clipPath(found.stream);
+  // The media file's own size, which Content-Length announces. It can differ
+  // from the size in the name when the SD index outlived its fixtures; a
+  // Baichuan cmd 8 sends exactly the name's size instead (baichuan/vod.ts).
   const size = media.clipSize(found.stream);
   const cutAt = e.faults.active('downloads.dropMidway') ? Math.floor(size / 2) : Infinity;
   const bps = e.timings.downloadBytesPerS;

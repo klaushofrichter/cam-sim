@@ -1,7 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import request from 'supertest';
-import { createCamSim, DEMO_CLIPS, type CamSim } from '../src/index';
+import { createCamSim, configFromOptions, DEMO_CLIPS, type CamSim } from '../src/index';
 import { post, login } from './helpers';
+import { BcClient, downloadXml } from './baichuan/client';
+import { fstatSync, readdirSync, statSync } from 'fs';
 
 const sims: CamSim[] = [];
 afterEach(async () => {
@@ -57,6 +59,13 @@ describe('createCamSim', () => {
     const sim = await make({ controlToken: 'tok' });
     expect((await request(sim.controlApp).get('/sim/api/state').set('Authorization', 'Bearer tok')).body.name).toBe('Cam');
   });
+
+  it('in process: a free Baichuan port by default, and shorter idle times on request', () => {
+    const c = configFromOptions({ users: [] });
+    expect(c.ports.baichuan).toBe(0);
+    expect(c.baichuan).toEqual({ idleMs: 32_000, firstMessageMs: 12_500 });
+    expect(configFromOptions({ users: [], baichuan: { idleMs: 500 } }).baichuan).toEqual({ idleMs: 500, firstMessageMs: 12_500 });
+  });
 });
 
 describe('control port TLS', () => {
@@ -95,4 +104,80 @@ describe('control port TLS', () => {
       await sim.close();
     }
   }, 60_000);
+});
+
+describe('createCamSim: Baichuan', () => {
+  const ALL0 = { http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 };
+
+  // Review Focus 1.
+  it('opens a free Baichuan port unless one is named, so simulators side by side never collide', async () => {
+    const a = await make();
+    const b = await make();
+    const [pa, pb] = await Promise.all([a.listen(ALL0, '127.0.0.1'), b.listen(ALL0, '127.0.0.1')]);
+    expect(pa.baichuan).toBeGreaterThan(0);
+    expect(pb.baichuan).toBeGreaterThan(0);
+    expect(pb.baichuan).not.toBe(pa.baichuan);
+    const c = await BcClient.connect(pa.baichuan!);
+    expect((await c.login('u', 'p')).header.status).toBe(200);
+    c.close();
+  });
+
+  // Review Focus 2.
+  it('close() ends open Baichuan connections and a running transfer at once', async () => {
+    const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }], seedClips: 'demo' });
+    const ports = await sim.listen(ALL0, '127.0.0.1');
+    sim.engine.faults.set({ name: 'baichuan.delayMs', ms: 50 });
+    const c = await BcClient.connect(ports.baichuan!);
+    await c.login('u', 'p');
+    const id = c.send(8, downloadXml(sim.engine.sd.all()[0].files.main.name));
+    await c.waitIndex((f) => f.header.msgId === id);
+    const t0 = Date.now();
+    await sim.close();
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(['eof', 'reset']).toContain(await c.ended);
+  });
+
+  // Final review 3: the baichuan.delayMs wait is cancellable and unref'd.
+  it('close() during a 20 s baichuan.delayMs wait returns promptly and leaves no open file and no timer', async () => {
+    const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }], seedClips: 'demo' });
+    const ports = await sim.listen(ALL0, '127.0.0.1');
+    const rec = sim.engine.sd.all()[0];
+    const clip = statSync(sim.engine.mediaFor(rec).clipPath('main'));
+    // File descriptors of this process open on the clip (/dev/fd on macOS and Linux).
+    const openOnClip = () => readdirSync('/dev/fd').filter((fd) => {
+      try {
+        const st = fstatSync(Number(fd));
+        return st.ino === clip.ino && st.dev === clip.dev;
+      } catch {
+        return false;
+      }
+    }).length;
+    const timers = () => process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
+    // The previous test's transfer on the same demo clip may still be closing its file.
+    await expect.poll(openOnClip).toBe(0);
+    sim.engine.faults.set({ name: 'baichuan.delayMs', ms: 20_000 });
+    const c = await BcClient.connect(ports.baichuan!);
+    await c.login('u', 'p');
+    const before = timers();
+    const id = c.send(8, downloadXml(rec.files.main.name));
+    await c.waitIndex((f) => f.header.msgId === id); // the record; the first chunk waits 20 s
+    await new Promise((r) => setTimeout(r, 50));
+    expect(openOnClip()).toBe(1);
+    const t0 = Date.now();
+    await sim.close();
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(['eof', 'reset']).toContain(await c.ended);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(openOnClip()).toBe(0);
+    expect(timers()).toBeLessThanOrEqual(before);
+  });
+
+  it('takes shorter Baichuan idle times for tests (CamSimOptions.baichuan)', async () => {
+    const sim = await make({ baichuan: { firstMessageMs: 200, idleMs: 300 } });
+    const ports = await sim.listen(ALL0, '127.0.0.1');
+    const t0 = Date.now();
+    const c = await BcClient.connect(ports.baichuan!);
+    expect(await c.ended).toBe('eof');
+    expect(Date.now() - t0).toBeLessThan(1500);
+  });
 });

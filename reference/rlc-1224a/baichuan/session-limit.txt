@@ -1,0 +1,488 @@
+# session-limit.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# Close without logout (32 times), concurrent sessions until refused, recovery, bare TCP connections.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   (1) Close without logout, repeated: connect, log in as admin, close the socket (no cmd 2). HTTP GetOnline after each close. Baseline online list: 5 entries, 1 from this host (the HTTP session used for GetOnline).
+#       online entries: [["proxy", "other", 33], ["proxy", "other", 35], ["proxy", "other", 36], ["cams", "other", 37], ["admin", "this host", 58]]
+   0.292  TCP connect <camera>:9000 ok (2 ms)
+   0.292  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.295  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.296  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.326  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.462  TCP close (no logout)
+#   #1: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   0.921  TCP connect <camera>:9000 ok (2 ms)
+   0.921  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.924  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.924  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.954  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   1.081  TCP close (no logout)
+#   #2: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   1.532  TCP connect <camera>:9000 ok (2 ms)
+   1.532  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.535  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.535  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.571  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   1.765  TCP close (no logout)
+#   #3: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   2.211  TCP connect <camera>:9000 ok (1 ms)
+   2.211  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.214  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   2.215  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   2.240  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   2.362  TCP close (no logout)
+#   #4: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   2.843  TCP connect <camera>:9000 ok (2 ms)
+   2.843  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.853  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   2.853  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   2.882  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   3.042  TCP close (no logout)
+#   #5: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   3.511  TCP connect <camera>:9000 ok (1 ms)
+   3.511  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   3.514  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   3.515  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   3.541  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   3.665  TCP close (no logout)
+#   #6: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   4.111  TCP connect <camera>:9000 ok (1 ms)
+   4.111  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   4.114  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   4.115  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   4.140  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   4.301  TCP close (no logout)
+#   #7: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   4.765  TCP connect <camera>:9000 ok (2 ms)
+   4.765  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   4.768  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   4.768  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   4.789  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   4.910  TCP close (no logout)
+#   #8: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   5.355  TCP connect <camera>:9000 ok (1 ms)
+   5.356  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   5.361  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   5.361  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   5.389  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   5.541  TCP close (no logout)
+#   #9: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   5.964  TCP connect <camera>:9000 ok (1 ms)
+   5.965  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   5.970  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   5.970  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   5.991  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   6.155  TCP close (no logout)
+#   #10: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   6.601  TCP connect <camera>:9000 ok (1 ms)
+   6.601  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   6.604  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   6.604  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   6.629  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   6.771  TCP close (no logout)
+#   #11: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   7.256  TCP connect <camera>:9000 ok (2 ms)
+   7.256  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   7.262  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   7.262  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   7.292  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   7.431  TCP close (no logout)
+#   #12: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+#       online entries after the loop: [["proxy", "other", 33], ["proxy", "other", 35], ["proxy", "other", 36], ["cams", "other", 37], ["admin", "this host", 58]]
+
+#   (1) Close without logout, repeated: connect, log in as admin, close the socket (no cmd 2). HTTP GetOnline after each close. Baseline online list: 5 entries, 1 from this host (the HTTP session used for GetOnline).
+#       online entries: [["proxy", "other", 33], ["proxy", "other", 35], ["proxy", "other", 36], ["cams", "other", 37], ["admin", "this host", 71]]
+   0.361  TCP connect <camera>:9000 ok (2 ms)
+   0.361  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.368  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.368  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.400  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.545  TCP close (no logout)
+#   #1: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   1.028  TCP connect <camera>:9000 ok (2 ms)
+   1.028  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.030  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.031  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.059  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   1.226  TCP close (no logout)
+#   #2: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   1.647  TCP connect <camera>:9000 ok (2 ms)
+   1.647  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.651  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.652  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.686  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   1.859  TCP close (no logout)
+#   #3: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   2.308  TCP connect <camera>:9000 ok (1 ms)
+   2.308  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.312  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   2.313  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   2.335  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   2.477  TCP close (no logout)
+#   #4: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   2.898  TCP connect <camera>:9000 ok (1 ms)
+   2.898  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.900  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   2.900  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   2.926  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   3.106  TCP close (no logout)
+#   #5: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   3.548  TCP connect <camera>:9000 ok (2 ms)
+   3.548  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   3.552  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   3.552  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   3.586  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   3.758  TCP close (no logout)
+#   #6: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   4.207  TCP connect <camera>:9000 ok (1 ms)
+   4.207  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   4.210  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   4.210  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   4.235  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   4.377  TCP close (no logout)
+#   #7: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   4.836  TCP connect <camera>:9000 ok (2 ms)
+   4.836  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   4.840  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   4.840  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   4.867  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   5.006  TCP close (no logout)
+#   #8: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   5.427  TCP connect <camera>:9000 ok (1 ms)
+   5.427  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   5.430  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   5.430  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   5.455  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   5.615  TCP close (no logout)
+#   #9: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   6.059  TCP connect <camera>:9000 ok (2 ms)
+   6.060  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   6.067  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   6.067  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   6.095  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   6.257  TCP close (no logout)
+#   #10: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   6.696  TCP connect <camera>:9000 ok (1 ms)
+   6.696  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   6.699  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   6.699  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   6.725  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   6.868  TCP close (no logout)
+#   #11: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   7.326  TCP connect <camera>:9000 ok (1 ms)
+   7.326  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   7.328  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   7.328  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   7.354  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   7.506  TCP close (no logout)
+#   #12: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   7.947  TCP connect <camera>:9000 ok (1 ms)
+   7.947  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   7.950  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   7.950  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   7.985  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   8.158  TCP close (no logout)
+#   #13: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   8.606  TCP connect <camera>:9000 ok (2 ms)
+   8.607  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   8.609  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   8.610  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   8.635  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   8.759  TCP close (no logout)
+#   #14: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   9.258  TCP connect <camera>:9000 ok (2 ms)
+   9.258  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   9.266  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   9.266  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   9.294  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   9.469  TCP close (no logout)
+#   #15: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+   9.918  TCP connect <camera>:9000 ok (2 ms)
+   9.918  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   9.921  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   9.921  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   9.945  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+  10.106  TCP close (no logout)
+#   #16: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+  10.548  TCP connect <camera>:9000 ok (2 ms)
+  10.548  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+  10.554  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+  10.554  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+  10.586  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+  10.716  TCP close (no logout)
+#   #17: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+  11.158  TCP connect <camera>:9000 ok (1 ms)
+  11.158  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+  11.166  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+  11.166  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+  11.195  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+  11.368  TCP close (no logout)
+#   #18: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+  11.817  TCP connect <camera>:9000 ok (1 ms)
+  11.817  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+  11.820  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+  11.821  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+  11.845  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+  11.970  TCP close (no logout)
+#   #19: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+  12.418  TCP connect <camera>:9000 ok (2 ms)
+  12.419  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+  12.421  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+  12.421  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+  12.445  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+  12.605  TCP close (no logout)
+#   #20: login status 200; online while open: 6 total; after close: 5 total, 1 from this host
+#       online entries after the loop: [["proxy", "other", 33], ["proxy", "other", 35], ["proxy", "other", 36], ["cams", "other", 37], ["admin", "this host", 71]]
+
+#   (2) Concurrent sessions: open Baichuan sessions (admin) one after another and keep them all open, until the camera refuses one or 40 are open. Baseline online list: 5 entries (3 proxy sessions from the Pi, 1 cams, 1 this host HTTP).
+   0.286  TCP connect <camera>:9000 ok (2 ms)
+   0.286  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.289  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.289  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.321  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #1: login status 200; online total 6
+   0.495  TCP connect <camera>:9000 ok (1 ms)
+   0.495  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.499  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.499  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.534  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #2: login status 200; online total 7
+   0.675  TCP connect <camera>:9000 ok (1 ms)
+   0.675  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.677  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.677  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.708  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #3: login status 200; online total 8
+   0.855  TCP connect <camera>:9000 ok (2 ms)
+   0.855  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.859  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.859  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.885  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #4: login status 200; online total 9
+   1.010  TCP connect <camera>:9000 ok (2 ms)
+   1.010  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.016  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.016  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.044  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #5: login status 200; online total 10
+   1.166  TCP connect <camera>:9000 ok (1 ms)
+   1.166  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.168  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.168  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.194  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #6: login status 200; online total 11
+   1.357  TCP connect <camera>:9000 ok (1 ms)
+   1.357  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.361  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.361  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.395  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #7: login status 200; online total 12
+   1.565  TCP connect <camera>:9000 ok (1 ms)
+   1.565  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.568  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.568  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.593  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #8: login status 200; online total 13
+   1.719  TCP connect <camera>:9000 ok (2 ms)
+   1.719  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.725  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.726  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.754  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #9: login status 200; online total 14
+   1.910  TCP connect <camera>:9000 ok (2 ms)
+   1.910  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   1.918  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   1.918  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   1.944  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #10: login status 200; online total 15
+   2.110  TCP connect <camera>:9000 ok (2 ms)
+   2.110  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.117  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   2.117  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   2.147  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #11: login status 200; online total 16
+   2.310  TCP connect <camera>:9000 ok (1 ms)
+   2.310  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.317  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   2.318  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   2.346  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   #12: login status 200; online total 17
+   2.511  TCP connect <camera>:9000 ok (2 ms)
+   2.511  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   2.514  <- error ConnectionResetError
+#   #13: login status None; online total 17
+   2.664  <- after refusal: eof
+#   HTTP Login (admin) while Baichuan is full: ok
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.973  TCP close (no logout)
+   2.974  TCP close (no logout)
+   2.974  TCP close (no logout)
+   2.974  TCP close (no logout)
+   2.974  TCP close (no logout)
+   2.974  TCP close (no logout)
+#   after closing all: online total 5
+
+#   (3) Recovery: a login right after the concurrent test closed all its sessions.
+   0.005  TCP connect <camera>:9000 ok (4 ms)
+   0.005  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.007  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.007  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.037  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   login status 200
+   0.037  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 b0 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=176 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   0.041  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 03 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.041  TCP close
+#   (4) Do TCP connections that never log in count? Open 12 bare TCP connections (no bytes sent), then log in on a 13th.
+   0.063  TCP connect <camera>:9000 ok (2 ms)
+   0.063  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.063  <- error ConnectionResetError
+#   13th connection login status: None
+   0.063  TCP close
+#   bare connections still open after ~5 s: 12 of 12

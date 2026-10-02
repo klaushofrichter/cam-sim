@@ -1,0 +1,38 @@
+# err-badpass.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# One wrong password (admin), then a correct login.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   One login as admin with a wrong password (once only), then what the camera does with the connection, then a correct login on a new connection.
+   0.003  TCP connect <camera>:9000 ok (3 ms)
+   0.003  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.010  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.010  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.029  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 82 00 00 00 fa 02 00 00 91 01 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=401 len=130 payloadOffset=0 ext=0B(none) body=130B(bc)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LoginErrInfo version="1.1">
+    <remainTimes>10</remainTimes>
+    </LoginErrInfo>
+    </body>
+   5.030  <- after the refused login: timeout
+   5.031  TCP close
+#   Correct login 1 s later, new connection:
+   6.036  TCP connect <camera>:9000 ok (2 ms)
+   6.036  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   6.038  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   6.038  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   6.060  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   6.061  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 b0 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=176 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   6.063  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 03 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   6.063  TCP close

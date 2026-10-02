@@ -49,10 +49,28 @@ describe('Faults', () => {
 
   it('knows every fault of the spec', () => {
     expect([...FAULT_NAMES].sort()).toEqual([
+      'baichuan.delayMs', 'baichuan.dropMidway', 'baichuan.loginFail', 'baichuan.refuse', 'baichuan.sessionLimit',
       'downloads.delayMs', 'downloads.dropFirst', 'downloads.dropMidway', 'downloads.refuse',
       'flv.delayMs', 'flv.reset', 'ftp.delayMs', 'ftp.fail', 'latencyMs', 'offline', 'rtsp.refuse', 'rtsp.reset', 'search.delayMs',
       'settings.fail', 'settings.ignore', 'settings.strictPartial', 'snap.fail',
     ]);
+  });
+
+  it('knows the Baichuan faults: sessionLimit needs a positive max, delayMs needs ms', () => {
+    const f = new Faults();
+    for (const n of ['baichuan.refuse', 'baichuan.dropMidway', 'baichuan.delayMs', 'baichuan.loginFail', 'baichuan.sessionLimit']) expect(FAULT_NAMES).toContain(n);
+    expect(() => f.set({ name: 'baichuan.sessionLimit' })).toThrow(/max/);
+    expect(() => f.set({ name: 'baichuan.sessionLimit', max: 0 })).toThrow(/max/);
+    expect(() => f.set({ name: 'baichuan.sessionLimit', max: 1.5 })).toThrow(/max/);
+    expect(() => f.set({ name: 'baichuan.delayMs' })).toThrow(/ms/);
+    f.set({ name: 'baichuan.sessionLimit', max: 3 });
+    expect(f.active('baichuan.sessionLimit')).toEqual({ name: 'baichuan.sessionLimit', max: 3 });
+    f.set({ name: 'baichuan.refuse', max: 3 }); // max belongs to sessionLimit only
+    expect(f.active('baichuan.refuse')).toEqual({ name: 'baichuan.refuse' });
+    f.set({ name: 'baichuan.loginFail', count: 2 });
+    f.consume('baichuan.loginFail');
+    f.consume('baichuan.loginFail');
+    expect(f.active('baichuan.loginFail')).toBeUndefined();
   });
 });
 
@@ -74,5 +92,12 @@ describe('Counters', () => {
     c.downloadOrder.push('081510');
     c.reset();
     expect(c.snapshot()).toMatchObject({ logins: 0, downloadOrder: [] });
+  });
+
+  it('resets the Baichuan history but not the open Baichuan sessions', () => {
+    const c = new Counters();
+    Object.assign(c, { baichuanSessions: 2, baichuanLogins: 3, baichuanDownloads: 4, droppedBaichuanDownloads: 1 });
+    c.reset();
+    expect(c.snapshot()).toMatchObject({ baichuanSessions: 2, baichuanLogins: 0, baichuanDownloads: 0, droppedBaichuanDownloads: 0 });
   });
 });
