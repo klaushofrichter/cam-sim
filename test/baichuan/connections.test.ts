@@ -43,9 +43,8 @@ describe('Baichuan server: the session limit (session-limit.txt)', () => {
     const over: BcClient[] = [];
     for (let i = 0; i < BAICHUAN_OVER_LIMIT_HELD_MAX; i++) over.push(await connect());
     await until(() => server.connectionCount() === BAICHUAN_SESSION_LIMIT + BAICHUAN_OVER_LIMIT_HELD_MAX);
-    const extra = await connect();
-    expect(await extra.ended).toBe('reset'); // without sending anything
-    expect(extra.frames).toHaveLength(0);
+    // Reset without our sending anything: the connect itself may fail with it.
+    expect(await refused(connect)).toBe(true);
     expect(server.connectionCount()).toBe(BAICHUAN_SESSION_LIMIT + BAICHUAN_OVER_LIMIT_HELD_MAX);
     // An over-limit connection that goes frees a held place, not a session slot.
     over[0].close();
