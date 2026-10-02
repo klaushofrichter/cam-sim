@@ -23,11 +23,12 @@ RUN set -eu; \
     && tar -xzf "$f" -C /usr/local/bin mediamtx && rm -f "$f" checksums.sha256 && mediamtx --help >/dev/null
 ENV NODE_ENV=production \
     CAMSIM_DATA_DIR=/data \
+    CAMSIM_BAICHUAN_PORT=9000 \
     CAMSIM_FIXTURE_DIR=/opt/cam-sim/fixtures
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=builder /app/dist ./dist
-COPY openapi.yaml CHANGELOG.md ./
+COPY openapi.yaml CHANGELOG.md THIRD_PARTY_NOTICES ./
 # Test-pattern fixtures, generated here so containers start without ffmpeg work.
 RUN node dist/src/cli.js --make-fixtures \
  && mkdir -p /data && chown 1000:1000 /data
@@ -40,7 +41,7 @@ ENV BUILD_DATE=$BUILD_DATE
 # Numeric, so Kubernetes' runAsNonRoot can verify it.
 USER 1000:1000
 VOLUME /data
-EXPOSE 8443 8080 9443 8554 8000
+EXPOSE 8443 8080 9443 8554 8000 9000
 # The control port serves plain HTTP unless a TLS certificate is configured.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s \
   CMD wget -qO- http://127.0.0.1:9443/healthz >/dev/null 2>&1 || wget --no-check-certificate -qO- https://127.0.0.1:9443/healthz >/dev/null 2>&1 || exit 1

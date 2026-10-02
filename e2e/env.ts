@@ -3,6 +3,8 @@ import { join } from 'path';
 
 // Test-only values for the e2e simulator; not secrets.
 export const TOKEN = 'e2e-control-token-not-a-secret';
+// Saved by auth.setup.ts: the signed-in session shared by the specs.
+export const STATE_FILE = join(__dirname, '.auth', 'state.json');
 export const UI_PORT = 19443;
 export const CAM_PORT = 18080;
 export const CAM_USER = 'e2e';
@@ -19,6 +21,7 @@ export const SIM_ENV: Record<string, string> = {
   CAMSIM_CONTROL_PORT: String(UI_PORT),
   CAMSIM_RTSP_PORT: '18554',
   CAMSIM_ONVIF_PORT: '18000',
+  CAMSIM_BAICHUAN_PORT: '19000',
   CAMSIM_LOG_LEVEL: 'warn',
   // A generated video besides the test pattern (e2e/make-library.mjs).
   CAMSIM_LIBRARY_DIR: join(tmpdir(), 'cam-sim-e2e-library'),

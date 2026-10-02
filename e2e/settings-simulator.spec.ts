@@ -123,3 +123,14 @@ test('with CAMSIM_PIPELINE_MAX_MIN below 60, the SD pipeline card starts at the 
   expect((await sent).postDataJSON()).toEqual({ minutes: 30 });
   await expect(card.getByTestId('pipeline-left')).toHaveText(/(29|30) min left/);
 });
+
+test('the Baichuan session limit fault takes its max from the page', async ({ page, request }) => {
+  await signIn(page);
+  await page.goto('/#/simulator');
+  const row = page.getByTestId('fault-baichuan.sessionLimit');
+  await row.getByLabel('baichuan.sessionLimit max').fill('3');
+  await row.getByTestId('fault-toggle').click();
+  const faults = async () => (await request.get(`http://127.0.0.1:${UI_PORT}/sim/api/faults`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json();
+  await expect.poll(faults).toEqual([{ name: 'baichuan.sessionLimit', max: 3 }]);
+  await expect(row).toContainText('max 3');
+});
