@@ -298,6 +298,9 @@ export class BaichuanServer {
   // Logout and the idle close: an orderly end (FIN) after the queued frames, as the
   // camera's eof; a peer that does not read is cut off after a second.
   private closeAfterFlush(c: Conn): void {
+    // The idle timer handle() just armed would fire later (and re-arm while a
+    // cancelled transfer is not done yet); the fallback below replaces it.
+    clearTimeout(c.idle);
     c.ending = true;
     c.socket.destroySoon();
     c.idle = setTimeout(() => c.socket.destroy(), 1000);

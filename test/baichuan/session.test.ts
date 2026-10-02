@@ -149,6 +149,44 @@ describe('Baichuan server: commands after login', () => {
     expect(engine.counters.baichuanSessions).toBe(0);
   });
 
+  // Task 5 review: the idle timer handle() armed must not outlive the flush close.
+  it('after logout the flush close runs once; the old idle timer does not fire later', async () => {
+    const { loggedIn, server } = await startBc({ idleMs: 200 });
+    const priv = server as unknown as { closeAfterFlush: (c: unknown) => void };
+    const orig = priv.closeAfterFlush.bind(server);
+    let calls = 0;
+    priv.closeAfterFlush = (c) => {
+      calls++;
+      orig(c);
+    };
+    const c = await loggedIn('proxy', 'proxy-pw');
+    await c.call(2, logoutXml('proxy', 'proxy-pw'));
+    expect(await c.ended).toBe('eof');
+    await sleep(500);
+    expect(calls).toBe(1);
+  });
+
+  it('a transfer cancelled at logout re-arms no timer after the close', async () => {
+    const { loggedIn, server } = await startBc({ idleMs: 100 });
+    const priv = server as unknown as { conns: Set<{ transfer?: unknown }>; armIdle: (c: unknown, ms: number) => void };
+    const c = await loggedIn('proxy', 'proxy-pw');
+    // A transfer whose `done` stays false after cancel().
+    for (const x of priv.conns) x.transfer = { done: false, cancel() {}, stop() {} };
+    const orig = priv.armIdle.bind(server);
+    let arms = 0;
+    priv.armIdle = (x, ms) => {
+      arms++;
+      orig(x, ms);
+    };
+    const id = c.send(2, logoutXml('proxy', 'proxy-pw'));
+    await c.reply(id, 2);
+    expect(await c.ended).toBe('eof');
+    await until(() => server.connectionCount() === 0);
+    const after = arms;
+    await sleep(400);
+    expect(arms).toBe(after);
+  });
+
   it('HTTP GetOnline lists open Baichuan sessions; a plain close removes them', async () => {
     const { loggedIn, engine } = await startBc();
     const cam = createCameraApp(engine, { port: 'http' });
