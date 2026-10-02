@@ -956,7 +956,10 @@ manifests.
   - ONVIF `192.168.1.103:8000` and RTSP `192.168.1.103:554` are open to the
     LAN (Service `cam2-gateway`), in plain text like the camera, for
     cam-proxy;
-  - the camera's HTTP(S) ports stay inside the cluster.
+  - the camera's HTTP(S) ports stay inside the cluster;
+  - Baichuan (port 9000) is not on the `cam2` Service yet: it needs a
+    cluster-internal Service port, requested through kube-setup. No LAN
+    exposure is needed, since the Pi's cam-proxy talks to the real camera.
   - cam2 uploads its finished clips by FTP(S) to cam-proxy in the cluster
     (`cam-proxy.cam-proxy.svc.cluster.local:2121`, sub stream); the setting
     lives in cam2's persisted settings, set through cam-proxy's
