@@ -6,7 +6,7 @@
 
   // The faults of src/engine/faults.ts, with the parameters each takes.
   const FAULTS: Array<{ name: string; label: string; params: Array<'ms' | 'count' | 'cmds' | 'rspCode' | 'max'> }> = [
-    { name: 'downloads.refuse', label: 'Every Download resets (like the real camera since 2026-09-26)', params: [] },
+    { name: 'downloads.refuse', label: 'Every Download resets (like the real camera at present)', params: [] },
     { name: 'downloads.dropFirst', label: 'The next N Downloads reset', params: ['count'] },
     { name: 'downloads.dropMidway', label: 'Download bodies are cut part-way', params: [] },
     { name: 'downloads.delayMs', label: 'Wait before sending a Download body', params: ['ms'] },

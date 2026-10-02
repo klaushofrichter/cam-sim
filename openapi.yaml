@@ -30,7 +30,7 @@ components:
         ms: { type: integer, minimum: 0 }
         cmds: { type: array, items: { type: string } }
         rspCode: { type: integer }
-        max: { type: integer, minimum: 1, description: 'baichuan.sessionLimit only: Baichuan connections at once (the camera allows 12)' }
+        max: { type: integer, minimum: 1, description: 'baichuan.sessionLimit only: Baichuan connections at once, at most 12 (the camera allows 12)' }
     SeedClip:
       type: object
       required: [daysAgo, start, end, triggers]

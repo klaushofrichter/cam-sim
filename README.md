@@ -414,16 +414,24 @@ the camera.
 - A name that isn't on the card, including any `..` path, resets the
   connection.
 
-With `downloads.refuse` on (the real camera's state since 2026-10-01), the same
+The real camera currently refuses HTTP Download (see
+[Baichuan](#baichuan-port-9000)); with `downloads.refuse` on, the same
 files still download over [Baichuan](#baichuan-port-9000).
 
 ### Baichuan (port 9000)
 
 The camera's own binary protocol, which the Reolink app uses. cam-sim answers
 the part cam-proxy needs: logging in and downloading a recording. On the real
-camera HTTP `Download` has been refused since 2026-10-01, while Baichuan
-downloads of the same files work; `downloads.refuse` and this port together
-reproduce that.
+camera HTTP `Download` is refused at present, while Baichuan downloads of
+the same files work; `downloads.refuse` and this port together reproduce
+that. The measured history of the refusal:
+
+- first refused 2026-09-26 at 12:45;
+- it cleared on its own by the morning of 2026-10-01;
+- it has been refused again since an API `Reboot` on the afternoon of
+  2026-10-01;
+- reboots, power cycles (PoE included), live-view priming, an HTTP/RTMP
+  toggle and a new SD card did not clear it.
 
 - **Framing and ciphers**, as measured on the RLC-1224A
   ([reference/rlc-1224a/baichuan/](reference/rlc-1224a/baichuan/README.md)):
@@ -465,8 +473,11 @@ reproduce that.
   - A logged-in connection closes 32 s after the client's last message; one
     that never sends closes after 12.5 s.
 - **Pushes:** after a login, cmds 78, 79, 464, 547, 291, 677, 600 and 669
-  arrive unsolicited (message id 0), 0.04-0.5 s later. If a request comes
-  first, they arrive between it and its reply.
+  arrive unsolicited (message id 0):
+  - 78 and 79 come 0.3 s after the login reply, 464 and 547 0.4 s after it;
+  - 291, 677, 600 and 669 come once per session, about 3 ms after the
+    client's first message after the login, or 1 ms before the idle close,
+    whichever comes first. The reply goes first, then this group.
 - **Downloads:**
   - One download per connection: a second cmd 8 silently replaces the first.
   - Separate connections download in parallel, independently of HTTP
@@ -648,7 +659,8 @@ the FTP schedule allows is uploaded:
   - the nonce is 29 hexadecimal characters (the traced length; the alphabet was redacted);
   - the info record reports `GetEnc`'s sizes, even for the test pattern's 1280×720 main stream;
   - `downloads.dropActive` counts one drop per Baichuan connection;
-  - `baichuan.sessionLimit` is capped at 12.
+  - `baichuan.sessionLimit` is capped at 12;
+  - "Revoke all camera sessions" (`tokens.revoke`) does not end Baichuan sessions.
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -766,7 +778,7 @@ matching requests.
 
 | Fault | Parameters | Effect |
 |---|---|---|
-| `downloads.refuse` | | every Download resets (the real camera's state since 2026-09-26) |
+| `downloads.refuse` | | every Download resets (the real camera currently refuses HTTP Download, see [Baichuan](#baichuan-port-9000)) |
 | `downloads.dropFirst` | `count` | the next `count` Downloads reset |
 | `downloads.dropMidway` | | Download bodies are cut part-way |
 | `downloads.delayMs` | `ms` | wait before sending a Download body |
@@ -787,14 +799,14 @@ matching requests.
 | `baichuan.dropMidway` | | the Baichuan connection closes halfway through a download |
 | `baichuan.delayMs` | `ms` | wait this long before each Baichuan chunk (a slow transfer) |
 | `baichuan.loginFail` | `count` optional | Baichuan logins answer 401 with `remainTimes` 10 |
-| `baichuan.sessionLimit` | `max` | at most `max` Baichuan connections at once instead of 12; one more is accepted, then reset at its first message |
+| `baichuan.sessionLimit` | `max` | at most `max` Baichuan connections at once (`max` at most 12) instead of 12; one more is accepted, then reset at its first message |
 
 ```sh
 ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'
 ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
 ```
 
-`downloads.refuse` stays the HTTP fault: with it on, HTTP Download resets while Baichuan downloads work, as on the real camera since 2026-10-01.
+`downloads.refuse` stays the HTTP fault: with it on, HTTP Download resets while Baichuan downloads work, as the real camera currently does (see [Baichuan](#baichuan-port-9000)).
 
 ### Videos
 
