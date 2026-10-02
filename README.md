@@ -80,7 +80,7 @@ address, with the certificate checked against the camera's name.
 reads `CAMSIM_USERS` and `CAMSIM_CONTROL_TOKEN` from `.env`, and nothing else
 from `.env` reaches the containers. Each mounts `./library` read-only as its
 [video library](#video-library). Compose publishes the camera and control
-ports only, not RTSP or ONVIF.
+ports and Baichuan (9002–9004 for each camera's 9000), not RTSP or ONVIF.
 
 **Inside a test process** (Node), with no container:
 
@@ -455,7 +455,7 @@ that. The measured history of the refusal:
 | cmd | Answer |
 |---|---|
 | 8, download: `<Id>` is the full name HTTP Search returns; `<name>` is optional and ignored | 200 with a 32-byte info record, then the file in chunks (39,400 B three times, then 12,872 B, repeating). Every frame carries cmd 8's message id; there is no terminator. An unknown `<Id>` answers 400 with no body |
-| 9, stop (`handle` 0) | 200, no body. 13 more chunks of the running download still arrive, then nothing |
+| 9, stop (`handle` 0) | 200, no body. 13 more frames of the running download still arrive (including the info record if it hadn't gone out yet), then nothing |
 | 13, file info | 200 with `sizeL`/`sizeH`. With `<name>` it reports the main file's size even for a sub `<Id>`, as the camera does. A file it doesn't know answers 431 without `<name>` and 400 with it |
 | 93, LinkType | 200, `<LinkType><type>LAN</type>` |
 | 2, logout | 200, then the connection closes |
@@ -640,7 +640,8 @@ the FTP schedule allows is uploaded:
   - Baichuan transfers don't share HTTP Download's one-at-a-time limit (HTTP
     Download is refused on the camera, so that can't be measured);
   - a running download keeps its connection from the idle close, so a client
-    that never reads holds its slot and can use up all 12;
+    that never reads holds its slot and can use up all 12; the idle close
+    comes up to `idleMs` after the transfer ends;
   - a refused cmd 8 leaves a running download alone;
   - the 13 chunks after cmd 9 all come after its reply, and the stop tail is
     always 13 frames;
