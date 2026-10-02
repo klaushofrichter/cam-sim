@@ -9,6 +9,7 @@ export const FAULT_NAMES = [
   'offline', 'latencyMs', 'snap.fail',
   'ftp.fail', 'ftp.delayMs',
   'rtsp.refuse', 'rtsp.reset',
+  'baichuan.refuse', 'baichuan.dropMidway', 'baichuan.delayMs', 'baichuan.loginFail', 'baichuan.sessionLimit',
 ] as const;
 export type FaultName = (typeof FAULT_NAMES)[number];
 
@@ -22,9 +23,10 @@ export interface FaultSpec {
   ms?: number;
   cmds?: string[];
   rspCode?: number;
+  max?: number; // baichuan.sessionLimit only: Baichuan connections at once
 }
 
-const NEEDS_MS: FaultName[] = ['downloads.delayMs', 'flv.delayMs', 'search.delayMs', 'latencyMs', 'ftp.delayMs'];
+const NEEDS_MS: FaultName[] = ['downloads.delayMs', 'flv.delayMs', 'search.delayMs', 'latencyMs', 'ftp.delayMs', 'baichuan.delayMs'];
 const NEEDS_CMDS: FaultName[] = ['settings.fail', 'settings.ignore'];
 
 export class FaultError extends Error {}
@@ -41,11 +43,15 @@ export class Faults extends EventEmitter {
     if (NEEDS_CMDS.includes(name) && !(Array.isArray(spec.cmds) && spec.cmds.length && spec.cmds.every((c) => typeof c === 'string'))) {
       throw new FaultError(`${name} needs cmds`);
     }
+    if (name === 'baichuan.sessionLimit' && !(Number.isInteger(spec.max) && (spec.max as number) > 0)) {
+      throw new FaultError('baichuan.sessionLimit needs max (a positive integer)');
+    }
     const clean: FaultSpec = { name };
     if (spec.count !== undefined) clean.count = spec.count;
     if (spec.ms !== undefined) clean.ms = spec.ms;
     if (spec.cmds) clean.cmds = [...spec.cmds];
     if (name === 'settings.fail') clean.rspCode = Number.isInteger(spec.rspCode) ? spec.rspCode : -67;
+    if (name === 'baichuan.sessionLimit') clean.max = spec.max;
     this.faults.set(name, clean);
     this.emit('change');
   }

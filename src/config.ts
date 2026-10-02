@@ -30,7 +30,9 @@ export interface CamSimConfig {
   seed: number;
   tlsCertFile?: string;
   tlsKeyFile?: string;
-  ports: { https: number; http: number; control: number; rtsp: number; onvif: number };
+  ports: { https: number; http: number; control: number; rtsp: number; onvif: number; baichuan: number };
+  // Baichuan idle timeouts (ms); tests shorten them.
+  baichuan: { idleMs: number; firstMessageMs: number };
   logLevel: string;
   // Main-stream size of converted library videos (the camera's 4512x2512).
   mainSize: string;
@@ -47,6 +49,13 @@ export interface CamSimConfig {
 
 // Messages name the variable, never its value (values may be secrets).
 export class ConfigError extends Error {}
+
+// Baichuan (TCP 9000), measured on the RLC-1224A (reference/rlc-1224a/baichuan/):
+// a logged-in connection closes about 32 s after the client's last message, one
+// that never sends after 12.5 s; 12 connections at once, bare ones included.
+export const BAICHUAN_IDLE_MS = 32_000;
+export const BAICHUAN_FIRST_MESSAGE_MS = 12_500;
+export const BAICHUAN_SESSION_LIMIT = 12;
 
 function maxVideoS(v: string | undefined): number {
   if (!v) return 60;
@@ -175,7 +184,9 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
       control: port('CAMSIM_CONTROL_PORT', 9443),
       rtsp: port('CAMSIM_RTSP_PORT', 8554),
       onvif: port('CAMSIM_ONVIF_PORT', 8000),
+      baichuan: port('CAMSIM_BAICHUAN_PORT', 9000),
     },
+    baichuan: { idleMs: BAICHUAN_IDLE_MS, firstMessageMs: BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
     mainSize: mainSize(env.CAMSIM_MAIN_SIZE),
     maxVideoS: maxVideoS(env.CAMSIM_MAX_VIDEO_S),

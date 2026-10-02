@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import request from 'supertest';
-import { createCamSim, DEMO_CLIPS, type CamSim } from '../src/index';
+import { createCamSim, configFromOptions, DEMO_CLIPS, type CamSim } from '../src/index';
 import { post, login } from './helpers';
 
 const sims: CamSim[] = [];
@@ -56,6 +56,13 @@ describe('createCamSim', () => {
   it('control app works in process', async () => {
     const sim = await make({ controlToken: 'tok' });
     expect((await request(sim.controlApp).get('/sim/api/state').set('Authorization', 'Bearer tok')).body.name).toBe('Cam');
+  });
+
+  it('in process: a free Baichuan port by default, and shorter idle times on request', () => {
+    const c = configFromOptions({ users: [] });
+    expect(c.ports.baichuan).toBe(0);
+    expect(c.baichuan).toEqual({ idleMs: 32_000, firstMessageMs: 12_500 });
+    expect(configFromOptions({ users: [], baichuan: { idleMs: 500 } }).baichuan).toEqual({ idleMs: 500, firstMessageMs: 12_500 });
   });
 });
 

@@ -16,6 +16,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { FIRMWARE_VERSION } from './profile/version';
 import type { CamSimConfig, User } from './config';
+import { BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS } from './config';
 import type { Clock } from './engine/clock';
 import type { FaultSpec } from './engine/faults';
 import type { SeedClip, Trigger } from './engine/sdcard';
@@ -53,6 +54,7 @@ export interface CamSimOptions {
   maxVideoS?: number;
   logLevel?: string;
   log?: pino.Logger;
+  baichuan?: { idleMs?: number; firstMessageMs?: number }; // shorter Baichuan idle closes, for tests
 }
 
 export interface Ports {
@@ -91,7 +93,10 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     seed: o.seed ?? Date.now() % 2 ** 31,
     tlsCertFile: o.tlsCertFile,
     tlsKeyFile: o.tlsKeyFile,
-    ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000 },
+    // In process the Baichuan port defaults to a free one: callers that don't
+    // name it (cams' and cam-proxy's tests, in parallel) never collide on 9000.
+    ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000, baichuan: 0 },
+    baichuan: { idleMs: o.baichuan?.idleMs ?? BAICHUAN_IDLE_MS, firstMessageMs: o.baichuan?.firstMessageMs ?? BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: o.logLevel ?? 'silent',
     mainSize: o.mainSize ?? '4512x2512',
     maxVideoS: o.maxVideoS ?? 60,
