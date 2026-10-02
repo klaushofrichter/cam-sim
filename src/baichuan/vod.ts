@@ -12,8 +12,13 @@ import { ENCRYPT_LEN, EXT_BINARY, EXT_CHUNK, fileInfoXml, type Moment } from './
 import { chunkSize, infoRecord } from './records';
 import type { TransferLike } from './server';
 
-// Measured: about 400 KB (13 frames) still arrive after cmd 9.
+// Measured: about 400 KB (13 frames) still arrive after cmd 9 (abort.txt).
 export const FRAMES_AFTER_STOP = 13;
+// Measured: a cmd 8 without cmd 9 lets the running transfer finish its
+// current 128 KiB block and two more (8 chunks from a block boundary) before
+// the new file starts (err-second-download.txt (A): 393216 B under the old id).
+export const BLOCKS_AFTER_REPLACE = 2;
+const CHUNKS_PER_BLOCK = 4; // CHUNK_CYCLE: 3 × 39,400 + 12,872 = 128 KiB
 // The first cmd-8 reply's body: the 106-byte extension and the 32-byte record.
 export const FIRST_REPLY_LEN = Buffer.byteLength(EXT_BINARY) + 32;
 
@@ -76,6 +81,7 @@ export interface TransferDeps {
   delayMs(): number | undefined; // baichuan.delayMs, read before each chunk
   dropMidway(): boolean; // baichuan.dropMidway, read at the start
   onDrop(): void; // closes the connection
+  prev?: TransferLike; // a transfer this one replaced: it starts once that one ends
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -85,24 +91,47 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // so a slow reader slows it down instead of growing a buffer.
 export class Transfer implements TransferLike {
   done = false;
+  readonly ended: Promise<void>;
+  private endedResolve!: () => void;
   private cancelled = false;
-  private tail?: number; // frames still allowed after cmd 9
+  private tail?: number; // frames still allowed after cmd 9 or a replacing cmd 8
+  private recordSent = false;
+  private nextChunk = 0; // index of the next chunk to go out
+  private prev?: TransferLike; // dropped once it has ended
 
-  constructor(private readonly d: TransferDeps) {}
+  constructor(private readonly d: TransferDeps) {
+    this.ended = new Promise((r) => (this.endedResolve = r));
+    this.prev = d.prev;
+  }
 
+  // Ends at once, without a message: the connection is going. Also ends the
+  // transfer this one waits for.
   cancel(): void {
     this.cancelled = true;
+    this.prev?.cancel();
   }
 
   stop(): void {
     if (this.tail === undefined) this.tail = FRAMES_AFTER_STOP;
   }
 
+  // A new cmd 8 on the connection: the record if it hasn't gone out yet, the
+  // rest of the current 128 KiB block and BLOCKS_AFTER_REPLACE more, then
+  // nothing. After cmd 9 the stop's tail stands (abort.txt (2)).
+  replace(): void {
+    if (this.tail !== undefined) return;
+    const toBoundary = (CHUNKS_PER_BLOCK - (this.nextChunk % CHUNKS_PER_BLOCK)) % CHUNKS_PER_BLOCK;
+    this.tail = (this.recordSent ? 0 : 1) + toBoundary + BLOCKS_AFTER_REPLACE * CHUNKS_PER_BLOCK;
+  }
+
   async run(): Promise<'complete' | 'stopped' | 'dropped'> {
     try {
+      if (this.prev) await this.prev.ended;
+      this.prev = undefined;
       return await this.send();
     } finally {
       this.done = true;
+      this.endedResolve();
     }
   }
 
@@ -127,6 +156,7 @@ export class Transfer implements TransferLike {
       const enc = ENC[file.stream === 'main' ? 'mainStream' : 'subStream'];
       const record = infoRecord({ width: enc.width, height: enc.height, fps: enc.frameRate, main: file.stream === 'main', start: file.start, end: file.end });
       if (!this.go()) return 'stopped';
+      this.recordSent = true;
       await this.write(encodeFrame({ cmd: 8, msgId, status: 200, cls: CLS_CAMERA, ext: aesEncrypt(key, Buffer.from(EXT_BINARY)), body: record }));
       const ext = aesEncrypt(key, Buffer.from(EXT_CHUNK));
       const half = this.d.dropMidway() ? Math.floor(file.size / 2) : Infinity;
@@ -143,6 +173,7 @@ export class Transfer implements TransferLike {
         const { bytesRead } = await fh.read(buf, 0, n, sent);
         if (bytesRead !== n) throw new Error('the recording file changed during a transfer');
         if (!this.go()) return 'stopped';
+        this.nextChunk = i + 1;
         await this.write(encodeFrame({ cmd: 8, msgId, status: 200, cls: CLS_CAMERA, ext, body: encryptChunk(key, buf, ENCRYPT_LEN) }));
         sent += n;
       }

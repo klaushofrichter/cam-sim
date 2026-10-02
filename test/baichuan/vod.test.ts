@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { startBc, closeAll, until, sleep, track, DEMO } from './harness';
-import { downloadXml, fileInfoRequestXml, stopXml, type BcClient } from './client';
+import { downloadXml, fileInfoRequestXml, logoutXml, stopXml, type BcClient } from './client';
 import { aesEncrypt } from '../../src/baichuan/cipher';
 import { EXT_BINARY, EXT_CHUNK, tagValue } from '../../src/baichuan/xml';
 import { chunkSizes, infoRecord } from '../../src/baichuan/records';
@@ -272,5 +272,94 @@ describe('Baichuan recordings: backpressure', () => {
     const t0 = Date.now();
     await server.close();
     expect(Date.now() - t0).toBeLessThan(1000);
+  });
+});
+
+describe('Baichuan recordings: replacing a transfer (Task 6 review)', () => {
+  const oldChunks = (c: BcClient, id: number) => framesOf(c, id).filter((f) => f.header.payloadOffset === 136);
+
+  it('cmd 9 then cmd 8 at once: the 13 stale frames keep the old id, then the new record and the whole file (abort.txt (2))', async () => {
+    const { engine, loggedIn } = await startBc({ env: DEMO });
+    const http = await withHttp(engine);
+    const rec = engine.sd.all()[0];
+    const c = await loggedIn();
+    engine.faults.set({ name: 'baichuan.delayMs', ms: 20 });
+    const old = c.send(8, downloadXml(rec.files.main.name));
+    let i = 0;
+    for (let n = 0; n < 6; n++) i = (await c.waitIndex((f) => f.header.msgId === old, 3000, i)) + 1;
+    c.send(9, stopXml());
+    const next = c.send(8, downloadXml(rec.files.sub.name));
+    const firstNew = await c.waitIndex((f) => f.header.msgId === next, 3000);
+    expect(c.frames.slice(i, firstNew).filter((f) => f.header.msgId === old)).toHaveLength(13);
+    engine.faults.clear('baichuan.delayMs');
+    const r = await c.collect(next, rec.files.sub.size);
+    expect(r.data.equals(await http.download(rec.files.sub.name))).toBe(true);
+    expect(c.frames.slice(firstNew).some((f) => f.header.msgId === old)).toBe(false);
+  });
+
+  it('a cmd 8 without cmd 9: the old transfer ends 8 chunks later at a 128 KiB boundary, then the new one starts (err-second-download.txt (A))', async () => {
+    const { engine, loggedIn } = await startBc({ env: DEMO });
+    const http = await withHttp(engine);
+    const rec = engine.sd.all()[0];
+    const c = await loggedIn();
+    engine.faults.set({ name: 'baichuan.delayMs', ms: 50 });
+    const old = c.send(8, downloadXml(rec.files.main.name));
+    let i = 0;
+    for (let n = 0; n < 5; n++) i = (await c.waitIndex((f) => f.header.msgId === old, 3000, i)) + 1; // the record and one 128 KiB block
+    const next = c.send(8, downloadXml(rec.files.sub.name));
+    const firstNew = await c.waitIndex((f) => f.header.msgId === next, 5000);
+    // As traced: msgid 3 got 13 frames, 393216 bytes (three blocks).
+    expect(c.frames.slice(i, firstNew).filter((f) => f.header.msgId === old)).toHaveLength(8);
+    expect(oldChunks(c, old).reduce((n, f) => n + f.body.length, 0)).toBe(3 * 128 * 1024);
+    engine.faults.clear('baichuan.delayMs');
+    const r = await c.collect(next, rec.files.sub.size);
+    expect(r.data.equals(await http.download(rec.files.sub.name))).toBe(true);
+    expect(c.frames.slice(firstNew).some((f) => f.header.msgId === old)).toBe(false);
+  });
+
+  it('a cmd 8 replaced before its file opened still starts normally (record and chunks to a block boundary)', async () => {
+    const { engine, loggedIn } = await startBc({ env: DEMO });
+    const rec = engine.sd.all()[0];
+    const c = await loggedIn();
+    const old = c.send(8, downloadXml(rec.files.main.name));
+    const next = c.send(8, downloadXml(rec.files.sub.name)); // same tick: the old file isn't open yet
+    const r = await c.collect(next, rec.files.sub.size);
+    expect(r.data.length).toBe(rec.files.sub.size);
+    const mine = framesOf(c, old);
+    expect(mine[0].header).toMatchObject({ status: 200, payloadOffset: 106 });
+    expect(mine.length - 1).toBe(8);
+    const firstNew = c.frames.findIndex((f) => f.header.msgId === next);
+    expect(c.frames.slice(firstNew).some((f) => f.header.msgId === old)).toBe(false);
+    expect(engine.counters.baichuanDownloads).toBe(2);
+  });
+
+  it('logout cancels a chained transfer and the one it waits for', async () => {
+    const { engine, loggedIn } = await startBc({ env: DEMO });
+    const rec = engine.sd.all()[0];
+    const c = await loggedIn();
+    engine.faults.set({ name: 'baichuan.delayMs', ms: 30 });
+    const old = c.send(8, downloadXml(rec.files.main.name));
+    await c.waitIndex((f) => f.header.msgId === old && f.header.payloadOffset === 136);
+    c.send(8, downloadXml(rec.files.sub.name));
+    const bye = c.send(2, logoutXml('proxy', 'proxy-pw'));
+    const at = await c.waitIndex((f) => f.header.cmd === 2 && f.header.msgId === bye);
+    expect(await c.ended).toBe('eof');
+    expect(c.frames.slice(at + 1).filter((f) => f.header.cmd === 8)).toHaveLength(0);
+  });
+
+  it('a transfer that fails after its 200 counts as dropped and closes the connection', async () => {
+    const { engine, loggedIn } = await startBc({ env: DEMO });
+    const { name } = engine.sd.all()[0].files.sub;
+    const real = engine.mediaFor.bind(engine);
+    // The size still resolves; the open in the transfer fails.
+    engine.mediaFor = (rec) => {
+      const m = real(rec);
+      return Object.assign(Object.create(m), { clipPath: () => '/nonexistent/cam-sim-test.mp4', clipSize: (s: 'sub' | 'main') => m.clipSize(s) });
+    };
+    const c = await loggedIn();
+    c.send(8, downloadXml(name));
+    expect(['eof', 'reset']).toContain(await c.ended);
+    expect(engine.counters.baichuanDownloads).toBe(1);
+    expect(engine.counters.droppedBaichuanDownloads).toBe(1);
   });
 });

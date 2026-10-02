@@ -20,8 +20,10 @@ export interface BaichuanOptions {
 // What the server needs of a connection's running download (vod.ts).
 export interface TransferLike {
   readonly done: boolean;
-  cancel(): void; // stop at once, without a message (a new cmd 8 replaced it)
+  readonly ended: Promise<void>; // resolves when it has ended, however
+  cancel(): void; // stop at once, without a message (the connection is going)
   stop(): void; // cmd 9: the frames already in flight, then nothing
+  replace(): void; // a new cmd 8: up to a 128 KiB boundary and a little more, then nothing
 }
 
 class Conn {
@@ -180,7 +182,10 @@ export class BaichuanServer {
   }
 
   // Measured: about 32 s after the client's last message, 12.5 s for a
-  // connection that never sends. A running download keeps it open (chosen).
+  // connection that never sends. A running download keeps it open (chosen,
+  // not measured). So a reader that never reads keeps its connection and its
+  // slot of the 12 for as long as the transfer waits for drain (README "What
+  // differs").
   private armIdle(c: Conn, ms: number): void {
     clearTimeout(c.idle);
     c.idle = setTimeout(() => {
@@ -289,11 +294,14 @@ export class BaichuanServer {
     const file = resolveFile(this.engine, tagValue(this.requestXml(c, f), 'Id'));
     // Measured: a refusal and a missing file look alike: 400, no body, no chunks.
     if (this.engine.faults.consume('baichuan.refuse') || !file) return log(400, this.reply(c, 8, msgId, 400));
-    // Measured: a new cmd 8 silently replaces the running one.
-    c.transfer?.cancel();
+    // Measured: a new cmd 8 silently replaces the running one, which goes on
+    // to a block boundary (or its cmd-9 tail) first; the new one waits for it.
+    const prev = c.transfer && !c.transfer.done ? c.transfer : undefined;
+    prev?.replace();
     this.engine.counters.baichuanDownloads++;
     const socket = c.socket;
     const t = new Transfer({
+      prev,
       file,
       msgId,
       key: c.key!,
@@ -310,6 +318,8 @@ export class BaichuanServer {
     c.transfer = t;
     log(200, FIRST_REPLY_LEN);
     t.run().catch((err: Error) => {
+      // Counted as a download when it started; it ended as a dropped one.
+      this.engine.counters.droppedBaichuanDownloads++;
       this.engine.log.warn({ err: err.message }, 'baichuan_transfer_failed');
       socket.destroy();
     });
