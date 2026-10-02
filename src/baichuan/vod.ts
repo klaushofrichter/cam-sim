@@ -24,7 +24,8 @@ export const FIRST_REPLY_LEN = Buffer.byteLength(EXT_BINARY) + 32;
 
 export interface BcFile {
   path: string;
-  size: number;
+  size: number; // the stored size: the one in the name and in cmd 13; cmd 8 sends exactly this
+  mediaSize: number; // the media file's actual size (may differ, see resolveFile)
   stream: Stream;
   start: Moment;
   end: Moment;
@@ -47,12 +48,32 @@ export function timesOf(rec: Recording, stream: Stream): { start: Moment; end: M
   return { start: moment(rec.date, rec.start), end: moment(end < rec.start ? nextDay(rec.date) : rec.date, end) };
 }
 
+// Recordings whose size mismatch was logged, per engine (once per recording).
+const warned = new WeakMap<Engine, Set<string>>();
+
 // The file behind cmd 8's <Id>: exactly a name that HTTP Search lists.
+// Its size is the STORED one (the name's, cmd 13's): Baichuan has no
+// terminator, so the client stops at the size it was told. In cam2 the SD
+// index on the PVC can outlive the fixtures it was made with (they are rebuilt
+// with each image), so the media file may be larger or smaller; the transfer
+// then sends its first `size` bytes, or the file and zeros up to `size`. HTTP
+// Download instead sends the media file with its own Content-Length, which
+// keeps HTTP clients consistent; the two can differ in that case.
 export function resolveFile(e: Engine, id: string | undefined): BcFile | undefined {
   const found = id ? e.sd.byName(id) : undefined;
   if (!found) return undefined;
   const media = e.mediaFor(found.rec);
-  return { path: media.clipPath(found.stream), size: media.clipSize(found.stream), stream: found.stream, ...timesOf(found.rec, found.stream) };
+  const size = found.rec.files[found.stream].size;
+  const mediaSize = media.clipSize(found.stream);
+  if (mediaSize !== size) {
+    let seen = warned.get(e);
+    if (!seen) warned.set(e, (seen = new Set()));
+    if (!seen.has(found.rec.id)) {
+      seen.add(found.rec.id);
+      e.log.warn({ id: found.rec.id, size, actual: mediaSize }, 'baichuan_size_mismatch');
+    }
+  }
+  return { path: media.clipPath(found.stream), size, mediaSize, stream: found.stream, ...timesOf(found.rec, found.stream) };
 }
 
 // cmd 13. Measured: without <name> it reports the <Id>'s size; with <name>
@@ -169,9 +190,13 @@ export class Transfer implements TransferLike {
         }
         const ms = this.d.delayMs();
         if (ms) await sleep(ms);
+        // Zero-filled: past the end of a smaller media file the zeros go out.
         const buf = Buffer.alloc(n);
-        const { bytesRead } = await fh.read(buf, 0, n, sent);
-        if (bytesRead !== n) throw new Error('the recording file changed during a transfer');
+        const want = Math.max(0, Math.min(n, file.mediaSize - sent));
+        if (want > 0) {
+          const { bytesRead } = await fh.read(buf, 0, want, sent);
+          if (bytesRead !== want) throw new Error('the recording file changed during a transfer');
+        }
         if (!this.go()) return 'stopped';
         this.nextChunk = i + 1;
         await this.write(encodeFrame({ cmd: 8, msgId, status: 200, cls: CLS_CAMERA, ext, body: encryptChunk(key, buf, ENCRYPT_LEN) }));

@@ -8,6 +8,12 @@ import { resolveFile, timesOf } from '../../src/baichuan/vod';
 import { createCameraApp } from '../../src/camera-api/app';
 import { listen, login, rawGet } from '../helpers';
 import type { Engine } from '../../src/engine/engine';
+import { createLogger } from '../../src/log';
+import { Writable } from 'stream';
+import { randomBytes } from 'crypto';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 afterEach(closeAll);
 
@@ -361,5 +367,58 @@ describe('Baichuan recordings: replacing a transfer (Task 6 review)', () => {
     expect(['eof', 'reset']).toContain(await c.ended);
     expect(engine.counters.baichuanDownloads).toBe(1);
     expect(engine.counters.droppedBaichuanDownloads).toBe(1);
+  });
+});
+
+describe('Baichuan recordings: stored size and media size differ (final review 1)', () => {
+  // cam2: the SD index on the PVC keeps the sizes of an older image's
+  // fixtures. The name and cmd 13 announce the stored size; cmd 8 sends
+  // exactly that many bytes (Baichuan has no terminator).
+  async function mismatched(delta: number) {
+    let out = '';
+    const log = createLogger('warn', new Writable({ write(c, _e, cb) { out += c; cb(); } }));
+    const { engine, loggedIn } = await startBc({ env: DEMO, log });
+    const rec = engine.sd.all()[0];
+    const { name, size } = rec.files.sub;
+    const dir = await mkdtemp(join(tmpdir(), 'cam-sim-bc-'));
+    track(() => rm(dir, { recursive: true, force: true }));
+    const media = randomBytes(size + delta);
+    const path = join(dir, 'clip.mp4');
+    await writeFile(path, media);
+    const real = engine.mediaFor.bind(engine);
+    engine.mediaFor = (r) => Object.assign(Object.create(real(r)), { clipPath: () => path, clipSize: () => media.length });
+    const c = await loggedIn();
+    return { engine, rec, name, size, media, c, logs: () => out.trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>) };
+  }
+
+  it('media larger than the stored size: exactly the stored size arrives (its first bytes), framing intact, one warning', async () => {
+    const { rec, name, size, media, c, logs } = await mismatched(+50_000);
+    const r = await c.download(name, size);
+    await sleep(200);
+    const frames = framesOf(c, r.msgId);
+    expect(r.data.length).toBe(size);
+    expect(r.data.equals(media.subarray(0, size))).toBe(true);
+    expect(frames.slice(1).map((f) => f.body.length)).toEqual(chunkSizes(size));
+    expect(r.info).toEqual(infoRecord({ width: 896, height: 512, fps: 10, main: false, ...timesOf(rec, 'sub') }));
+    await c.download(name, size);
+    const warns = logs().filter((l) => l.msg === 'baichuan_size_mismatch');
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toMatchObject({ level: 40, id: rec.id, size, actual: media.length });
+    expect(Object.keys(warns[0]).sort()).toEqual(['actual', 'hostname', 'id', 'level', 'msg', 'pid', 'size', 'time']);
+  });
+
+  it('media smaller than the stored size: the file, then zeros up to the stored size, framing intact, one warning', async () => {
+    const { rec, name, size, media, c, logs } = await mismatched(-50_000);
+    const r = await c.download(name, size);
+    await sleep(200);
+    const frames = framesOf(c, r.msgId);
+    expect(r.data.length).toBe(size);
+    expect(r.data.subarray(0, media.length).equals(media)).toBe(true);
+    expect(r.data.subarray(media.length).equals(Buffer.alloc(size - media.length))).toBe(true);
+    expect(frames.slice(1).map((f) => f.body.length)).toEqual(chunkSizes(size));
+    await c.download(name, size);
+    const warns = logs().filter((l) => l.msg === 'baichuan_size_mismatch');
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toMatchObject({ level: 40, id: rec.id, size, actual: media.length });
   });
 });
