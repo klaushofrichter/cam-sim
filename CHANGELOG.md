@@ -7,7 +7,7 @@
   - Sessions show in `GetOnline`; the 12-connection limit, the 32 s idle close and the post-login pushes work as on the camera.
   - New faults `baichuan.refuse`, `baichuan.dropMidway`, `baichuan.delayMs`, `baichuan.loginFail` and `baichuan.sessionLimit` (`max`). `offline`, `power-off`, `reboot` and `downloads.dropActive` also act on port 9000.
   - New state counters `baichuanSessions`, `baichuanLogins`, `baichuanDownloads` and `droppedBaichuanDownloads`.
-  - The image exposes 9000.
+  - The image exposes 9000 and sets `CAMSIM_BAICHUAN_PORT=9000`. Outside the image the CLI opens a Baichuan port only when `CAMSIM_BAICHUAN_PORT` is set, so several simulators still run side by side.
   - `createCamSim().listen()` also opens a Baichuan port (a free one unless `baichuan` is named) and returns it; `CamSimOptions.baichuan` shortens the idle timeouts for tests.
   - The reolink_aio MIT notice is in `THIRD_PARTY_NOTICES`.
   - Simulator page: the Baichuan faults (with a `max` input for the session limit); counters show in the Counters card.

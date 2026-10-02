@@ -117,7 +117,7 @@ describe('createCamSim: Baichuan', () => {
     expect(pa.baichuan).toBeGreaterThan(0);
     expect(pb.baichuan).toBeGreaterThan(0);
     expect(pb.baichuan).not.toBe(pa.baichuan);
-    const c = await BcClient.connect(pa.baichuan);
+    const c = await BcClient.connect(pa.baichuan!);
     expect((await c.login('u', 'p')).header.status).toBe(200);
     c.close();
   });
@@ -127,7 +127,7 @@ describe('createCamSim: Baichuan', () => {
     const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }], seedClips: 'demo' });
     const ports = await sim.listen(ALL0, '127.0.0.1');
     sim.engine.faults.set({ name: 'baichuan.delayMs', ms: 50 });
-    const c = await BcClient.connect(ports.baichuan);
+    const c = await BcClient.connect(ports.baichuan!);
     await c.login('u', 'p');
     const id = c.send(8, downloadXml(sim.engine.sd.all()[0].files.main.name));
     await c.waitIndex((f) => f.header.msgId === id);
@@ -153,9 +153,10 @@ describe('createCamSim: Baichuan', () => {
       }
     }).length;
     const timers = () => process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
-    expect(openOnClip()).toBe(0);
+    // The previous test's transfer on the same demo clip may still be closing its file.
+    await expect.poll(openOnClip).toBe(0);
     sim.engine.faults.set({ name: 'baichuan.delayMs', ms: 20_000 });
-    const c = await BcClient.connect(ports.baichuan);
+    const c = await BcClient.connect(ports.baichuan!);
     await c.login('u', 'p');
     const before = timers();
     const id = c.send(8, downloadXml(rec.files.main.name));
@@ -175,7 +176,7 @@ describe('createCamSim: Baichuan', () => {
     const sim = await make({ baichuan: { firstMessageMs: 200, idleMs: 300 } });
     const ports = await sim.listen(ALL0, '127.0.0.1');
     const t0 = Date.now();
-    const c = await BcClient.connect(ports.baichuan);
+    const c = await BcClient.connect(ports.baichuan!);
     expect(await c.ended).toBe('eof');
     expect(Date.now() - t0).toBeLessThan(1500);
   });

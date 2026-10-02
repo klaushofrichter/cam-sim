@@ -4,7 +4,7 @@
 
 Things to know before using it:
 
-- **Two APIs.** The simulated camera API is on the camera ports: HTTPS 8443 and HTTP 8080 in the container, with RTSP 8554, ONVIF 8000 and Baichuan 9000. A client can't tell it from the real camera. The control API is `/sim/api` on port 9443 and needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`. Without that token configured, the control API answers 404.
+- **Two APIs.** The simulated camera API is on the camera ports: HTTPS 8443 and HTTP 8080 in the container, with RTSP 8554, ONVIF 8000 and Baichuan 9000 (`CAMSIM_BAICHUAN_PORT`: set it to enable Baichuan; the image sets 9000). A client can't tell it from the real camera. The control API is `/sim/api` on port 9443 and needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`. Without that token configured, the control API answers 404.
 - **Camera commands:**
   - `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON array body. The reply is an array in the same order.
   - Every JSON reply has `Content-Type: text/html`, as on the camera.

@@ -23,6 +23,7 @@ RUN set -eu; \
     && tar -xzf "$f" -C /usr/local/bin mediamtx && rm -f "$f" checksums.sha256 && mediamtx --help >/dev/null
 ENV NODE_ENV=production \
     CAMSIM_DATA_DIR=/data \
+    CAMSIM_BAICHUAN_PORT=9000 \
     CAMSIM_FIXTURE_DIR=/opt/cam-sim/fixtures
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force

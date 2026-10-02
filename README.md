@@ -127,7 +127,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
 | `CAMSIM_RTSP_PORT` | `8554` | [RTSP](#rtsp) (the camera's 554) |
 | `CAMSIM_ONVIF_PORT` | `8000` | [ONVIF](#onvif), plain HTTP like the camera |
-| `CAMSIM_BAICHUAN_PORT` | `9000` | [Baichuan](#baichuan-port-9000), the camera's own protocol (login and recordings download). In process (`createCamSim`), a free port unless `listen()` names one |
+| `CAMSIM_BAICHUAN_PORT` | unset (the image sets `9000`) | [Baichuan](#baichuan-port-9000), the camera's own protocol (login and recordings download). Set it to enable Baichuan; unset, the CLI opens no Baichuan port, so several simulators can share a host. The image sets 9000. In process (`createCamSim`), a free port unless `listen()` names one |
 | `CAMSIM_MEDIAMTX` | `mediamtx` on the PATH, then `tools/mediamtx` | the MediaMTX binary that serves RTSP; the image includes it |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |

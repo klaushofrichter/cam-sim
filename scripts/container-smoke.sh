@@ -53,7 +53,8 @@ curl -s "http://127.0.0.1:$CONTROL/" | grep -q '<div id="app">' || fail "web UI 
 docker exec "$NAME" ffprobe -v error -rtsp_transport tcp -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 \
   "rtsp://smoke:$PW@127.0.0.1:8554/h264Preview_01_sub" | grep -q h264 || fail "RTSP"
 
-# Baichuan (port 9000): the nonce exchange and a login, from inside the
+# Baichuan (port 9000, on because the image sets CAMSIM_BAICHUAN_PORT): the
+# nonce exchange and a login, from inside the
 # container with the image's own frame codec and ciphers.
 BC=$(docker exec -i -e BC_USER=smoke -e BC_PW="$PW" "$NAME" node - <<'JS'
 const net = require('net');

@@ -64,7 +64,7 @@ export interface Ports {
   control: number;
   rtsp: number;
   onvif: number;
-  baichuan: number;
+  baichuan?: number; // absent when Baichuan is off (the CLI without CAMSIM_BAICHUAN_PORT)
 }
 
 export interface CamSim {
@@ -161,8 +161,13 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
       });
       // Baichuan (the camera's port 9000): login and recordings download.
-      baichuan = new BaichuanServer(engine);
-      const baichuanPort = await baichuan.listen(p.baichuan, host);
+      // Off when the config has no port (CLI without CAMSIM_BAICHUAN_PORT) and
+      // listen() doesn't name one.
+      let baichuanPort: number | undefined;
+      if (p.baichuan != null) {
+        baichuan = new BaichuanServer(engine);
+        baichuanPort = await baichuan.listen(p.baichuan, host);
+      }
       // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
@@ -178,7 +183,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         const why = config.video ? library.select(config.video) : null;
         if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
       });
-      return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort, baichuan: baichuanPort };
+      return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort, ...(baichuanPort === undefined ? {} : { baichuan: baichuanPort }) };
     },
     async close() {
       ftp.stop();

@@ -116,8 +116,9 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...base, CAMSIM_SEED: '42' }).seed).toBe(42);
   });
 
-  it('reads CAMSIM_BAICHUAN_PORT (default 9000) and has the measured Baichuan limits', () => {
-    expect(loadConfig(base).ports.baichuan).toBe(9000);
+  it('reads CAMSIM_BAICHUAN_PORT (Baichuan off when unset) and has the measured Baichuan limits', () => {
+    expect(loadConfig(base).ports.baichuan).toBeNull();
+    expect(loadConfig({ ...base, CAMSIM_BAICHUAN_PORT: '9000' }).ports.baichuan).toBe(9000);
     expect(loadConfig({ ...base, CAMSIM_BAICHUAN_PORT: '0' }).ports.baichuan).toBe(0);
     expect(() => loadConfig({ ...base, CAMSIM_BAICHUAN_PORT: '70000' })).toThrow(/CAMSIM_BAICHUAN_PORT/);
     expect(loadConfig(base).baichuan).toEqual({ idleMs: 32_000, firstMessageMs: 12_500 });

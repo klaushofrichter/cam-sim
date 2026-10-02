@@ -30,7 +30,8 @@ export interface CamSimConfig {
   seed: number;
   tlsCertFile?: string;
   tlsKeyFile?: string;
-  ports: { https: number; http: number; control: number; rtsp: number; onvif: number; baichuan: number };
+  // baichuan null: no Baichuan listener (the CLI without CAMSIM_BAICHUAN_PORT).
+  ports: { https: number; http: number; control: number; rtsp: number; onvif: number; baichuan: number | null };
   // Baichuan idle timeouts (ms); tests shorten them.
   baichuan: { idleMs: number; firstMessageMs: number };
   logLevel: string;
@@ -184,7 +185,9 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
       control: port('CAMSIM_CONTROL_PORT', 9443),
       rtsp: port('CAMSIM_RTSP_PORT', 8554),
       onvif: port('CAMSIM_ONVIF_PORT', 8000),
-      baichuan: port('CAMSIM_BAICHUAN_PORT', 9000),
+      // Only when set: several CLI simulators on one host (cams' e2e) must not
+      // all bind 9000. The image sets 9000.
+      baichuan: env.CAMSIM_BAICHUAN_PORT === undefined ? null : port('CAMSIM_BAICHUAN_PORT', 9000),
     },
     baichuan: { idleMs: BAICHUAN_IDLE_MS, firstMessageMs: BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
