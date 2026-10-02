@@ -135,7 +135,7 @@ describe('Baichuan server: pushes after login (idle.txt)', () => {
     const t0 = Date.now();
     await c.call(93);
     await c.waitFor((f) => f.header.cmd === 669, 1000);
-    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(Date.now() - t0).toBeLessThan(500);
     const late = pushes(c).slice(4);
     expect(late.map((f) => f.header.cmd)).toEqual([291, 677, 600, 669]);
     for (const f of late) expect(c.text(f)).toBe(PUSHES.find((p) => p.cmd === f.header.cmd)!.xml);

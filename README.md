@@ -92,6 +92,8 @@ const sim = await createCamSim({
   seedClips: 'demo',
 });
 // sim.cameraApp works with supertest; sim.listen() opens real ports.
+// If sim.listen() fails (a port in use), it closes what it opened and the
+// instance is stopped: create a new one.
 sim.engine.faults.set({ name: 'downloads.refuse' });
 await sim.close();
 ```

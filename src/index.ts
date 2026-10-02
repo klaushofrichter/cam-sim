@@ -71,6 +71,8 @@ export interface CamSim {
   engine: Engine;
   cameraApp: express.Express; // the HTTP port's app, for supertest
   controlApp: express.Express;
+  // If a listener fails to bind, the ones already opened are closed and the
+  // error is rethrown; the instance is stopped then: create a new one.
   listen(ports?: Partial<Ports>, host?: string): Promise<Ports>;
   close(): Promise<void>;
 }
