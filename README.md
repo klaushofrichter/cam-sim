@@ -66,13 +66,13 @@ camera's measured behaviour.
 **Docker, one camera:**
 
 ```sh
-docker run --rm -p 8443:8443 -p 8080:8080 -p 9443:9443 -p 8554:8554 -p 8000:8000 \
+docker run --rm -p 8443:8443 -p 8080:8080 -p 9443:9443 -p 8554:8554 -p 8000:8000 -p 9000:9000 \
   -e CAMSIM_USERS='admin:admin:<password>' -e CAMSIM_CONTROL_TOKEN='<token>' \
   -v cam-sim-data:/data ghcr.io/klaushofrichter/cam-sim:latest
 ```
 
 The camera API is on 8443 (HTTPS) and 8080 (HTTP), the control API on 9443,
-RTSP on 8554 and ONVIF on 8000. Point a client at the simulator the way it would reach a real camera: by
+RTSP on 8554, ONVIF on 8000 and [Baichuan](#baichuan-port-9000) on 9000. Point a client at the simulator the way it would reach a real camera: by
 address, with the certificate checked against the camera's name.
 
 **Docker, three cameras:** `docker compose up` in this repository starts
@@ -127,6 +127,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_CONTROL_PORT` | `9443` | control API |
 | `CAMSIM_RTSP_PORT` | `8554` | [RTSP](#rtsp) (the camera's 554) |
 | `CAMSIM_ONVIF_PORT` | `8000` | [ONVIF](#onvif), plain HTTP like the camera |
+| `CAMSIM_BAICHUAN_PORT` | `9000` | [Baichuan](#baichuan-port-9000), the camera's own protocol (login and recordings download). In process (`createCamSim`), a free port unless `listen()` names one |
 | `CAMSIM_MEDIAMTX` | `mediamtx` on the PATH, then `tools/mediamtx` | the MediaMTX binary that serves RTSP; the image includes it |
 | `CAMSIM_WEB_UI` | `false` | `true` serves the [web UI](#web-ui) on the control port |
 | `CAMSIM_CONTROL_TLS` | `auto` | `auto`: TLS on the control port only with `CAMSIM_TLS_CERT_FILE`; `on`: always, with the camera's current certificate, following `ImportCertificate`; `off` |
@@ -226,6 +227,7 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 | RTMP | — | 1935 | behind `/flv`, as on the camera |
 | RTSP | 8554 | 554 | `h264Preview_01_main` / `_sub`, see [RTSP](#rtsp) |
 | ONVIF | 8000 | 8000 | device and event services (PullPoint), see [ONVIF](#onvif) |
+| Baichuan | 9000 | 9000 (`mediaPort`) | login and recordings download, see [Baichuan](#baichuan-port-9000) |
 
 `GetNetPort` reports the camera's ports, not the container's. `SetNetPort`
 switches services the way the camera does:
@@ -412,6 +414,68 @@ the camera.
 - A name that isn't on the card, including any `..` path, resets the
   connection.
 
+With `downloads.refuse` on (the real camera's state since 2026-10-01), the same
+files still download over [Baichuan](#baichuan-port-9000).
+
+### Baichuan (port 9000)
+
+The camera's own binary protocol, which the Reolink app uses. cam-sim answers
+the part cam-proxy needs: logging in and downloading a recording. On the real
+camera HTTP `Download` has been refused since 2026-10-01, while Baichuan
+downloads of the same files work; `downloads.refuse` and this port together
+reproduce that.
+
+- **Framing and ciphers**, as measured on the RLC-1224A
+  ([reference/rlc-1224a/baichuan/](reference/rlc-1224a/baichuan/README.md)):
+  - Every message starts with the magic `f0 de bc 0a`.
+  - The client sends class `14 65` (the nonce request, a 20-byte header) and
+    `14 64` (everything else).
+  - Every reply and push is class `00 00` with a 24-byte header, except the
+    nonce reply (`14 66`, 20 bytes).
+  - Replies echo the message id and the channel byte.
+  - The nonce reply, the login and the login reply are XOR-encoded;
+    everything after the login is AES-128-CFB.
+  - Download chunks encrypt only their first 1024 bytes.
+- **Login** (cmd 1) sends `md5_31(user + nonce)` and
+  `md5_31(password + nonce)`, checked against `CAMSIM_USERS`, admin and guest
+  alike:
+  - success answers 200 with `DeviceInfo`;
+  - wrong credentials answer 401 with `<remainTimes>10</remainTimes>`, and
+    the connection stays open.
+- **Commands after the login:**
+
+| cmd | Answer |
+|---|---|
+| 8, download: `<Id>` is the full name HTTP Search returns; `<name>` is optional and ignored | 200 with a 32-byte info record, then the file in chunks (39,400 B three times, then 12,872 B, repeating). Every frame carries cmd 8's message id; there is no terminator. An unknown `<Id>` answers 400 with no body |
+| 9, stop (`handle` 0) | 200, no body. 13 more chunks of the running download still arrive, then nothing |
+| 13, file info | 200 with `sizeL`/`sizeH`. With `<name>` it reports the main file's size even for a sub `<Id>`, as the camera does. A file it doesn't know answers 431 without `<name>` and 400 with it |
+| 93, LinkType | 200, `<LinkType><type>LAN</type>` |
+| 2, logout | 200, then the connection closes |
+| anything else | 405, no body; the session stays usable |
+
+- **Sessions:**
+  - There is one session per TCP connection, and a close ends it at once.
+  - HTTP `GetOnline` lists open sessions (user and address), numbered from
+    the same counter as HTTP sessions.
+  - A request before the login, or bad magic, closes the connection without
+    a reply.
+- **Limits:**
+  - 12 connections at once, counting those that never logged in. The 13th
+    is accepted, then reset at its first message.
+  - A logged-in connection closes 32 s after the client's last message; one
+    that never sends closes after 12.5 s.
+- **Pushes:** after a login, cmds 78, 79, 464, 547, 291, 677, 600 and 669
+  arrive unsolicited (message id 0), 0.04-0.5 s later. If a request comes
+  first, they arrive between it and its reply.
+- **Downloads:**
+  - One download per connection: a second cmd 8 silently replaces the first.
+  - Separate connections download in parallel, independently of HTTP
+    Download and its one-at-a-time limit.
+- **Faults** are the `baichuan.*` faults (see [Faults](#faults)):
+  - `offline`, `power-off` and `reboot` drop Baichuan connections and refuse
+    new ones;
+  - `downloads.dropActive` cuts Baichuan transfers too.
+
 ### RTSP
 
 `rtsp://<user>:<password>@<host>:8554/h264Preview_01_main` (H.265) and
@@ -550,6 +614,41 @@ the FTP schedule allows is uploaded:
   - With the [SD pipeline](#sd-pipeline) on, the **live SD stream** shows the
     name, the date and time and the watermark as set. Main, snapshots and
     recordings never do.
+- **Baichuan (port 9000):** only login, download, stop, file info, LinkType
+  and logout. Search (14/15/16), live video, events and settings answer 405,
+  where the camera answers them. The post-login pushes come once (the camera
+  sometimes repeats them about 32 s later). Where the camera's order of
+  frames differs from cam-sim's:
+  - the cmd 9 reply goes out at once, and all 13 stale frames follow it; on
+    the camera 2 of the 13 come before the reply;
+  - the group of pushes after LinkType (cmds 291, 677, 600, 669) comes after
+    the reply to the first message; the camera sends part of it before the
+    reply.
+- **Baichuan, not measured, so chosen:**
+  - a guest user logs in like an admin (the camera's `proxy` user is admin level);
+  - Baichuan transfers don't share HTTP Download's one-at-a-time limit (HTTP
+    Download is refused on the camera, so that can't be measured);
+  - a running download keeps its connection from the idle close, so a client
+    that never reads holds its slot and can use up all 12;
+  - a refused cmd 8 leaves a running download alone;
+  - the 13 chunks after cmd 9 all come after its reply, and the stop tail is
+    always 13 frames;
+  - a cmd 9 sent while a replacing download is still queued goes to the
+    queued download (it still sends its record and 12 chunks);
+  - a replaced download finishes its current 128 KiB block and 2 more (one
+    trace point);
+  - a connection marked over the limit stays so after the fault is cleared;
+  - a logout with pipelined data ends in a reset;
+  - a second login on the same connection after a 401 is accepted; cmd 1
+    after the login answers 405; a garbage login body answers 401;
+  - a nonce request moves the idle timer to 32 s;
+  - a session survives its user being deleted or changed (`DelUser`, `ModifyUser`);
+  - certificate restarts don't touch port 9000;
+  - a declared message body over 1 MiB closes the connection;
+  - the nonce is 29 hexadecimal characters (the traced length; the alphabet was redacted);
+  - the info record reports `GetEnc`'s sizes, even for the test pattern's 1280×720 main stream;
+  - `downloads.dropActive` counts one drop per Baichuan connection;
+  - `baichuan.sessionLimit` is capped at 12.
 - **Not measured on the real camera, so chosen:**
   - the error details for `-7` and `-67`;
   - the reset values of keys that were never measured;
@@ -589,7 +688,8 @@ C=http://127.0.0.1:9443/sim/api
   "counters": { "logins": 1, "loginAttempts": 1, "activeSessions": 1, "devInfoCalls": 0,
                 "activeStreams": 0, "streamsOpened": 0, "downloads": 0, "activeDownloads": 0,
                 "droppedDownloads": 0, "downloadOrder": [], "searches": 0, "setCalls": [], "reboots": 0,
-                "ftpUploads": 0, "ftpFailures": 0, "ftpDropped": 0 },
+                "ftpUploads": 0, "ftpFailures": 0, "ftpDropped": 0,
+                "baichuanSessions": 0, "baichuanLogins": 0, "baichuanDownloads": 0, "droppedBaichuanDownloads": 0 },
   "certificate": { "source": "factory", "enable": 0 },
   "settings": { "Rec": { "…": "…" }, "Isp": { "…": "…" } }
 }
@@ -598,6 +698,7 @@ C=http://127.0.0.1:9443/sim/api
 - `power` is `on`, `off` or `booting`.
 - `settings` are the running values.
 - `downloadOrder` and `setCalls` keep the latest 1000 entries.
+- `activeSessions` counts HTTP sessions; `baichuanSessions` counts the open, logged-in Baichuan connections (both show in `GetOnline`).
 
 `GET /healthz` needs no token and answers `{"ok":true}`, for probes.
 
@@ -607,12 +708,12 @@ C=http://127.0.0.1:9443/sim/api
 
 | Action | Body | Answer | Effect |
 |---|---|---|---|
-| `reboot` | `{"ms":1000,"dropsConnection":false}` (optional) | 202 | offline for `ms` (default: 1 s fast, 60 s real), then a new serial, no sessions, and the saved settings take effect. 409 `powered_off` while off |
-| `power-off` | — | 204 | the camera goes dark: every connection drops, sessions end, the recording in progress is closed, background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
+| `reboot` | `{"ms":1000,"dropsConnection":false}` (optional) | 202 | offline for `ms` (default: 1 s fast, 60 s real), then a new serial, no sessions, and the saved settings take effect. Baichuan connections drop too. 409 `powered_off` while off |
+| `power-off` | — | 204 | the camera goes dark: every connection drops (Baichuan too), sessions end, the recording in progress is closed, background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
 | `power-on` | `{"ms":1000}` (optional) | 202 | boots like a reboot (`power` is `booting`, then `on`), and background events resume. 409 `already_on` |
 | `tokens.revoke` | — | 204 | every session ends |
 | `flv.dropActive` | — | 204 | open live streams are cut |
-| `downloads.dropActive` | — | 204 | downloads in flight are cut |
+| `downloads.dropActive` | — | 204 | downloads in flight are cut, HTTP and Baichuan (their connections close) |
 | `clear` | — | 204 | a known, empty content: recordings, the recent event list and counters are cleared; settings, the certificate and sessions stay |
 | `factory-reset` | `{"ms":1000}` (optional) | 202 | the factory state: settings, faults, the video (test pattern), the certificate (the factory self-signed one) and the content are reset, waiting FTP uploads are dropped, then a reboot (sessions and ONVIF subscriptions end). 409 while off or booting |
 
@@ -675,18 +776,25 @@ matching requests.
 | `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error |
 | `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing |
 | `settings.strictPartial` | | a partial Set's resets show at once, not after a reboot |
-| `offline` | | every camera connection is destroyed (the camera stays powered) |
+| `offline` | | every camera connection is destroyed, Baichuan included (the camera stays powered) |
 | `latencyMs` | `ms` | delay every camera request |
 | `snap.fail` | | Snap answers 500 |
 | `ftp.fail` | `count` optional | FTP uploads and `TestFtp` fail (`-454`) |
 | `ftp.delayMs` | `ms` | wait before each FTP upload |
 | `rtsp.refuse` | | RTSP refuses new readers; connected ones keep watching |
 | `rtsp.reset` | | RTSP cuts connected readers and refuses new ones |
+| `baichuan.refuse` | `count` optional | Baichuan cmd 8 answers 400 with no body and no chunks (like a missing file) |
+| `baichuan.dropMidway` | | the Baichuan connection closes halfway through a download |
+| `baichuan.delayMs` | `ms` | wait this long before each Baichuan chunk (a slow transfer) |
+| `baichuan.loginFail` | `count` optional | Baichuan logins answer 401 with `remainTimes` 10 |
+| `baichuan.sessionLimit` | `max` | at most `max` Baichuan connections at once instead of 12; one more is accepted, then reset at its first message |
 
 ```sh
 ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'
 ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
 ```
+
+`downloads.refuse` stays the HTTP fault: with it on, HTTP Download resets while Baichuan downloads work, as on the real camera since 2026-10-01.
 
 ### Videos
 
@@ -738,7 +846,7 @@ ctl -X DELETE $C/pipeline
   all five.
 - `GET /sim/api/requests?limit=100` lists recent camera API requests: time,
   port, method, path **without the query**, command, status and duration.
-  Tokens and passwords never appear.
+  Tokens and passwords never appear. Baichuan messages show as port `baichuan`, method `BC`, the cmd number, the status and the body lengths (`len`, `replyLen`), never a body.
 - `GET /sim/api/stream` is Server-Sent Events: `state` (sent first, then on
   every change), `event`, `request`, `fault`, `ftp` and `video`, each with
   an `id:`.

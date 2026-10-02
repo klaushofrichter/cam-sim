@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Baichuan server on the camera's TCP port 9000 (`CAMSIM_BAICHUAN_PORT`), as measured on the RLC-1224A (`reference/rlc-1224a/baichuan/`):
+  - Commands: login (cmd 1); download (8, the file byte-equal to HTTP `Download`); stop (9); file info (13); LinkType (93); logout (2).
+  - Sessions show in `GetOnline`; the 12-connection limit, the 32 s idle close and the post-login pushes work as on the camera.
+  - New faults `baichuan.refuse`, `baichuan.dropMidway`, `baichuan.delayMs`, `baichuan.loginFail` and `baichuan.sessionLimit` (`max`). `offline`, `power-off`, `reboot` and `downloads.dropActive` also act on port 9000.
+  - New state counters `baichuanSessions`, `baichuanLogins`, `baichuanDownloads` and `droppedBaichuanDownloads`.
+  - The image exposes 9000.
+  - `createCamSim().listen()` also opens a Baichuan port (a free one unless `baichuan` is named) and returns it; `CamSimOptions.baichuan` shortens the idle timeouts for tests.
+  - The reolink_aio MIT notice is in `THIRD_PARTY_NOTICES`.
+  - Simulator page: the Baichuan faults (with a `max` input for the session limit); counters show in the Counters card.
+
 ## v2026.10.01.1
 
 - FLV sub goes back to the looped video at once when the SD pipeline switches off; a client that had joined mid keyframe group paused for up to 4 s.

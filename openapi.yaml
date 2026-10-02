@@ -25,11 +25,12 @@ components:
       properties:
         name:
           type: string
-          enum: [downloads.refuse, downloads.dropFirst, downloads.dropMidway, downloads.delayMs, flv.reset, flv.delayMs, search.delayMs, settings.fail, settings.ignore, settings.strictPartial, offline, latencyMs, snap.fail, ftp.fail, ftp.delayMs, rtsp.refuse, rtsp.reset]
+          enum: [downloads.refuse, downloads.dropFirst, downloads.dropMidway, downloads.delayMs, flv.reset, flv.delayMs, search.delayMs, settings.fail, settings.ignore, settings.strictPartial, offline, latencyMs, snap.fail, ftp.fail, ftp.delayMs, rtsp.refuse, rtsp.reset, baichuan.refuse, baichuan.dropMidway, baichuan.delayMs, baichuan.loginFail, baichuan.sessionLimit]
         count: { type: integer, minimum: 1, description: on for the next N matching requests only }
         ms: { type: integer, minimum: 0 }
         cmds: { type: array, items: { type: string } }
         rspCode: { type: integer }
+        max: { type: integer, minimum: 1, description: 'baichuan.sessionLimit only: Baichuan connections at once (the camera allows 12)' }
     SeedClip:
       type: object
       required: [daysAgo, start, end, triggers]
@@ -74,7 +75,7 @@ paths:
         '200': { description: '{ loggedIn: boolean }' }
   /sim/api/state:
     get:
-      summary: 'Identity, faults, recent events, SD card, counters, running settings, the SD pipeline ({on:false[, error]} or {on:true, until, running}) and pipelineMaxMin (CAMSIM_PIPELINE_MAX_MIN)'
+      summary: 'Identity, faults, recent events, SD card, counters (including baichuanSessions open now, baichuanLogins, baichuanDownloads, droppedBaichuanDownloads), running settings, the SD pipeline ({on:false[, error]} or {on:true, until, running}) and pipelineMaxMin (CAMSIM_PIPELINE_MAX_MIN)'
       responses:
         '200': { description: state }
         '401': { description: missing or wrong token }
@@ -214,6 +215,7 @@ paths:
       summary: >
         One-shot action. reboot takes {ms, dropsConnection}; power-on takes {ms} (boot time).
         power-off drops every connection and ends sessions until power-on.
+        reboot and power-off also drop Baichuan (port 9000) connections; downloads.dropActive also cuts Baichuan transfers.
         clear empties recordings, the event list and counters (settings, certificate and sessions stay).
         factory-reset returns settings, faults, video, certificate and content to the factory state,
         drops waiting FTP uploads, then reboots (takes {ms}); 409 while not on.
@@ -311,7 +313,7 @@ paths:
         '200': { description: users }
   /sim/api/requests:
     get:
-      summary: Recent camera API requests (no query strings, no secrets)
+      summary: 'Recent camera API requests (no query strings, no secrets); Baichuan messages have port baichuan, method BC, the cmd number, status and the body lengths len and replyLen'
       parameters:
         - { name: limit, in: query, schema: { type: integer, maximum: 500 } }
       responses:

@@ -5,7 +5,7 @@
   import { simState, feed, type RequestRecord } from '../lib/state';
 
   // The faults of src/engine/faults.ts, with the parameters each takes.
-  const FAULTS: Array<{ name: string; label: string; params: Array<'ms' | 'count' | 'cmds' | 'rspCode'> }> = [
+  const FAULTS: Array<{ name: string; label: string; params: Array<'ms' | 'count' | 'cmds' | 'rspCode' | 'max'> }> = [
     { name: 'downloads.refuse', label: 'Every Download resets (like the real camera since 2026-09-26)', params: [] },
     { name: 'downloads.dropFirst', label: 'The next N Downloads reset', params: ['count'] },
     { name: 'downloads.dropMidway', label: 'Download bodies are cut part-way', params: [] },
@@ -23,9 +23,14 @@
     { name: 'ftp.delayMs', label: 'Wait before each FTP upload', params: ['ms'] },
     { name: 'rtsp.refuse', label: 'RTSP refuses new readers', params: [] },
     { name: 'rtsp.reset', label: 'RTSP cuts connected readers and refuses new ones', params: [] },
+    { name: 'baichuan.refuse', label: 'Baichuan downloads (cmd 8) answer 400, no chunks', params: [] },
+    { name: 'baichuan.dropMidway', label: 'Baichuan downloads: the connection closes halfway', params: [] },
+    { name: 'baichuan.delayMs', label: 'Wait before each Baichuan chunk', params: ['ms'] },
+    { name: 'baichuan.loginFail', label: 'Baichuan logins answer 401 (remainTimes 10)', params: ['count'] },
+    { name: 'baichuan.sessionLimit', label: 'At most N Baichuan connections (the camera allows 12)', params: ['max'] },
   ];
-  let params = $state<Record<string, { ms: number; count: number; cmds: string; rspCode: number }>>(
-    Object.fromEntries(FAULTS.map((f) => [f.name, { ms: 1000, count: 1, cmds: 'SetWhiteLed', rspCode: -67 }])),
+  let params = $state<Record<string, { ms: number; count: number; cmds: string; rspCode: number; max: number }>>(
+    Object.fromEntries(FAULTS.map((f) => [f.name, { ms: 1000, count: 1, cmds: 'SetWhiteLed', rspCode: -67, max: 2 }])),
   );
   let message = $state('');
   let bootMs = $state(1000);
@@ -58,6 +63,7 @@
     if (f.params.includes('count')) body.count = Number(p.count);
     if (f.params.includes('cmds')) body.cmds = p.cmds.split(',').map((s) => s.trim()).filter(Boolean);
     if (f.params.includes('rspCode')) body.rspCode = Number(p.rspCode);
+    if (f.params.includes('max')) body.max = Number(p.max);
     return run(`${f.name} on`, () => api('PUT', `/faults/${f.name}`, body));
   }
 
@@ -148,12 +154,13 @@
           {@const on = active(f.name)}
           <li data-testid="fault-{f.name}" class:on>
             <label class="switch"><input type="checkbox" checked={!!on} onchange={(e) => void toggle(f, e.currentTarget)} data-testid="fault-toggle" /> <span class="mono">{f.name}</span></label>
-            <span class="desc">{f.label}{#if on?.count !== undefined} · {on.count} left{/if}</span>
+            <span class="desc">{f.label}{#if on?.count !== undefined} · {on.count} left{/if}{#if on?.max !== undefined} · max {on.max}{/if}</span>
             <span class="params">
               {#if f.params.includes('ms')}<input type="number" min="0" bind:value={params[f.name].ms} disabled={!!on} aria-label="{f.name} ms" /> ms{/if}
               {#if f.params.includes('count')}<input type="number" min="1" bind:value={params[f.name].count} disabled={!!on} aria-label="{f.name} count" /> times{/if}
               {#if f.params.includes('cmds')}<input class="cmds" bind:value={params[f.name].cmds} disabled={!!on} aria-label="{f.name} commands" />{/if}
               {#if f.params.includes('rspCode')}<input type="number" bind:value={params[f.name].rspCode} disabled={!!on} aria-label="{f.name} rspCode" />{/if}
+              {#if f.params.includes('max')}<input type="number" min="1" bind:value={params[f.name].max} disabled={!!on} aria-label="{f.name} max" /> connections{/if}
             </span>
           </li>
         {/each}
@@ -166,7 +173,7 @@
       <div class="buttons col">
         <button onclick={() => void run('Sessions revoked', () => api('POST', '/actions/tokens.revoke'))}>Revoke all camera sessions</button>
         <button onclick={() => void run('Live streams dropped', () => api('POST', '/actions/flv.dropActive'))}>Drop live streams</button>
-        <button onclick={() => void run('Downloads dropped', () => api('POST', '/actions/downloads.dropActive'))}>Drop downloads in flight</button>
+        <button onclick={() => void run('Downloads dropped', () => api('POST', '/actions/downloads.dropActive'))}>Drop downloads in flight (HTTP and Baichuan)</button>
       </div>
       <h3>Reset</h3>
       <div class="buttons">

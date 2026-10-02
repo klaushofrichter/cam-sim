@@ -10,7 +10,7 @@ export interface SimState {
   offline: boolean;
   power: 'on' | 'off' | 'booting';
   rebooting: boolean;
-  faults: Array<{ name: string; count?: number; ms?: number; cmds?: string[]; rspCode?: number }>;
+  faults: Array<{ name: string; count?: number; ms?: number; cmds?: string[]; rspCode?: number; max?: number }>;
   events: Array<{ at: string; type: string; durationS: number; recordingId: string | null }>;
   sd: { usedMb: number; capacityMb: number; recordings: number };
   counters: Record<string, number | string[]>;

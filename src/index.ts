@@ -160,10 +160,10 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         o.once('error', reject);
         o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
       });
-      // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
       // Baichuan (the camera's port 9000): login and recordings download.
       baichuan = new BaichuanServer(engine);
       const baichuanPort = await baichuan.listen(p.baichuan, host);
+      // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
       // The optional SD pipeline (off until switched on; spec 2026-09-29).
