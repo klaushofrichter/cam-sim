@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createCamSim, configFromOptions, DEMO_CLIPS, type CamSim } from '../src/index';
 import { post, login } from './helpers';
 import { BcClient, downloadXml } from './baichuan/client';
+import { fstatSync, readdirSync, statSync } from 'fs';
 
 const sims: CamSim[] = [];
 afterEach(async () => {
@@ -134,6 +135,40 @@ describe('createCamSim: Baichuan', () => {
     await sim.close();
     expect(Date.now() - t0).toBeLessThan(3000);
     expect(['eof', 'reset']).toContain(await c.ended);
+  });
+
+  // Final review 3: the baichuan.delayMs wait is cancellable and unref'd.
+  it('close() during a 20 s baichuan.delayMs wait returns promptly and leaves no open file and no timer', async () => {
+    const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }], seedClips: 'demo' });
+    const ports = await sim.listen(ALL0, '127.0.0.1');
+    const rec = sim.engine.sd.all()[0];
+    const clip = statSync(sim.engine.mediaFor(rec).clipPath('main'));
+    // File descriptors of this process open on the clip (/dev/fd on macOS and Linux).
+    const openOnClip = () => readdirSync('/dev/fd').filter((fd) => {
+      try {
+        const st = fstatSync(Number(fd));
+        return st.ino === clip.ino && st.dev === clip.dev;
+      } catch {
+        return false;
+      }
+    }).length;
+    const timers = () => process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
+    expect(openOnClip()).toBe(0);
+    sim.engine.faults.set({ name: 'baichuan.delayMs', ms: 20_000 });
+    const c = await BcClient.connect(ports.baichuan);
+    await c.login('u', 'p');
+    const before = timers();
+    const id = c.send(8, downloadXml(rec.files.main.name));
+    await c.waitIndex((f) => f.header.msgId === id); // the record; the first chunk waits 20 s
+    await new Promise((r) => setTimeout(r, 50));
+    expect(openOnClip()).toBe(1);
+    const t0 = Date.now();
+    await sim.close();
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(['eof', 'reset']).toContain(await c.ended);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(openOnClip()).toBe(0);
+    expect(timers()).toBeLessThanOrEqual(before);
   });
 
   it('takes shorter Baichuan idle times for tests (CamSimOptions.baichuan)', async () => {

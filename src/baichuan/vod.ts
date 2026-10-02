@@ -105,8 +105,6 @@ export interface TransferDeps {
   prev?: TransferLike; // a transfer this one replaced: it starts once that one ends
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 // One cmd-8 transfer. Every frame echoes cmd 8's message id; there is no
 // terminator. It reads one chunk at a time and waits for the socket to drain,
 // so a slow reader slows it down instead of growing a buffer.
@@ -119,6 +117,7 @@ export class Transfer implements TransferLike {
   private recordSent = false;
   private nextChunk = 0; // index of the next chunk to go out
   private prev?: TransferLike; // dropped once it has ended
+  private wake?: () => void; // ends a running baichuan.delayMs wait
 
   constructor(private readonly d: TransferDeps) {
     this.ended = new Promise((r) => (this.endedResolve = r));
@@ -129,6 +128,7 @@ export class Transfer implements TransferLike {
   // transfer this one waits for.
   cancel(): void {
     this.cancelled = true;
+    this.wake?.();
     this.prev?.cancel();
   }
 
@@ -166,6 +166,22 @@ export class Transfer implements TransferLike {
     return true;
   }
 
+  // The baichuan.delayMs wait: unref'd, and cancel() (a drop, logout or
+  // close()) ends it at once, so neither the timer nor the open file outlives
+  // the connection.
+  private sleep(ms: number): Promise<void> {
+    if (this.cancelled) return Promise.resolve();
+    return new Promise((resolve) => {
+      const t = setTimeout(() => this.wake?.(), ms);
+      t.unref();
+      this.wake = () => {
+        clearTimeout(t);
+        this.wake = undefined;
+        resolve();
+      };
+    });
+  }
+
   private async write(frame: Buffer): Promise<void> {
     if (!this.d.write(frame) && this.d.alive()) await this.d.drained();
   }
@@ -189,7 +205,7 @@ export class Transfer implements TransferLike {
           return 'dropped';
         }
         const ms = this.d.delayMs();
-        if (ms) await sleep(ms);
+        if (ms) await this.sleep(ms);
         // Zero-filled: past the end of a smaller media file the zeros go out.
         const buf = Buffer.alloc(n);
         const want = Math.max(0, Math.min(n, file.mediaSize - sent));
