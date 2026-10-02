@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { TOKEN } from './env';
-import { signIn } from './helpers';
+import type { Page } from '@playwright/test';
+
+// This project has no saved session: these sign in through the form.
+async function signIn(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('token-input').fill(TOKEN);
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('shell')).toBeVisible();
+}
 
 test('a wrong token shows an error; the right one opens the app', async ({ page }) => {
   await page.goto('/');

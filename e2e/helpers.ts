@@ -1,10 +1,10 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 import { TOKEN, CAM_PORT, CAM_USER, CAM_PASSWORD } from './env';
 
+// The session comes from storageState (auth.setup.ts); this opens the app and
+// checks it is signed in. login.spec.ts signs in through the form itself.
 export async function signIn(page: Page): Promise<void> {
   await page.goto('/');
-  await page.getByTestId('token-input').fill(TOKEN);
-  await page.getByTestId('login-submit').click();
   await expect(page.getByTestId('shell')).toBeVisible();
 }
 
