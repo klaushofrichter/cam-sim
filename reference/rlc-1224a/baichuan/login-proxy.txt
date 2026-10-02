@@ -1,0 +1,256 @@
+# login-proxy.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# Login as proxy (the cam-proxy user; level admin on this camera).
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   Login as 'proxy' on a fresh TCP connection, then GetOnline over HTTP, then logout (cmd 2) and close.
+   0.002  TCP connect <camera>:9000 ok (2 ms)
+   0.002  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.005  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <Encryption version="1.1">
+    <type>md5</type>
+    <nonce>REDACTED</nonce>
+    <authTypeList>
+    <authType>password</authType>
+    <authType>sigV1</authType>
+    <authType>authLogin</authType>
+    <authType>getAccesskey</authType>
+    </authTypeList>
+    </Encryption>
+    </body>
+   0.005  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LoginUser version="1.1">
+    <userName>REDACTED-USER-HASH</userName>
+    <password>REDACTED</password>
+    <userVer>1</userVer>
+    </LoginUser>
+    <LoginNet version="1.1">
+    <type>LAN</type>
+    <udpPort>0</udpPort>
+    </LoginNet>
+    </body>
+   0.032  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <DeviceInfo version="1.1">
+    <firmVersion>96605164208128</firmVersion>
+    <IOInputPortNum>0</IOInputPortNum>
+    <IOOutputPortNum>0</IOOutputPortNum>
+    <diskNum>1</diskNum>
+    <type>ipc</type>
+    <detailType></detailType>
+    <channelNum>1</channelNum>
+    <audioNum>1</audioNum>
+    <ipChannel>0</ipChannel>
+    <analogChnNum>1</analogChnNum>
+    <resolution>
+    <resolutionName>4512*2512</resolutionName>
+    <width>4512</width>
+    <height>2512</height>
+    </resolution>
+    <secretCode>REDACTED</secretCode>
+    <bootSecret>REDACTED</bootSecret>
+    <language>English</language>
+    <sdCard>1</sdCard>
+    <ptzMode>none</ptzMode>
+    <typeInfo>IPC</typeInfo>
+    <softVer>50463321</softVer>
+    <hardVer>0</hardVer>
+    <panelVer>0</panelVer>
+    <hdChannel1>0</hdChannel1>
+    <hdChannel2>0</hdChannel2>
+    <hdChannel3>0</hdChannel3>
+    <hdChannel4>0</hdChannel4>
+    <norm>NTSC</norm>
+    <osdFormat>MDY</osdFormat>
+    <B485>0</B485>
+    <supportAutoUpdate>0</supportAutoUpdate>
+    <userVer>1</userVer>
+    <FrameworkVer>1</FrameworkVer>
+    <authMode>0</authMode>
+    <sleep>0</sleep>
+    <feature>3</feature>
+    </DeviceInfo>
+    <StreamInfoList version="1.1">
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>4512</width>
+    <height>2512</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>20</defaultFramerate>
+    <defaultBitrate>8192</defaultBitrate>
+    <framerateTable>20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>3072,4096,5120,6144,7168,8192,9216,10240</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>896</width>
+    <height>512</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>1024</defaultBitrate>
+    <framerateTable>20,15,10,7,4</framerateTable>
+    <bitrateTable>128,256,384,512,768,1024,1228</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>3840</width>
+    <height>2160</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>20</defaultFramerate>
+    <defaultBitrate>8192</defaultBitrate>
+    <framerateTable>20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>3072,4096,5120,6144,7168,8192,9216,10240</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>896</width>
+    <height>512</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>1024</defaultBitrate>
+    <framerateTable>20,15,10,7,4</framerateTable>
+    <bitrateTable>128,256,384,512,768,1024,1228</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>2560</width>
+    <height>1440</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>20</defaultFramerate>
+    <defaultBitrate>8192</defaultBitrate>
+    <framerateTable>20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>3072,4096,5120,6144,7168,8192,9216,10240</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>896</width>
+    <height>512</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>1024</defaultBitrate>
+    <framerateTable>20,15,10,7,4</framerateTable>
+    <bitrateTable>128,256,384,512,768,1024,1228</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>2304</width>
+    <height>1296</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>20</defaultFramerate>
+    <defaultBitrate>8192</defaultBitrate>
+    <framerateTable>20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>3072,4096,5120,6144,7168,8192,9216,10240</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>896</width>
+    <height>512</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <videoEncTypeList>
+    <videoEncType>1</videoEncType>
+    <videoEncType>0</videoEncType>
+    </videoEncTypeList>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>1024</defaultBitrate>
+    <framerateTable>20,15,10,7,4</framerateTable>
+    <bitrateTable>128,256,384,512,768,1024,1228</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    </StreamInfoList>
+    </body>
+#   login round trip 31 ms
+#   HTTP GetOnline while the Baichuan session is open: [["proxy", "<pi>", 33], ["proxy", "<pi>", 35], ["proxy", "<pi>", 36], ["cams", "<cluster>", 37], ["admin", "<this host>", 39], ["proxy", "<this host>", 41]]
+   0.174  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=188 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LoginUser version="1.1">
+    <userName>proxy</userName>
+    <password>REDACTED</password>
+    <userVer>1</userVer>
+    </LoginUser>
+    </body>
+   0.174  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <VideoInput version="1.1">
+    <channelId>0</channelId>
+    <bright>128</bright>
+    <contrast>128</contrast>
+    <saturation>128</saturation>
+    <hue>128</hue>
+    </VideoInput>
+    </body>
+   0.174  <- after logout: frame cmd 79
+   0.175  TCP close

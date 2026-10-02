@@ -1,0 +1,153 @@
+# idle.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# Idle timeout of a logged-in session and of a bare TCP connection; keep-alive with cmd 93. Push XML kept here.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   Idle timeout: (A) a logged-in session (proxy) that sends nothing after login, and (B) a bare TCP connection that never sends a byte. Watch up to 630 s; every frame the camera pushes to A is logged.
+   0.005  TCP connect <camera>:9000 ok (5 ms)
+   0.005  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.010  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.010  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.048  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.049  B: bare TCP connect ok
+   0.349  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <VideoInput version="1.1">
+    <channelId>0</channelId>
+    <bright>128</bright>
+    <contrast>128</contrast>
+    <saturation>128</saturation>
+    <hue>128</hue>
+    </VideoInput>
+    </body>
+   0.350  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <Serial version="1.1">
+    <channelId>0</channelId>
+    <baudRate>9600</baudRate>
+    <dataBit>CS8</dataBit>
+    <stopBit>1</stopBit>
+    <parity>none</parity>
+    <flowControl>none</flowControl>
+    <controlProtocol>PELCO_D</controlProtocol>
+    <controlAddress>1</controlAddress>
+    </Serial>
+    </body>
+   0.449  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <NetInfo version="1.1">
+    <net_type>wire</net_type>
+    <signal>100</signal>
+    </NetInfo>
+    </body>
+   0.450  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <SirenStatusList version="1.1" />
+    </body>
+  12.509  B <- closed by camera after 12.5 s
+  32.514  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FloodlightStatusList version="1.1">
+    <FloodlightStatus>
+    <channel>0</channel>
+    <status>0</status>
+    <brightness>100</brightness>
+    </FloodlightStatus>
+    </FloodlightStatusList>
+    </body>
+  32.515  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <ioStatus version="1.1">
+    <statusList>
+    <channel>0</channel>
+    </statusList>
+    </ioStatus>
+    </body>
+  32.515  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <yoloWorldEventList version="1.1" />
+    </body>
+  32.515  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <AiModelList version="1.1">
+    <AiModelItem>
+    <name>clip</name>
+    <version>1</version>
+    </AiModelItem>
+    </AiModelList>
+    </body>
+  32.515  A <- eof after 32.5 s idle
+#   A: dropped after 32.4657928943634 s; pushes received: 8. B: dropped after 12.459879875183105 s. (None = still open at 630 s)
+  32.515  TCP close
+
+#   Does a client message reset the idle timer? Session A (proxy) sends cmd 93 (LinkType, empty body; reolink_aio uses it as its keep-alive) at 20 s and 40 s after login, then nothing. Session B (proxy) sends nothing but a cmd 93 at 20 s... no: B sends cmd 4000 (unknown, answered 405) at 20 s, then nothing.
+   0.003  TCP connect <camera>:9000 ok (3 ms)
+   0.003  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.005  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.005  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.031  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.032  TCP connect <camera>:9000 ok (1 ms)
+   0.032  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.039  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.039  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.059  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.059  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+   0.989  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+   0.990  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+   1.049  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+   1.050  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+  20.203  -> cmd 93 (A: LinkType keep-alive) hdr[24]=[f0 de bc 0a 5d 00 00 00 00 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=0 payloadOffset=0 enc=aes
+  20.203  -> cmd 4000 (B: unknown cmd) hdr[24]=[f0 de bc 0a a0 0f 00 00 00 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=0 payloadOffset=0 enc=aes
+  20.206  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+  20.206  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+  20.206  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+  20.206  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+  20.206  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+  20.206  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+  20.207  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+  20.207  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+  20.207  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+  20.207  <- cmd 4000 hdr[24]=[f0 de bc 0a a0 0f 00 00 00 00 00 00 fa 03 00 00 95 01 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=405 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+  20.207  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+  20.207  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+  20.207  <- cmd 93 hdr[24]=[f0 de bc 0a 5d 00 00 00 6d 00 00 00 fa 03 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=200 len=109 payloadOffset=0 ext=0B(none) body=109B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LinkType version="1.1">
+    <type>LAN</type>
+    </LinkType>
+    </body>
+  40.354  -> cmd 93 (A: LinkType keep-alive) hdr[24]=[f0 de bc 0a 5d 00 00 00 00 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=0 payloadOffset=0 enc=aes
+  40.356  <- cmd 93 hdr[24]=[f0 de bc 0a 5d 00 00 00 6d 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=109 payloadOffset=0 ext=0B(none) body=109B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LinkType version="1.1">
+    <type>LAN</type>
+    </LinkType>
+    </body>
+  52.289  B <- eof at 52.2 s after login
+  72.358  A <- eof at 72.3 s after login
+#   drop times after login: {'B': 52.22976088523865, 'A': 72.32693481445312}
+  72.358  TCP close
+  72.358  TCP close
