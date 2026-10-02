@@ -122,8 +122,17 @@ describe('UI fixes from the final review', () => {
 
   it('rate-limits login attempts', async () => {
     const { ctl } = await setup();
+    // Issue #57 saw 401 instead of 429: keep every answer, to see which attempt
+    // was not counted and what the last one said.
+    const seen: string[] = [];
     let last = 0;
-    for (let i = 0; i < 21; i++) last = (await request(ctl).post('/sim/login').send({ token: 'wrong' })).status;
-    expect(last).toBe(429);
+    let lastBody = '';
+    for (let i = 0; i < 21; i++) {
+      const res = await request(ctl).post('/sim/login').send({ token: 'wrong' });
+      last = res.status;
+      lastBody = res.text;
+      seen.push(`${res.status}${res.headers['ratelimit-remaining'] ? `(left ${res.headers['ratelimit-remaining']})` : ''}`);
+    }
+    expect(last, `statuses ${seen.join(' ')}; last body ${JSON.stringify(lastBody.slice(0, 200))}`).toBe(429);
   });
 });

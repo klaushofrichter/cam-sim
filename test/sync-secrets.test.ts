@@ -94,7 +94,9 @@ describe('sync-secrets.sh', () => {
     expect(file).toContain('CAMSIM_CONTROL_TOKEN=');
     expect(file).toContain('CAMSIM_USERS=');
     expect(file).not.toContain('REOLINK_PASSWORD');
-    expect(file).not.toContain('PAT');
+    // The key names, not the substring: the generated token is random and
+    // contained "PAT" now and then (1 of 30 runs).
+    expect(file).not.toMatch(/GITHUB_PAT|KUBE_SETUP_PAT|ghp_/);
   });
 
   it('--gh-login ignores CAMSIM_GITHUB_PAT', () => {

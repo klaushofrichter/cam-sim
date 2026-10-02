@@ -32,6 +32,10 @@ export interface Ctx {
   token: string;
   req: Request;
   res: Response;
+  // Runs right before the reply is sent, once the whole request has been
+  // handled. Not 'finish': that event can come after the client has the reply,
+  // so a client reading the state straight away would race it.
+  beforeReply: (fn: () => void) => void;
 }
 
 // A handler returns the reply entry, or 'destroyed' when it dropped the
@@ -39,6 +43,10 @@ export interface Ctx {
 type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// First two characters, `**`, last two. Names under 5 characters are left
+// as they are (the camera's mask for them is not measured).
+export const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
+
 const getter = (key: string, pick: (e: Engine, p: any) => unknown): Handler => (c) => ok(c.cmd, { [key]: pick(c.engine, c.param) });
 
 const HANDLERS: Record<string, Handler> = {
@@ -78,7 +86,12 @@ const HANDLERS: Record<string, Handler> = {
   GetIrLights: (c) => ok(c.cmd, { IrLights: c.engine.settings.get('IrLights') }, IR_LIGHTS_EXTRA),
   GetWhiteLed: getter('WhiteLed', (e) => e.settings.get('WhiteLed')),
   GetOsd: getter('Osd', (e) => e.settings.get('Osd')),
-  GetFtpV20: getter('Ftp', (e) => e.settings.get('Ftp')),
+  // The real camera masks the FTP user in its answer (measured on the Pi,
+  // 2026-10-02: `camera` -> `ca**ra`). Set and TestFtp keep the full name.
+  GetFtpV20: getter('Ftp', (e) => {
+    const ftp = e.settings.get('Ftp');
+    return { ...ftp, userName: maskFtpUser(String(ftp.userName ?? '')) };
+  }),
   GetMdState: (c) => ok(c.cmd, c.engine.events.mdState()),
   GetAiState: (c) => ok(c.cmd, c.engine.events.aiState()),
   Search: async (c) => {
@@ -124,17 +137,17 @@ const HANDLERS: Record<string, Handler> = {
   },
   GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certificate.enable, keyName: 'server.key' } }),
   CertificateClear: (c) => {
-    c.res.on('finish', () => c.engine.clearCertificate());
+    c.beforeReply(() => c.engine.clearCertificate());
     return ok(c.cmd, { rspCode: 200 });
   },
   ImportCertificate: (c) => {
     const ic = c.param?.importCertificate ?? {};
     const pem = (x: any) => (typeof x?.content === 'string' ? Buffer.from(x.content, 'base64').toString('utf8') : '');
     const cert = pem(ic.crt), key = pem(ic.key);
-    // Validate now, apply after the reply is sent (the web server restarts).
+    // Validate now, apply when the reply goes out (the web server restarts).
     if (c.engine.certificate.enable === 1) return ok(c.cmd, { rspCode: 200 });
     if (!validPair(cert, key)) return fail(c.cmd, -4);
-    c.res.on('finish', () => c.engine.importCertificate(cert, key));
+    c.beforeReply(() => c.engine.importCertificate(cert, key));
     return ok(c.cmd, { rspCode: 200 });
   },
   Reboot: (c) => {

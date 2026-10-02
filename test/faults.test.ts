@@ -96,8 +96,8 @@ describe('Counters', () => {
 
   it('resets the Baichuan history but not the open Baichuan sessions', () => {
     const c = new Counters();
-    Object.assign(c, { baichuanSessions: 2, baichuanLogins: 3, baichuanDownloads: 4, droppedBaichuanDownloads: 1 });
+    Object.assign(c, { baichuanSessions: 2, baichuanLogins: 3, baichuanDownloads: 4, baichuanStops: 5, droppedBaichuanDownloads: 1 });
     c.reset();
-    expect(c.snapshot()).toMatchObject({ baichuanSessions: 2, baichuanLogins: 0, baichuanDownloads: 0, droppedBaichuanDownloads: 0 });
+    expect(c.snapshot()).toMatchObject({ baichuanSessions: 2, baichuanLogins: 0, baichuanDownloads: 0, baichuanStops: 0, droppedBaichuanDownloads: 0 });
   });
 });
