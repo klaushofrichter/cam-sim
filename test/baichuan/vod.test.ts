@@ -11,7 +11,7 @@ import type { Engine } from '../../src/engine/engine';
 import { createLogger } from '../../src/log';
 import { Writable } from 'stream';
 import { randomBytes } from 'crypto';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdtemp, open, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -244,15 +244,41 @@ describe('Baichuan recordings: faults and device actions', () => {
 });
 
 describe('Baichuan recordings: backpressure', () => {
-  // The main fixture (about 2.3 MB) is larger than the loopback buffers on
-  // macOS and Linux, so a paused reader makes the transfer wait for drain.
+  // A paused reader only makes the transfer wait for drain once the kernel's
+  // socket buffers are full, and their size depends on the OS: a few hundred
+  // KB on macOS loopback, several MB on Linux (tcp_rmem/tcp_wmem autotuning).
+  // So the main file is replaced by a sparse 64 MiB one, generated here (all
+  // zeros, no disk use), larger than any kernel buffer; the tests then assert
+  // on the server's write backlog, not on time.
+  const BIG = 64 * 1024 * 1024;
+  async function bigMain() {
+    const started = await startBc({ env: DEMO });
+    const { engine } = started;
+    const rec = engine.sd.all()[0];
+    const { name } = rec.files.main;
+    const dir = await mkdtemp(join(tmpdir(), 'cam-sim-bc-'));
+    track(() => rm(dir, { recursive: true, force: true }));
+    const path = join(dir, 'big.mp4');
+    const fh = await open(path, 'w');
+    await fh.truncate(BIG);
+    await fh.close();
+    const real = engine.mediaFor.bind(engine);
+    engine.mediaFor = (r) => Object.assign(Object.create(real(r)), { clipPath: () => path, clipSize: () => BIG });
+    const byName = engine.sd.byName.bind(engine.sd);
+    engine.sd.byName = (n) => {
+      const found = byName(n);
+      return found && n === name ? { ...found, rec: { ...found.rec, files: { ...found.rec.files, main: { name, size: BIG } } } } : found;
+    };
+    return { ...started, name };
+  }
+
   it('a reader that stops reading slows the transfer instead of growing the buffer', async () => {
-    const { engine, loggedIn, server } = await startBc({ env: DEMO });
-    const { name, size } = engine.sd.all()[0].files.main;
+    const { loggedIn, server, name } = await bigMain();
     const c = await loggedIn();
     c.socket.pause();
     const id = c.send(8, downloadXml(name));
-    await until(() => server.writeBacklog() > 0, 3000);
+    // The kernel buffers fill first; then the server's own backlog appears.
+    await until(() => server.writeBacklog() > 0, 15_000);
     let max = 0;
     for (let k = 0; k < 25; k++) {
       await sleep(20);
@@ -260,17 +286,16 @@ describe('Baichuan recordings: backpressure', () => {
     }
     expect(max).toBeLessThan(128 * 1024);
     c.socket.resume();
-    expect((await c.collect(id, size)).data.length).toBe(size);
-  });
+    expect((await c.collect(id, BIG)).data.length).toBe(BIG);
+  }, 30_000);
 
   // Review Focus 3.
   it('a client that disappears while its transfer waits for drain: the transfer ends and the session goes', async () => {
-    const { engine, loggedIn, server } = await startBc({ env: DEMO });
-    const { name } = engine.sd.all()[0].files.main;
+    const { engine, loggedIn, server, name } = await bigMain();
     const c = await loggedIn();
     c.socket.pause();
     c.send(8, downloadXml(name));
-    await until(() => server.writeBacklog() > 0, 3000);
+    await until(() => server.writeBacklog() > 0, 15_000);
     c.close();
     await until(() => server.connectionCount() === 0);
     expect(engine.counters.baichuanSessions).toBe(0);
@@ -278,7 +303,7 @@ describe('Baichuan recordings: backpressure', () => {
     const t0 = Date.now();
     await server.close();
     expect(Date.now() - t0).toBeLessThan(1000);
-  });
+  }, 30_000);
 });
 
 describe('Baichuan recordings: replacing a transfer (Task 6 review)', () => {
