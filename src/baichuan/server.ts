@@ -8,8 +8,9 @@ import { randomBytes } from 'crypto';
 import type { Engine } from '../engine/engine';
 import { BAICHUAN_SESSION_LIMIT, type User } from '../config';
 import { CLS_CAMERA, CLS_NONCE_REPLY, CLS_NONCE_REQUEST, ENC_CHOICE, FrameParser, channelOf, encodeFrame, type BcFrame } from './frame';
-import { aesEncrypt, aesKey, bcXor, md5_31 } from './cipher';
+import { aesDecrypt, aesEncrypt, aesKey, bcXor, md5_31 } from './cipher';
 import { LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, PUSHES, loginReplyXml, nonceXml, tagValue, type PushMessage } from './xml';
+import { FIRST_REPLY_LEN, Transfer, fileInfoReply, resolveFile } from './vod';
 
 export interface BaichuanOptions {
   idleMs?: number; // default config.baichuan.idleMs (32 s)
@@ -217,6 +218,17 @@ export class BaichuanServer {
         this.closeAfterFlush(c);
         return;
       }
+      case 8:
+        return this.download(c, f, log);
+      case 9:
+        // Stop: 200 at once; the chunks in flight still come (vod.ts).
+        c.transfer?.stop();
+        return log(200, this.reply(c, cmd, msgId, 200));
+      case 13: {
+        const xml = this.requestXml(c, f);
+        const r = fileInfoReply(this.engine, tagValue(xml, 'Id'), tagValue(xml, 'name') || undefined);
+        return log(r.status, this.reply(c, cmd, msgId, r.status, r.xml));
+      }
       case 93:
         return log(200, this.reply(c, cmd, msgId, 200, LINK_TYPE_XML));
       default:
@@ -265,6 +277,42 @@ export class BaichuanServer {
     log(200, body.length);
     this.schedulePushes(c);
     this.armIdle(c, this.idleMs); // also arms the late group before the idle close
+  }
+
+  // The body of a request after login (AES from the fixed IV).
+  private requestXml(c: Conn, f: BcFrame): string {
+    return f.body.length ? aesDecrypt(c.key!, f.body).toString('utf8') : '';
+  }
+
+  private download(c: Conn, f: BcFrame, log: Log): void {
+    const { msgId } = f.header;
+    const file = resolveFile(this.engine, tagValue(this.requestXml(c, f), 'Id'));
+    // Measured: a refusal and a missing file look alike: 400, no body, no chunks.
+    if (this.engine.faults.consume('baichuan.refuse') || !file) return log(400, this.reply(c, 8, msgId, 400));
+    // Measured: a new cmd 8 silently replaces the running one.
+    c.transfer?.cancel();
+    this.engine.counters.baichuanDownloads++;
+    const socket = c.socket;
+    const t = new Transfer({
+      file,
+      msgId,
+      key: c.key!,
+      write: (frame) => this.send(c, frame),
+      drained: () => drained(socket),
+      alive: () => !c.closed && !socket.destroyed,
+      delayMs: () => this.engine.faults.active('baichuan.delayMs')?.ms,
+      dropMidway: () => !!this.engine.faults.active('baichuan.dropMidway'),
+      onDrop: () => {
+        this.engine.counters.droppedBaichuanDownloads++;
+        socket.destroy();
+      },
+    });
+    c.transfer = t;
+    log(200, FIRST_REPLY_LEN);
+    t.run().catch((err: Error) => {
+      this.engine.log.warn({ err: err.message }, 'baichuan_transfer_failed');
+      socket.destroy();
+    });
   }
 
   // Measured (idle.txt): after a login the camera sends these unsolicited
@@ -323,4 +371,18 @@ export class BaichuanServer {
     if (c.closed || c.socket.destroyed) return false;
     return c.socket.write(frame);
   }
+}
+
+// Resolves once the socket takes more data, or is gone.
+function drained(s: net.Socket): Promise<void> {
+  if (s.destroyed || !s.writableNeedDrain) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      s.off('drain', done);
+      s.off('close', done);
+      resolve();
+    };
+    s.on('drain', done);
+    s.on('close', done);
+  });
 }
