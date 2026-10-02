@@ -39,6 +39,10 @@ export interface Ctx {
 type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// First two characters, `**`, last two. Names under 5 characters are left
+// as they are (the camera's mask for them is not measured).
+export const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
+
 const getter = (key: string, pick: (e: Engine, p: any) => unknown): Handler => (c) => ok(c.cmd, { [key]: pick(c.engine, c.param) });
 
 const HANDLERS: Record<string, Handler> = {
@@ -78,7 +82,12 @@ const HANDLERS: Record<string, Handler> = {
   GetIrLights: (c) => ok(c.cmd, { IrLights: c.engine.settings.get('IrLights') }, IR_LIGHTS_EXTRA),
   GetWhiteLed: getter('WhiteLed', (e) => e.settings.get('WhiteLed')),
   GetOsd: getter('Osd', (e) => e.settings.get('Osd')),
-  GetFtpV20: getter('Ftp', (e) => e.settings.get('Ftp')),
+  // The real camera masks the FTP user in its answer (measured on the Pi,
+  // 2026-10-02: `camera` -> `ca**ra`). Set and TestFtp keep the full name.
+  GetFtpV20: getter('Ftp', (e) => {
+    const ftp = e.settings.get('Ftp');
+    return { ...ftp, userName: maskFtpUser(String(ftp.userName ?? '')) };
+  }),
   GetMdState: (c) => ok(c.cmd, c.engine.events.mdState()),
   GetAiState: (c) => ok(c.cmd, c.engine.events.aiState()),
   Search: async (c) => {
