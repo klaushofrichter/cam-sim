@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `GetFtpV20` returns the FTP `userName` masked like the real camera (first two characters, `**`, last two: `camera` -> `ca**ra`; measured on the Pi 2026-10-02); names under 5 characters stay as they are. `SetFtpV20` and `TestFtp` keep the full name, and the stored value is unchanged. A client that reads the Ftp object and writes it back whole now sends the masked name, as it would to the real camera.
 - Baichuan server on the camera's TCP port 9000 (`CAMSIM_BAICHUAN_PORT`), as measured on the RLC-1224A (`reference/rlc-1224a/baichuan/`):
   - Commands: login (cmd 1); download (8, the file byte-equal to HTTP `Download`); stop (9); file info (13); LinkType (93); logout (2).
   - Sessions show in `GetOnline`; the 12-connection limit, the 32 s idle close and the post-login pushes work as on the camera.

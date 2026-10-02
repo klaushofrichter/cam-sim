@@ -95,4 +95,15 @@ describe('camera API: settings', () => {
     expect((await post(app, 'GetAiState', { channel: 0 }, t)).reply.value.vehicle.alarm_state).toBe(1);
     engine.stop();
   });
+
+  it('GetFtpV20 masks the user like the real camera (ca**ra); Set and TestFtp keep the full name', async () => {
+    const { app, engine } = await makeCamera();
+    const t = await login(app);
+    const ftp = (await post(app, 'GetFtpV20', { channel: 0 }, t)).reply.value.Ftp;
+    await post(app, 'SetFtpV20', { Ftp: { ...ftp, server: '127.0.0.1', userName: 'camera' } }, t);
+    expect(engine.settings.get('Ftp').userName).toBe('camera');
+    expect((await post(app, 'GetFtpV20', { channel: 0 }, t)).reply.value.Ftp.userName).toBe('ca**ra');
+    await post(app, 'SetFtpV20', { Ftp: { ...ftp, server: '127.0.0.1', userName: 'cam' } }, t);
+    expect((await post(app, 'GetFtpV20', { channel: 0 }, t)).reply.value.Ftp.userName).toBe('cam');
+  });
 });
