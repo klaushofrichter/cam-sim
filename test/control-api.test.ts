@@ -160,12 +160,16 @@ describe('control API: faults, actions, reset', () => {
     engine.faults.set({ name: 'snap.fail' });
     engine.sd.seed([{ daysAgo: 0, start: '010000', end: '010010', triggers: ['motion'] }]);
     engine.settings.running.Isp.dayNight = 'Color';
-    expect((await request(ctl).post('/sim/api/reset').set(auth).send({})).status).toBe(204);
+    const reset = await request(ctl).post('/sim/api/reset').set(auth).send({});
+    expect(reset.status, `reset answered ${reset.status}, body ${JSON.stringify(reset.text.slice(0, 200))}`).toBe(204);
     const s = (await request(ctl).get('/sim/api/state').set(auth)).body;
-    expect(s.faults).toEqual([]);
-    expect(s.sd.recordings).toBe(0);
-    expect(s.counters.logins).toBe(0);
-    expect(s.settings.Isp.dayNight).toBe('Auto');
+    // Issue #57: the failing assertion was never recorded; each one now names
+    // what it saw (the state without the settings tree).
+    const seen = JSON.stringify({ faults: s.faults, sd: s.sd, counters: s.counters, dayNight: s.settings?.Isp?.dayNight });
+    expect(s.faults, seen).toEqual([]);
+    expect(s.sd.recordings, seen).toBe(0);
+    expect(s.counters.logins, seen).toBe(0);
+    expect(s.settings.Isp.dayNight, seen).toBe('Auto');
   });
 
   it('resets only what is asked', async () => {

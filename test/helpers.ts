@@ -26,7 +26,15 @@ export async function post(app: Parameters<typeof request>[0], cmd: string, para
     .post(`/cgi-bin/api.cgi?cmd=${cmd}${token ? `&token=${token}` : ''}`)
     .set('Content-Type', 'application/json')
     .send([{ cmd, action: 0, param }]);
-  return { res, reply: JSON.parse(res.text)[0] };
+  // Issue #57: say what came back when it is not the camera's JSON (an empty
+  // reply, another server's answer), not just "Unexpected end of JSON input".
+  let reply: any;
+  try {
+    reply = JSON.parse(res.text)[0];
+  } catch {
+    throw new Error(`${cmd}: the reply is not JSON: HTTP ${res.status}, content-type ${res.headers['content-type']}, body ${JSON.stringify(String(res.text).slice(0, 300))}`);
+  }
+  return { res, reply };
 }
 
 export async function login(app: Parameters<typeof request>[0], user = 'cams', password = 'cams-pw'): Promise<string> {

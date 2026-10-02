@@ -53,6 +53,7 @@ export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }
     const body: any[] = Array.isArray(req.body) ? req.body : [];
     const token = typeof req.query.token === 'string' ? req.query.token : '';
     const out: Entry[] = [];
+    const beforeReply: Array<() => void> = [];
     for (const item of body.length ? body : [{}]) {
       const cmd = item?.cmd !== undefined ? cmdName(item.cmd) : qcmd || 'Unknown';
       const param = item?.param;
@@ -74,11 +75,13 @@ export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }
         out.push(fail(cmd, -6));
         continue;
       }
-      const r = await runCommand({ engine: e, cmd, param, session, token, req, res });
+      const r = await runCommand({ engine: e, cmd, param, session, token, req, res, beforeReply: (fn) => void beforeReply.push(fn) });
       if (r === 'destroyed') return;
       out.push(r);
     }
-    if (!res.destroyed) reply(res, out);
+    if (res.destroyed) return;
+    for (const fn of beforeReply) fn();
+    reply(res, out);
   });
 
   app.get('/cgi-bin/api.cgi', async (req: Request, res: Response) => {

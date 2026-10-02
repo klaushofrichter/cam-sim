@@ -83,6 +83,27 @@ describe('TLS and certificates', () => {
     expect(await peerCN(l.ports.https)).toBe('cam3.skylar.technology');
   });
 
+  // Issue #57: the import applied on the reply's 'finish', which can come after
+  // the client has the reply; a client (or this test) reading the state at once
+  // saw the camera still online. It applies before the reply goes out now.
+  it('Clear and Import have taken effect by the time the reply arrives', async () => {
+    const cert = await camCert();
+    for (let i = 0; i < 10; i++) {
+      const { app, engine } = await start();
+      const t = await login(app);
+      const cleared = await post(app, 'CertificateClear', {}, t);
+      expect(cleared.reply, `round ${i}: ${cleared.res.text}`).toEqual({ cmd: 'CertificateClear', code: 0, value: { rspCode: 200 } });
+      expect(engine.offline(), `round ${i}: CertificateClear answered, the camera is still online`).toBe(true);
+      expect(engine.sessions.validate(t), `round ${i}: the session survived the restart`).toBeFalsy();
+      await waitOnline(engine);
+      const t2 = await login(app);
+      const imported = await post(app, 'ImportCertificate', importParam(cert), t2);
+      expect(imported.reply.code, `round ${i}: ${imported.res.text}`).toBe(0);
+      expect(engine.certificate.enable, `round ${i}: the import was not applied yet`).toBe(1);
+      expect(engine.offline(), `round ${i}: ImportCertificate answered, the camera is still online`).toBe(true);
+    }
+  }, 60_000);
+
   it('rejects a certificate whose key does not match with -4', async () => {
     const { app } = await start();
     const a = await camCert(), b = await camCert();
