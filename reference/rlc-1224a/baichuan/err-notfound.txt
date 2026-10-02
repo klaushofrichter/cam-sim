@@ -1,0 +1,111 @@
+# err-notfound.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# Nonexistent files: cmd 13 and cmd 8.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   Nonexistent files on one session (user proxy): cmd 13 and cmd 8 for a well-formed name at a time with no recording (with and without <name>), and a malformed path.
+   0.003  TCP connect <camera>:9000 ok (3 ms)
+   0.004  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.007  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.007  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.034  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.034  -> cmd 13 (file info) hdr[24]=[f0 de bc 0a 0d 00 00 00 15 01 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=277 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_013000_013020_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    <name>0120261002013000</name>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.094  <- cmd 13 hdr[24]=[f0 de bc 0a 0d 00 00 00 00 00 00 00 fa 03 00 00 90 01 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=400 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.094  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 15 01 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=277 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_013000_013020_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    <name>0120261002013000</name>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.121  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 00 00 00 00 fa 04 00 00 90 01 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=400 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.843  <- after refusal: frame cmd 78
+   0.843  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+#   cmd 8 result: refused first status 400
+   0.844  -> cmd 13 (file info) hdr[24]=[f0 de bc 0a 0d 00 00 00 f7 00 00 00 fa 05 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=5 ch=250 len=247 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_013000_013020_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.844  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.844  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.844  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.844  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.845  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.845  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+    (unsolicited push; XML as in login-admin.txt / idle.txt)
+   0.845  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+   0.847  <- cmd 13 hdr[24]=[f0 de bc 0a 0d 00 00 00 00 00 00 00 fa 05 00 00 af 01 00 00 00 00 00 00] class=0000 msgid=5 ch=250 status=431 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.847  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 f7 00 00 00 fa 06 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=6 ch=250 len=247 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_013000_013020_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.849  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 00 00 00 00 fa 06 00 00 90 01 00 00 00 00 00 00] class=0000 msgid=6 ch=250 status=400 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   3.851  <- after refusal: timeout
+#   cmd 8 result: refused first status 400
+   3.851  -> cmd 13 (file info) hdr[24]=[f0 de bc 0a 0d 00 00 00 c7 00 00 00 fa 07 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=7 ch=250 len=199 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/nothing.mp4</Id>
+    <channelId>0</channelId>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   3.855  <- cmd 13 hdr[24]=[f0 de bc 0a 0d 00 00 00 00 00 00 00 fa 07 00 00 af 01 00 00 00 00 00 00] class=0000 msgid=7 ch=250 status=431 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   3.855  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 c7 00 00 00 fa 08 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=8 ch=250 len=199 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/nothing.mp4</Id>
+    <channelId>0</channelId>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   3.858  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 00 00 00 00 fa 08 00 00 90 01 00 00 00 00 00 00] class=0000 msgid=8 ch=250 status=400 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   6.859  <- after refusal: timeout
+#   cmd 8 result: refused first status 400
+   6.860  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 09 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=9 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   6.862  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 09 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=9 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   6.862  TCP close

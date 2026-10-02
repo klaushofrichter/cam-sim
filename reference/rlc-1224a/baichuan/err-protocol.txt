@@ -1,0 +1,45 @@
+# err-protocol.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# Request before login, bad magic, unknown command.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   Protocol edge cases, each on a fresh connection: (a) cmd 8 before login, (b) bad magic, (c) an unknown cmd id (4000) after login.
+#   (a) cmd 8 before login (AES with no key is impossible; sent BC-encoded like the login)
+   0.002  TCP connect <camera>:9000 ok (2 ms)
+   0.002  -> cmd 8 (download, no login) hdr[24]=[f0 de bc 0a 08 00 00 00 c7 00 00 00 fa 01 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=1 ch=250 len=199 payloadOffset=0 enc=bc
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/nothing.mp4</Id>
+    <channelId>0</channelId>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.019  <- eof
+   0.019  TCP close
+#   (b) 24 bytes of garbage (bad magic)
+   0.021  TCP connect <camera>:9000 ok (1 ms)
+   0.021  -> raw bad magic: 24 B
+   0.040  <- eof
+   0.040  TCP close
+#   (c) unknown cmd 4000 with an empty body, after login
+   0.042  TCP connect <camera>:9000 ok (2 ms)
+   0.042  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.046  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.046  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.081  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+   0.081  -> cmd 4000 (unknown cmd) hdr[24]=[f0 de bc 0a a0 0f 00 00 00 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=0 payloadOffset=0 enc=aes
+   0.082  <- frame
+   0.083  <- cmd 4000 hdr[24]=[f0 de bc 0a a0 0f 00 00 00 00 00 00 fa 03 00 00 95 01 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=405 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.083  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   0.085  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.085  TCP close

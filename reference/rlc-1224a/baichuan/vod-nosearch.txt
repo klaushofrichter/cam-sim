@@ -1,0 +1,580 @@
+# vod-nosearch.txt
+#
+# RLC-1224A, firmware v3.2.0.6011, measured 2026-10-02.
+# Downloads without the search (user proxy), one session each:
+# (1) cmd 8 with <Id> only -> 9 (the recommended path); (2) cmd 8 with <Id> and <name>; (3) main, cmd 8 with <Id> and <name>;
+# (4) cmd 13 (with <name>) -> 8 -> 9: cmd 13 reports the MAIN file size for a sub Id (see fileinfo.txt).
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+   0.002  TCP connect <camera>:9000 ok (2 ms)
+   0.002  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.004  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.005  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.027  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   No search, no cmd 13, cmd 8 without <name> (Id only), then cmd 9 with handle 0.
+   0.028  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 f7 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=247 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_040758_040819_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.036  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 8a 00 00 00 fa 03 00 00 c8 00 00 00 6a 00 00 00] class=0000 msgid=3 ch=250 status=200 len=138 payloadOffset=106 ext=106B(aes) body=32B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    </Extension>
+#   first cmd-8 reply payload: 32 B, hex: 31 30 30 32 20 00 00 00 80 03 00 00 00 02 00 00 00 0a 7e 0a 02 04 07 3a 7e 0a 02 04 08 13 00 00
+   0.040  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.043  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.046  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.047  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.051  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.054  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.057  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.058  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.062  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.066  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.069  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.070  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.074  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.077  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 ee 88 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=35054 payloadOffset=136 ext=136B(aes) body=34918B(binary)
+#   download complete: 467534 of 467534 B in 14 chunk frames, 0.05 s, 9.17 MB/s, first chunk after 12 ms
+#   chunk message ids seen: [3] (cmd 8 request msgid 3); encryptLen values: ['1024']
+#   chunk payload sizes: min 12872, max 39400, first [39400, 39400, 39400, 12872, 39400, 39400], last [12872, 39400, 34918]
+   0.079  -> cmd 9 (stop, handle 0) hdr[24]=[f0 de bc 0a 09 00 00 00 a7 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=167 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <channelId>0</channelId>
+    <handle>0</handle>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.083  <- cmd 9 hdr[24]=[f0 de bc 0a 09 00 00 00 00 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.855  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+   0.856  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+   0.856  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+   0.856  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+   0.856  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+   0.856  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+   0.856  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+   0.856  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+#   after cmd 9: 0 more cmd-8 frames (0 B) within 1.5 s drain
+   1.580  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 05 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=5 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   1.585  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 05 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=5 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   1.585  TCP close
+#   saved file starts with box b'ftyp'; complete=True
+
+   0.001  TCP connect <camera>:9000 ok (1 ms)
+   0.002  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.004  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.004  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.027  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   No search and no cmd 13: cmd 8 straight away (Id + name), size from the file name, then cmd 9 with handle 0.
+   0.027  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 15 01 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=277 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_040758_040819_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    <name>0120261002040758</name>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.039  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 8a 00 00 00 fa 03 00 00 c8 00 00 00 6a 00 00 00] class=0000 msgid=3 ch=250 status=200 len=138 payloadOffset=106 ext=106B(aes) body=32B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    </Extension>
+#   first cmd-8 reply payload: 32 B, hex: 31 30 30 32 20 00 00 00 80 03 00 00 00 02 00 00 00 0a 7e 0a 02 04 07 3a 7e 0a 02 04 08 13 00 00
+   0.042  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.046  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.049  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.050  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.053  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.057  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.060  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.061  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.065  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.070  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.073  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.074  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.077  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.080  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 ee 88 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=35054 payloadOffset=136 ext=136B(aes) body=34918B(binary)
+#   download complete: 467534 of 467534 B in 14 chunk frames, 0.05 s, 8.50 MB/s, first chunk after 15 ms
+#   chunk message ids seen: [3] (cmd 8 request msgid 3); encryptLen values: ['1024']
+#   chunk payload sizes: min 12872, max 39400, first [39400, 39400, 39400, 12872, 39400, 39400], last [12872, 39400, 34918]
+   0.082  -> cmd 9 (stop, handle 0) hdr[24]=[f0 de bc 0a 09 00 00 00 a7 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=167 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <channelId>0</channelId>
+    <handle>0</handle>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.087  <- cmd 9 hdr[24]=[f0 de bc 0a 09 00 00 00 00 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.426  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+   0.427  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+   0.427  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+   0.427  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+   0.427  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+   0.428  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+   0.428  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+   0.428  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+#   after cmd 9: 0 more cmd-8 frames (0 B) within 1.5 s drain
+   1.584  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 05 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=5 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   1.587  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 05 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=5 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   1.587  TCP close
+#   saved file starts with box b'ftyp'; complete=True
+
+   0.002  TCP connect <camera>:9000 ok (2 ms)
+   0.002  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.004  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.004  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.027  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   No search and no cmd 13: cmd 8 straight away (Id + name), size from the file name, then cmd 9 with handle 0.
+   0.028  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 16 01 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=278 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecM0A_DST20261002_040758_040819_0_7B288280000000_667C2E.mp4</Id>
+    <channelId>0</channelId>
+    <name>0120261002040758</name>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.033  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 8a 00 00 00 fa 03 00 00 c8 00 00 00 6a 00 00 00] class=0000 msgid=3 ch=250 status=200 len=138 payloadOffset=106 ext=106B(aes) body=32B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    </Extension>
+#   first cmd-8 reply payload: 32 B, hex: 31 30 30 32 20 00 00 00 a0 11 00 00 d0 09 00 00 00 14 7e 0a 02 04 07 3a 7e 0a 02 04 08 13 01 00
+   0.036  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.039  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.043  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.044  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.047  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.050  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.054  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.055  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.058  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.062  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.065  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.066  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.070  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.074  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.077  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.078  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.082  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.085  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.091  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.092  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.095  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.099  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.102  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.104  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.107  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.110  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.114  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.115  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.118  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.122  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.125  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.126  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.130  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.133  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.136  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.138  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.141  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.144  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.148  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.150  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.153  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.157  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.160  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.162  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.165  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.168  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.172  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.173  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.176  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.180  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.183  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.184  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.190  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.194  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.197  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.198  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.201  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.206  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.209  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.210  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.214  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.217  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.221  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.222  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.226  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.229  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.232  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.234  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.237  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.240  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.244  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.245  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.248  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.251  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.255  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.256  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.259  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.263  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.266  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.267  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.271  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.274  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.278  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.279  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.282  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.285  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.291  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.292  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.295  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.299  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.302  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.303  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.307  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.310  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.314  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.315  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.315  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+   0.315  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+   0.315  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+   0.315  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+   0.315  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+   0.315  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+   0.315  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+   0.315  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+   0.319  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.322  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.326  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.327  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.330  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.334  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.337  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.338  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.342  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.345  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.349  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.350  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.353  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.357  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.360  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.361  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.365  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.368  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.371  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.372  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.376  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.379  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.383  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.384  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.388  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.391  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.394  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.395  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.399  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.402  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.406  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.407  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.410  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.414  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.417  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.418  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.422  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.425  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.429  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.430  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.434  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.437  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.440  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.442  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.446  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.449  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.453  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.454  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.457  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.461  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.464  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.465  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.468  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.472  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.476  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.477  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.480  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.484  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.487  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.488  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.492  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.495  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.498  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.499  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.504  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.507  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.511  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.512  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.515  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.518  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.522  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.523  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.526  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.530  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.533  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.534  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.537  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.541  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.544  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.545  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.549  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.553  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.556  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.557  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.560  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.564  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.567  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.568  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.572  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.575  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.578  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.580  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.584  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.587  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.590  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.592  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.595  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.598  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.602  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.603  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.606  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.610  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.614  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.615  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.618  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.622  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.625  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.626  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.629  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 b6 7c 00 00 fa 03 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=3 ch=250 status=200 len=31926 payloadOffset=136 ext=136B(aes) body=31790B(binary)
+#   download complete: 6716462 of 6716462 B in 205 chunk frames, 0.62 s, 10.91 MB/s, first chunk after 9 ms
+#   chunk message ids seen: [3] (cmd 8 request msgid 3); encryptLen values: ['1024']
+#   chunk payload sizes: min 12872, max 39400, first [39400, 39400, 39400, 12872, 39400, 39400], last [39400, 12872, 31790]
+   0.643  -> cmd 9 (stop, handle 0) hdr[24]=[f0 de bc 0a 09 00 00 00 a7 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=167 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <channelId>0</channelId>
+    <handle>0</handle>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.646  <- cmd 9 hdr[24]=[f0 de bc 0a 09 00 00 00 00 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+#   after cmd 9: 0 more cmd-8 frames (0 B) within 1.5 s drain
+   2.145  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 05 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=5 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   2.148  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 05 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=5 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   2.148  TCP close
+#   saved file starts with box b'ftyp'; complete=True
+
+   0.004  TCP connect <camera>:9000 ok (4 ms)
+   0.004  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.009  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 37 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=311 payloadOffset=- ext=0B(none) body=311B(bc)
+    (Encryption XML with the nonce, as in login-admin.txt)
+   0.009  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-admin.txt)
+   0.043  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 10 14 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=5136 payloadOffset=0 ext=0B(none) body=5136B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-admin.txt)
+#   No search: cmd 13 (file info) -> cmd 8 -> cmd 9 with the handle cmd 13 returned.
+   0.043  -> cmd 13 (file info) hdr[24]=[f0 de bc 0a 0d 00 00 00 15 01 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=277 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_040758_040819_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    <name>0120261002040758</name>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.081  <- cmd 13 hdr[24]=[f0 de bc 0a 0d 00 00 00 5d 02 00 00 fa 03 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=200 len=605 payloadOffset=0 ext=0B(none) body=605B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <channelId>0</channelId>
+    <handle>0</handle>
+    <name>0120261002040758</name>
+    <containsAudio>1</containsAudio>
+    <fileType>h264</fileType>
+    <recordType>none</recordType>
+    <supportSub>1</supportSub>
+    <sizeL>6716462</sizeL>
+    <sizeH>0</sizeH>
+    <startTime>
+    <year>2026</year>
+    <month>10</month>
+    <day>2</day>
+    <hour>4</hour>
+    <minute>7</minute>
+    <second>58</second>
+    </startTime>
+    <endTime>
+    <year>2026</year>
+    <month>10</month>
+    <day>2</day>
+    <hour>4</hour>
+    <minute>8</minute>
+    <second>19</second>
+    </endTime>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.081  -> cmd 8 (download) hdr[24]=[f0 de bc 0a 08 00 00 00 15 01 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=277 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <Id>/mnt/sda/Mp4Record/2026-10-02/RecS0A_DST20261002_040758_040819_0_55148080000000_7224E.mp4</Id>
+    <channelId>0</channelId>
+    <name>0120261002040758</name>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.088  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 8a 00 00 00 fa 04 00 00 c8 00 00 00 6a 00 00 00] class=0000 msgid=4 ch=250 status=200 len=138 payloadOffset=106 ext=106B(aes) body=32B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    </Extension>
+#   first cmd-8 reply payload: 32 B, hex: 31 30 30 32 20 00 00 00 80 03 00 00 00 02 00 00 00 0a 7e 0a 02 04 07 3a 7e 0a 02 04 08 13 00 00
+   0.091  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.095  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.098  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Extension version="1.1">
+    <binaryData>1</binaryData>
+    <encryptLen>1024</encryptLen>
+    </Extension>
+   0.099  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.105  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.108  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.112  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.113  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.116  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.120  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.123  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.124  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 d0 32 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=13008 payloadOffset=136 ext=136B(aes) body=12872B(binary)
+   0.128  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 70 9a 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=39536 payloadOffset=136 ext=136B(aes) body=39400B(binary)
+   0.131  <- cmd 8 hdr[24]=[f0 de bc 0a 08 00 00 00 ee 88 00 00 fa 04 00 00 c8 00 00 00 88 00 00 00] class=0000 msgid=4 ch=250 status=200 len=35054 payloadOffset=136 ext=136B(aes) body=34918B(binary)
+#   download complete: 467534 of 467534 B in 14 chunk frames, 0.05 s, 9.44 MB/s, first chunk after 10 ms
+#   chunk message ids seen: [4] (cmd 8 request msgid 4); encryptLen values: ['1024']
+#   chunk payload sizes: min 12872, max 39400, first [39400, 39400, 39400, 12872, 39400, 39400], last [12872, 39400, 34918]
+   0.131  -> cmd 9 (stop, handle 0) hdr[24]=[f0 de bc 0a 09 00 00 00 a7 00 00 00 fa 05 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=5 ch=250 len=167 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FileInfoList version="1.1">
+    <FileInfo>
+    <channelId>0</channelId>
+    <handle>0</handle>
+    </FileInfo>
+    </FileInfoList>
+    </body>
+   0.132  <- cmd 9 hdr[24]=[f0 de bc 0a 09 00 00 00 00 00 00 00 fa 05 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=5 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.912  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+   0.914  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+   0.914  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+   0.914  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+   0.914  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 e0 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=224 payloadOffset=0 ext=0B(none) body=224B(aes)
+   0.914  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+   0.914  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+   0.914  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+#   after cmd 9: 0 more cmd-8 frames (0 B) within 1.5 s drain
+   1.633  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 06 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=6 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-admin.txt)
+   1.636  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 06 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=6 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   1.636  TCP close
+#   saved file starts with box b'ftyp'; complete=True
