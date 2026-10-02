@@ -6,7 +6,7 @@
 import net, { type AddressInfo } from 'net';
 import { randomBytes } from 'crypto';
 import type { Engine } from '../engine/engine';
-import { BAICHUAN_SESSION_LIMIT, type User } from '../config';
+import { BAICHUAN_OVER_LIMIT_HELD_MAX, BAICHUAN_SESSION_LIMIT, type User } from '../config';
 import { CLS_CAMERA, CLS_NONCE_REPLY, CLS_NONCE_REQUEST, ENC_CHOICE, FrameParser, channelOf, encodeFrame, type BcFrame } from './frame';
 import { aesDecrypt, aesEncrypt, aesKey, bcXor, md5_31 } from './cipher';
 import { LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, PUSHES, loginReplyXml, nonceXml, tagValue, type PushMessage } from './xml';
@@ -142,6 +142,8 @@ export class BaichuanServer {
     let counted = 0;
     for (const x of this.conns) if (x.counted) counted++;
     c.counted = counted < this.limit();
+    // cam-sim's cap on the held over-limit connections (config.ts).
+    if (!c.counted && this.conns.size - counted >= BAICHUAN_OVER_LIMIT_HELD_MAX) return void socket.resetAndDestroy();
     this.conns.add(c);
     this.armIdle(c, this.firstMessageMs);
     socket.on('data', (d: Buffer) => this.onData(c, d));
@@ -182,10 +184,11 @@ export class BaichuanServer {
   }
 
   // Measured: about 32 s after the client's last message, 12.5 s for a
-  // connection that never sends. A running download keeps it open (chosen,
-  // not measured). So a reader that never reads keeps its connection and its
-  // slot of the 12 for as long as the transfer waits for drain (README "What
-  // differs").
+  // connection that never sends. A running download keeps it open (measured
+  // 2026-10-02 on the real camera: a 9 MB main file read throttled for 77.6 s
+  // stayed up, no drop). What is chosen, not measured, is that a reader that
+  // never reads keeps its connection and its slot of the 12 for as long as the
+  // transfer waits for drain (README "What differs").
   private armIdle(c: Conn, ms: number): void {
     clearTimeout(c.idle);
     c.idle = setTimeout(() => {
@@ -227,6 +230,7 @@ export class BaichuanServer {
         return this.download(c, f, log);
       case 9:
         // Stop: 200 at once; the chunks in flight still come (vod.ts).
+        this.engine.counters.baichuanStops++;
         c.transfer?.stop();
         return log(200, this.reply(c, cmd, msgId, 200));
       case 13: {

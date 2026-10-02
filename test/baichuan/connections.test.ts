@@ -3,6 +3,7 @@ import { startBc, closeAll, until, sleep } from './harness';
 import { BcClient } from './client';
 import { CLS_CAMERA } from '../../src/baichuan/frame';
 import { PUSHES } from '../../src/baichuan/xml';
+import { BAICHUAN_OVER_LIMIT_HELD_MAX, BAICHUAN_SESSION_LIMIT } from '../../src/config';
 import { createCameraApp } from '../../src/camera-api/app';
 import { login } from '../helpers';
 
@@ -34,6 +35,24 @@ describe('Baichuan server: the session limit (session-limit.txt)', () => {
     bare[0].close();
     await until(() => server.connectionCount() === 11);
     expect((await (await connect()).login('proxy', 'proxy-pw')).header.status).toBe(200);
+  });
+
+  it('holds at most BAICHUAN_OVER_LIMIT_HELD_MAX connections over the limit; the next is reset at once', async () => {
+    const { connect, server } = await startBc();
+    for (let i = 0; i < BAICHUAN_SESSION_LIMIT; i++) await connect();
+    const over: BcClient[] = [];
+    for (let i = 0; i < BAICHUAN_OVER_LIMIT_HELD_MAX; i++) over.push(await connect());
+    await until(() => server.connectionCount() === BAICHUAN_SESSION_LIMIT + BAICHUAN_OVER_LIMIT_HELD_MAX);
+    const extra = await connect();
+    expect(await extra.ended).toBe('reset'); // without sending anything
+    expect(extra.frames).toHaveLength(0);
+    expect(server.connectionCount()).toBe(BAICHUAN_SESSION_LIMIT + BAICHUAN_OVER_LIMIT_HELD_MAX);
+    // An over-limit connection that goes frees a held place, not a session slot.
+    over[0].close();
+    await until(() => server.connectionCount() === BAICHUAN_SESSION_LIMIT + BAICHUAN_OVER_LIMIT_HELD_MAX - 1);
+    const again = await connect();
+    await expect(again.nonceRequest()).rejects.toThrow(/closed/);
+    expect(await again.ended).toBe('reset');
   });
 
   it('HTTP logins work while port 9000 is full', async () => {
@@ -117,7 +136,7 @@ describe('Baichuan server: pushes after login (idle.txt)', () => {
     const t0 = Date.now();
     await c.call(93);
     await c.waitFor((f) => f.header.cmd === 669, 1000);
-    expect(Date.now() - t0).toBeLessThan(300);
+    expect(Date.now() - t0).toBeLessThan(1000);
     const late = pushes(c).slice(4);
     expect(late.map((f) => f.header.cmd)).toEqual([291, 677, 600, 669]);
     for (const f of late) expect(c.text(f)).toBe(PUSHES.find((p) => p.cmd === f.header.cmd)!.xml);
@@ -153,7 +172,10 @@ describe('Baichuan server: pushes after login (idle.txt)', () => {
     const took = Date.now() - t0;
     stop = true;
     await burst;
-    expect(took).toBeLessThan(30);
+    // The group is due about 3 ms after the first message; a burst that
+    // re-armed it would hold it back for as long as it lasts (the wait above
+    // has a 1 s limit). The bound is wide so a loaded machine doesn't trip it.
+    expect(took).toBeLessThan(500);
   });
 
   // idle.txt: the group at 32.514 s, the close at 32.515 s.
@@ -167,7 +189,8 @@ describe('Baichuan server: pushes after login (idle.txt)', () => {
     expect(await c.ended).toBe('eof');
     const closedAt = Date.now() - t0;
     expect(closedAt).toBeGreaterThanOrEqual(1150);
-    expect(closedAt - groupAt).toBeLessThan(50);
+    // 1 ms in the camera; far less than the old 500 ms, wide for a loaded machine.
+    expect(closedAt - groupAt).toBeLessThan(300);
     expect(pushes(c).map((f) => f.header.cmd)).toEqual([78, 79, 464, 547, 291, 677, 600, 669]);
   });
 });

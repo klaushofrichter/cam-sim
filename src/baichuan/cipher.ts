@@ -13,7 +13,9 @@ export function md5_31(s: string): string {
 }
 
 // The "BC" XOR of the nonce reply, the login and the login reply; symmetric.
-// `offset` is the header's channel byte.
+// `offset` is the header's channel byte. Only its low 8 bits count: the
+// camera's offset is a single byte, so 0x1ff and 0xff give the same output
+// (pinned in cipher.test.ts); callers pass `channelOf(msgId)`, already a byte.
 export function bcXor(data: Buffer, offset: number): Buffer {
   const o = offset & 0xff;
   const out = Buffer.alloc(data.length);

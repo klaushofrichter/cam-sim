@@ -130,76 +130,91 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   let onvifApp: OnvifApp | undefined;
   let baichuan: BaichuanServer | undefined;
 
+  // Opens every listener in turn. Anything opened before a failure stays open
+  // here; listen() below closes it.
+  async function openAll(ports: Partial<Ports>, host?: string): Promise<Ports> {
+    const p = { ...config.ports, ...ports };
+    camera = await startListeners(engine, { http: p.http, https: p.https }, host);
+    // The control port uses the camera's certificate: with 'on' always (and
+    // it follows ImportCertificate), with 'auto' when one was configured.
+    const tls = config.controlTls === 'on' || (config.controlTls === 'auto' && !!config.tlsCertFile);
+    if (tls) {
+      const server = https.createServer({ cert: engine.certificate.cert, key: engine.certificate.key }, controlApp);
+      const onCert = (c: { cert: string; key: string }) => server.setSecureContext({ cert: c.cert, key: c.key });
+      engine.bus.on('cert', onCert);
+      server.on('close', () => engine.bus.off('cert', onCert));
+      control = server;
+    } else control = http.createServer(controlApp);
+    const srv = control;
+    const controlPort = await new Promise<number>((resolve, reject) => {
+      srv.once('error', reject);
+      srv.listen(p.control, host, () => resolve((srv.address() as AddressInfo).port));
+    });
+    // ONVIF (device and event services), plain HTTP as on the camera.
+    onvifApp = createOnvifApp(engine);
+    const o = http.createServer(onvifApp);
+    onvif = o;
+    const onvifPort = await new Promise<number>((resolve, reject) => {
+      o.once('error', reject);
+      o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
+    });
+    // Baichuan (the camera's port 9000): login and recordings download.
+    // Off when the config has no port (CLI without CAMSIM_BAICHUAN_PORT) and
+    // listen() doesn't name one.
+    let baichuanPort: number | undefined;
+    if (p.baichuan != null) {
+      baichuan = new BaichuanServer(engine);
+      baichuanPort = await baichuan.listen(p.baichuan, host);
+    }
+    // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
+    rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
+    await rtsp.start();
+    // The optional SD pipeline (off until switched on; spec 2026-09-29).
+    pipeline = new SdPipeline(engine, {
+      fonts: findFonts(config.fontDir),
+      rtspUrl: () => rtsp?.publisherUrl('sub'),
+      onProcess: (up) => rtsp?.setSubSource(up ? 'pipeline' : 'copy'),
+    });
+    rtsp.onDropReaders(() => pipeline?.restartNow());
+    if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
+    preparing ??= library.prepareAll().then(() => {
+      const why = config.video ? library.select(config.video) : null;
+      if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
+    });
+    return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort, ...(baichuanPort === undefined ? {} : { baichuan: baichuanPort }) };
+  }
+
+  async function shutdown(): Promise<void> {
+    ftp.stop();
+    library.stop();
+    await preparing?.catch(() => undefined);
+    await pipeline?.stop();
+    await rtsp?.stop();
+    await baichuan?.close();
+    onvifApp?.stop();
+    engine.stop();
+    await camera?.close();
+    for (const srv of [control, onvif]) {
+      if (!srv) continue;
+      srv.closeAllConnections();
+      await new Promise<void>((r) => srv.close(() => r()));
+    }
+  }
+
   return {
     engine,
     cameraApp,
     controlApp,
+    // A listener that fails to bind (EADDRINUSE) must not leave the ones
+    // opened before it running: close them all, then rethrow.
     async listen(ports = {}, host) {
-      const p = { ...config.ports, ...ports };
-      camera = await startListeners(engine, { http: p.http, https: p.https }, host);
-      // The control port uses the camera's certificate: with 'on' always (and
-      // it follows ImportCertificate), with 'auto' when one was configured.
-      const tls = config.controlTls === 'on' || (config.controlTls === 'auto' && !!config.tlsCertFile);
-      if (tls) {
-        const server = https.createServer({ cert: engine.certificate.cert, key: engine.certificate.key }, controlApp);
-        const onCert = (c: { cert: string; key: string }) => server.setSecureContext({ cert: c.cert, key: c.key });
-        engine.bus.on('cert', onCert);
-        server.on('close', () => engine.bus.off('cert', onCert));
-        control = server;
-      } else control = http.createServer(controlApp);
-      const srv = control;
-      const controlPort = await new Promise<number>((resolve, reject) => {
-        srv.once('error', reject);
-        srv.listen(p.control, host, () => resolve((srv.address() as AddressInfo).port));
-      });
-      // ONVIF (device and event services), plain HTTP as on the camera.
-      onvifApp = createOnvifApp(engine);
-      const o = http.createServer(onvifApp);
-      onvif = o;
-      const onvifPort = await new Promise<number>((resolve, reject) => {
-        o.once('error', reject);
-        o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
-      });
-      // Baichuan (the camera's port 9000): login and recordings download.
-      // Off when the config has no port (CLI without CAMSIM_BAICHUAN_PORT) and
-      // listen() doesn't name one.
-      let baichuanPort: number | undefined;
-      if (p.baichuan != null) {
-        baichuan = new BaichuanServer(engine);
-        baichuanPort = await baichuan.listen(p.baichuan, host);
-      }
-      // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
-      rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
-      await rtsp.start();
-      // The optional SD pipeline (off until switched on; spec 2026-09-29).
-      pipeline = new SdPipeline(engine, {
-        fonts: findFonts(config.fontDir),
-        rtspUrl: () => rtsp?.publisherUrl('sub'),
-        onProcess: (up) => rtsp?.setSubSource(up ? 'pipeline' : 'copy'),
-      });
-      rtsp.onDropReaders(() => pipeline?.restartNow());
-      if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
-      preparing ??= library.prepareAll().then(() => {
-        const why = config.video ? library.select(config.video) : null;
-        if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
-      });
-      return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort, ...(baichuanPort === undefined ? {} : { baichuan: baichuanPort }) };
-    },
-    async close() {
-      ftp.stop();
-      library.stop();
-      await preparing?.catch(() => undefined);
-      await pipeline?.stop();
-      await rtsp?.stop();
-      await baichuan?.close();
-      onvifApp?.stop();
-      engine.stop();
-      await camera?.close();
-      for (const srv of [control, onvif]) {
-        if (!srv) continue;
-        srv.closeAllConnections();
-        await new Promise<void>((r) => srv.close(() => r()));
+      try {
+        return await openAll(ports, host);
+      } catch (err) {
+        await shutdown().catch(() => undefined);
+        throw err;
       }
     },
+    close: shutdown,
   };
 }

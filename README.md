@@ -470,8 +470,14 @@ that. The measured history of the refusal:
 - **Limits:**
   - 12 connections at once, counting those that never logged in. The 13th
     is accepted, then reset at its first message.
+  - cam-sim holds at most 20 connections over the limit (not measured: the
+    camera's own handling is unknown); the next one is reset at once, so a
+    client opening thousands can't use up the simulator's file descriptors.
   - A logged-in connection closes 32 s after the client's last message; one
-    that never sends closes after 12.5 s.
+    that never sends closes after 12.5 s. A running download keeps the
+    session alive (measured on the real camera on 2026-10-02: a 9 MB main
+    file read throttled for 77.6 s, no drop); the idle close comes up to
+    `idleMs` after the transfer ends.
 - **Pushes:** after a login, cmds 78, 79, 464, 547, 291, 677, 600 and 669
   arrive unsolicited (message id 0):
   - 78 and 79 come 0.3 s after the login reply, 464 and 547 0.4 s after it;
@@ -639,9 +645,9 @@ the FTP schedule allows is uploaded:
   - a guest user logs in like an admin (the camera's `proxy` user is admin level);
   - Baichuan transfers don't share HTTP Download's one-at-a-time limit (HTTP
     Download is refused on the camera, so that can't be measured);
-  - a running download keeps its connection from the idle close, so a client
-    that never reads holds its slot and can use up all 12; the idle close
-    comes up to `idleMs` after the transfer ends;
+  - a client that never reads a running download holds its slot and can use
+    up all 12 (a transfer keeps its connection from the idle close, which is
+    measured for a slow reader, not for one that stops reading);
   - a refused cmd 8 leaves a running download alone;
   - the 13 chunks after cmd 9 all come after its reply, and the stop tail is
     always 13 frames;
@@ -702,7 +708,8 @@ C=http://127.0.0.1:9443/sim/api
                 "activeStreams": 0, "streamsOpened": 0, "downloads": 0, "activeDownloads": 0,
                 "droppedDownloads": 0, "downloadOrder": [], "searches": 0, "setCalls": [], "reboots": 0,
                 "ftpUploads": 0, "ftpFailures": 0, "ftpDropped": 0,
-                "baichuanSessions": 0, "baichuanLogins": 0, "baichuanDownloads": 0, "droppedBaichuanDownloads": 0 },
+                "baichuanSessions": 0, "baichuanLogins": 0, "baichuanDownloads": 0, "baichuanStops": 0,
+                "droppedBaichuanDownloads": 0 },
   "certificate": { "source": "factory", "enable": 0 },
   "settings": { "Rec": { "…": "…" }, "Isp": { "…": "…" } }
 }
@@ -712,6 +719,7 @@ C=http://127.0.0.1:9443/sim/api
 - `settings` are the running values.
 - `downloadOrder` and `setCalls` keep the latest 1000 entries.
 - `activeSessions` counts HTTP sessions; `baichuanSessions` counts the open, logged-in Baichuan connections (both show in `GetOnline`).
+- `baichuanDownloads` counts cmd 8 requests that were accepted, `droppedBaichuanDownloads` those that ended in a drop (a fault, `downloads.dropActive`, an error), and `baichuanStops` every cmd 9 (stop) after a login, whether or not a download was running. The history counters reset with `reset`; `baichuanSessions` does not.
 
 `GET /healthz` needs no token and answers `{"ok":true}`, for probes.
 

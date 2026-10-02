@@ -31,6 +31,13 @@ describe('Baichuan ciphers (reolink_aio oracle)', () => {
     expect(bcXor(enc, 250).toString()).toBe(XML_HEAD);
   });
 
+  it('uses only the low 8 bits of the offset (the channel byte)', () => {
+    const d = Buffer.from(XML_HEAD);
+    expect(bcXor(d, 0x1fa)).toEqual(bcXor(d, 0xfa));
+    expect(bcXor(d, 256)).toEqual(bcXor(d, 0));
+    expect(bcXor(d, -6)).toEqual(bcXor(d, 250));
+  });
+
   it('AES-128-CFB, the IV restarted for every part', () => {
     const key = aesKey(NONCE, PASSWORD);
     const enc = aesEncrypt(key, Buffer.from(XML_HEAD));
