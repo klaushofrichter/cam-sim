@@ -57,6 +57,48 @@ describe('Baichuan frame codec', () => {
     expect(out.map((f) => [f.header.cmd, f.header.size, f.body.toString()])).toEqual([[1, 20, ''], [93, 24, 'hello']]);
   });
 
+  // The two header sizes (20 and 24 bytes), cut one byte short and one byte over.
+  it('parses a header split at 19 and at 23 bytes', () => {
+    const nonce = encodeFrame({ cmd: 1, msgId: 0x01fa, status: ENC_OFFER, cls: CLS_NONCE_REQUEST });
+    const client = encodeFrame({ cmd: 93, msgId: 0x03fa, status: 0, cls: CLS_CLIENT, body: Buffer.from('hello') });
+    expect(nonce.length).toBe(20);
+    for (const [frame, at, size] of [[nonce, 19, 20], [client, 23, 24]] as const) {
+      const p = new FrameParser();
+      expect(p.push(frame.subarray(0, at)), `first ${at} bytes`).toEqual([]);
+      const out = p.push(frame.subarray(at));
+      expect(out, `split at ${at}`).toHaveLength(1);
+      expect(out[0].header.size).toBe(size);
+      expect(out[0].header.cmd).toBe(frame === nonce ? 1 : 93);
+      expect(p.push(Buffer.alloc(0))).toEqual([]);
+    }
+    // The 20-byte header's last byte is the class's low byte: with 19 bytes
+    // present the size is still unknown, and nothing may be decided early.
+    const p = new FrameParser();
+    expect(p.push(client.subarray(0, 19))).toEqual([]);
+    expect(p.push(client.subarray(19, 20))).toEqual([]);
+    expect(p.push(client.subarray(20))).toHaveLength(1);
+  });
+
+  it('checks the magic as soon as 4 bytes are there, and again for every message in the stream', () => {
+    const good = encodeFrame({ cmd: 93, msgId: 0x03fa, status: 0, cls: CLS_CLIENT });
+    const p = new FrameParser();
+    expect(p.push(Buffer.from([0xaa]))).toEqual([]); // under 4 bytes: waits
+    expect(() => p.push(Buffer.from([0xbb, 0xcc, 0xdd]))).toThrow(/bad magic/);
+    const q = new FrameParser();
+    expect(q.push(good)).toHaveLength(1);
+    // Mid-stream: the next message starts with the wrong magic (even one byte off).
+    const bad = Buffer.from(good);
+    bad[3] ^= 1;
+    expect(() => q.push(bad)).toThrow(/bad magic/);
+    // A good message and a bad one in one read: the error wins, the caller closes.
+    expect(() => new FrameParser().push(Buffer.concat([good, bad]))).toThrow(/bad magic/);
+    // A bad message right after a complete one, delivered a byte at a time.
+    const r = new FrameParser();
+    for (const b of good) r.push(Buffer.from([b]));
+    r.push(bad.subarray(0, 3));
+    expect(() => r.push(bad.subarray(3))).toThrow(/bad magic/);
+  });
+
   it('parses several messages in one read, extension and body apart', () => {
     const one = encodeFrame({ cmd: 8, msgId: 0x07fa, status: 200, cls: CLS_CAMERA, ext: Buffer.from('EXT'), body: Buffer.from('BODY') });
     const two = encodeFrame({ cmd: 78, msgId: 0, status: 200, cls: CLS_CAMERA, body: Buffer.from('PUSH') });

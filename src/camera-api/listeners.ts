@@ -27,12 +27,20 @@ export async function startListeners(engine: Engine, ports: { http: number; http
   const httpsServer = https.createServer({ cert: cert.cert, key: cert.key }, createCameraApp(engine, { port: 'https' }));
   const onCert = (c: CertState) => httpsServer.setSecureContext({ cert: c.cert, key: c.key });
   engine.bus.on('cert', onCert);
-  const bound = { http: await listen(httpServer, ports.http, host), https: await listen(httpsServer, ports.https, host) };
   const close = (s: http.Server | https.Server) =>
     new Promise<void>((r) => {
       s.closeAllConnections();
       s.close(() => r());
     });
+  // If the second port fails to bind, the first must not stay open.
+  let bound: { http: number; https: number };
+  try {
+    bound = { http: await listen(httpServer, ports.http, host), https: await listen(httpsServer, ports.https, host) };
+  } catch (err) {
+    engine.bus.off('cert', onCert);
+    await Promise.all([close(httpServer), close(httpsServer)]);
+    throw err;
+  }
   return {
     http: httpServer,
     https: httpsServer,

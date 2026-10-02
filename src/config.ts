@@ -57,6 +57,11 @@ export class ConfigError extends Error {}
 export const BAICHUAN_IDLE_MS = 32_000;
 export const BAICHUAN_FIRST_MESSAGE_MS = 12_500;
 export const BAICHUAN_SESSION_LIMIT = 12;
+// cam-sim's own cap (not measured): connections over the limit are held until
+// their first message or the first-message timeout, so a client opening
+// thousands could use up the simulator's file descriptors. Past this many held,
+// a new connection is reset at once.
+export const BAICHUAN_OVER_LIMIT_HELD_MAX = 20;
 
 function maxVideoS(v: string | undefined): number {
   if (!v) return 60;

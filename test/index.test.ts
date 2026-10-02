@@ -4,6 +4,7 @@ import { createCamSim, configFromOptions, DEMO_CLIPS, type CamSim } from '../src
 import { post, login } from './helpers';
 import { BcClient, downloadXml } from './baichuan/client';
 import { fstatSync, readdirSync, statSync } from 'fs';
+import net from 'net';
 
 const sims: CamSim[] = [];
 afterEach(async () => {
@@ -104,6 +105,48 @@ describe('control port TLS', () => {
       await sim.close();
     }
   }, 60_000);
+});
+
+// A port nobody listens on now (bound and released), and one held by us.
+async function freePort(): Promise<number> {
+  const s = net.createServer();
+  await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+  const port = (s.address() as net.AddressInfo).port;
+  await new Promise<void>((r) => s.close(() => r()));
+  return port;
+}
+const canBind = (port: number) =>
+  new Promise<boolean>((resolve) => {
+    const s = net.createServer();
+    s.once('error', () => resolve(false));
+    s.listen(port, '127.0.0.1', () => s.close(() => resolve(true)));
+  });
+
+describe('createCamSim: a listener that fails to bind', () => {
+  // Issue #65: a failed listen() left the listeners opened before it running.
+  const held = async (what: 'baichuan' | 'https' | 'onvif') => {
+    const blocker = net.createServer();
+    await new Promise<void>((r) => blocker.listen(0, '127.0.0.1', r));
+    const blocked = (blocker.address() as net.AddressInfo).port;
+    const ports = { http: await freePort(), https: await freePort(), control: await freePort(), onvif: await freePort(), rtsp: await freePort(), baichuan: await freePort() };
+    const named = { ...ports, [what]: blocked };
+    const sim = await make();
+    await expect(sim.listen(named, '127.0.0.1')).rejects.toThrow(/EADDRINUSE/);
+    await new Promise<void>((r) => blocker.close(() => r()));
+    return ports;
+  };
+
+  it('a Baichuan port in use leaves no earlier listener open', async () => {
+    const ports = await held('baichuan');
+    for (const p of [ports.http, ports.https, ports.control, ports.onvif, ports.rtsp]) expect(await canBind(p), `port ${p} is still open`).toBe(true);
+  });
+
+  it('an ONVIF port in use, or the camera\'s HTTPS port, leaves no earlier listener open', async () => {
+    const o = await held('onvif');
+    for (const p of [o.http, o.https, o.control]) expect(await canBind(p), `port ${p} is still open (onvif blocked)`).toBe(true);
+    const h = await held('https');
+    expect(await canBind(h.http), 'the HTTP port is still open (https blocked)').toBe(true);
+  });
 });
 
 describe('createCamSim: Baichuan', () => {

@@ -8,8 +8,7 @@ import type { Engine } from '../src/engine/engine';
 afterEach(() => vi.useRealTimers());
 
 // A WS-UsernameToken PasswordDigest header, as ONVIF clients send it.
-function security(user: string, password: string, created = new Date().toISOString().replace(/\.\d+Z$/, 'Z')): string {
-  const nonce = randomBytes(16);
+function security(user: string, password: string, created = new Date().toISOString().replace(/\.\d+Z$/, 'Z'), nonce = randomBytes(16)): string {
   const digest = createHash('sha1').update(Buffer.concat([nonce, Buffer.from(created), Buffer.from(password)])).digest('base64');
   return `<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><wsse:UsernameToken><wsse:Username>${user}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">${digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-soap-message-security-1.0#Base64Binary">${nonce.toString('base64')}</wsse:Nonce><wsu:Created>${created}</wsu:Created></wsse:UsernameToken></wsse:Security>`;
 }
@@ -229,21 +228,30 @@ describe('ONVIF review fixes', () => {
     for (const junk of ['<Body'.repeat(3000), '<Username '.repeat(1500), '<Password='.repeat(1500)]) {
       const t0 = Date.now();
       const res = await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(junk);
-      expect(res.status).toBe(400);
-      expect(Date.now() - t0).toBeLessThan(100);
+      expect(res.status, res.text.slice(0, 200)).toBe(400);
+      // Linear time: a quadratic parse of 15,000 characters would take seconds.
+      // The bound is wide so a loaded machine doesn't trip it (issue #57).
+      expect(Date.now() - t0).toBeLessThan(1000);
     }
     const big = await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send('x'.repeat(20_000));
     expect(big.status).toBe(413);
   });
 
   it('accepts a digest with Type anywhere in the tag, and a text password with entities', async () => {
+    // Issue #57 (403 now and then): the digest's random nonce and the real
+    // clock were the only unpinned inputs. Both are fixed here: the system time
+    // stands still and the nonce is a constant, so the request is the same
+    // bytes on every run.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-02T12:00:00Z') });
     const engine = await makeEngine({ CAMSIM_USERS: 'admin:admin:a&b<c' });
     const app = createOnvifApp(engine);
     const info = '<GetDeviceInformation xmlns="http://www.onvif.org/ver10/device/wsdl"/>';
-    const digest = security('admin', 'a&b<c').replace('<wsse:Password Type=', "<wsse:Password xmlns:x='y' Type=").replace(/Type="([^"]*)"/, "Type='$1'");
-    expect((await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(envelope(info, digest))).status).toBe(200);
+    const digest = security('admin', 'a&b<c', '2026-10-02T12:00:00Z', Buffer.from('0123456789abcdef')).replace('<wsse:Password Type=', "<wsse:Password xmlns:x='y' Type=").replace(/Type="([^"]*)"/, "Type='$1'");
+    const first = await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(envelope(info, digest));
+    expect(first.status, `digest: ${first.text.slice(0, 300)}`).toBe(200);
     const text = '<wsse:Security xmlns:wsse="x"><wsse:UsernameToken><wsse:Username>admin</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">a&amp;b&lt;c</wsse:Password></wsse:UsernameToken></wsse:Security>';
-    expect((await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(envelope(info, text))).status).toBe(200);
+    const second = await request(app).post('/onvif/device_service').set('Content-Type', 'application/soap+xml').send(envelope(info, text));
+    expect(second.status, `text password: ${second.text.slice(0, 300)}`).toBe(200);
   });
 
   it('takes only a plain number as Idx', async () => {

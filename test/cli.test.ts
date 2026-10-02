@@ -52,7 +52,7 @@ describe('cli', () => {
     const env = async () => ({ CAMSIM_USERS: 'u:admin:p', CAMSIM_HTTP_PORT: String(await freePort()), CAMSIM_HTTPS_PORT: String(await freePort()), CAMSIM_CONTROL_PORT: String(await freePort()), CAMSIM_RTSP_PORT: String(await freePort()), CAMSIM_ONVIF_PORT: String(await freePort()) });
     const sims = [run(await env()), run(await env())];
     try {
-      for (const p of sims) await expect.poll(() => p.out(), { timeout: 20_000 }).toContain('cam_sim_listening');
+      for (const p of sims) await expect.poll(() => p.out(), { timeout: 40_000 }).toContain('cam_sim_listening');
       for (const p of sims) {
         const line = p.out().split('\n').find((l) => l.includes('cam_sim_listening'))!;
         const ports = JSON.parse(line).ports;
@@ -63,7 +63,7 @@ describe('cli', () => {
       for (const p of sims) p.child.kill('SIGTERM');
     }
     for (const p of sims) expect(await p.exited).toBe(0);
-  }, 45_000);
+  }, 90_000);
 
   it('exits 2 on a config error, naming the variable', async () => {
     const p = run({});

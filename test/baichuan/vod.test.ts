@@ -126,6 +126,24 @@ describe('Baichuan recordings: stop, replace, parallel', () => {
     expect(next.data.equals(await http.download(rec.files.sub.name))).toBe(true);
   });
 
+  it('counts every cmd 9, with or without a running download; reset clears it', async () => {
+    const { engine, loggedIn } = await startBc({ env: DEMO });
+    const rec = engine.sd.all()[0];
+    const c = await loggedIn();
+    expect(engine.counters.baichuanStops).toBe(0);
+    await c.call(9, stopXml()); // nothing running
+    expect(engine.counters.baichuanStops).toBe(1);
+    engine.faults.set({ name: 'baichuan.delayMs', ms: 20 });
+    const id = c.send(8, downloadXml(rec.files.main.name));
+    await c.waitFor((f) => f.header.msgId === id);
+    await c.call(9, stopXml());
+    expect(engine.counters.baichuanStops).toBe(2);
+    expect(engine.counters.baichuanDownloads).toBe(1);
+    expect(engine.counters.snapshot().baichuanStops).toBe(2);
+    engine.counters.reset();
+    expect(engine.counters.baichuanStops).toBe(0);
+  });
+
   it('a second cmd 8 on the connection silently replaces the running one (err-second-download.txt)', async () => {
     const { engine, loggedIn } = await startBc({ env: DEMO });
     const http = await withHttp(engine);
