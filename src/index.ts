@@ -11,6 +11,7 @@ import { RtspService, findMediaMtx } from './rtsp/rtsp';
 import { Library } from './media/library';
 import { SdPipeline } from './pipeline/sd-pipeline';
 import { findFonts } from './pipeline/fonts';
+import { BaichuanServer } from './baichuan/server';
 import { createOnvifApp, type OnvifApp } from './onvif/server';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -63,6 +64,7 @@ export interface Ports {
   control: number;
   rtsp: number;
   onvif: number;
+  baichuan: number;
 }
 
 export interface CamSim {
@@ -126,6 +128,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
   let pipeline: SdPipeline | undefined;
   let onvif: http.Server | undefined;
   let onvifApp: OnvifApp | undefined;
+  let baichuan: BaichuanServer | undefined;
 
   return {
     engine,
@@ -158,6 +161,9 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
       });
       // RTSP through MediaMTX, when it is installed (logged and skipped otherwise).
+      // Baichuan (the camera's port 9000): login and recordings download.
+      baichuan = new BaichuanServer(engine);
+      const baichuanPort = await baichuan.listen(p.baichuan, host);
       rtsp = new RtspService(engine, { port: p.rtsp, host, mediamtx: findMediaMtx() });
       await rtsp.start();
       // The optional SD pipeline (off until switched on; spec 2026-09-29).
@@ -172,7 +178,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
         const why = config.video ? library.select(config.video) : null;
         if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
       });
-      return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort };
+      return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort, baichuan: baichuanPort };
     },
     async close() {
       ftp.stop();
@@ -180,6 +186,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
       await preparing?.catch(() => undefined);
       await pipeline?.stop();
       await rtsp?.stop();
+      await baichuan?.close();
       onvifApp?.stop();
       engine.stop();
       await camera?.close();

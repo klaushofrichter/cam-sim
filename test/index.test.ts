@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import request from 'supertest';
 import { createCamSim, configFromOptions, DEMO_CLIPS, type CamSim } from '../src/index';
 import { post, login } from './helpers';
+import { BcClient, downloadXml } from './baichuan/client';
 
 const sims: CamSim[] = [];
 afterEach(async () => {
@@ -102,4 +103,45 @@ describe('control port TLS', () => {
       await sim.close();
     }
   }, 60_000);
+});
+
+describe('createCamSim: Baichuan', () => {
+  const ALL0 = { http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 };
+
+  // Review Focus 1.
+  it('opens a free Baichuan port unless one is named, so simulators side by side never collide', async () => {
+    const a = await make();
+    const b = await make();
+    const [pa, pb] = await Promise.all([a.listen(ALL0, '127.0.0.1'), b.listen(ALL0, '127.0.0.1')]);
+    expect(pa.baichuan).toBeGreaterThan(0);
+    expect(pb.baichuan).toBeGreaterThan(0);
+    expect(pb.baichuan).not.toBe(pa.baichuan);
+    const c = await BcClient.connect(pa.baichuan);
+    expect((await c.login('u', 'p')).header.status).toBe(200);
+    c.close();
+  });
+
+  // Review Focus 2.
+  it('close() ends open Baichuan connections and a running transfer at once', async () => {
+    const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }], seedClips: 'demo' });
+    const ports = await sim.listen(ALL0, '127.0.0.1');
+    sim.engine.faults.set({ name: 'baichuan.delayMs', ms: 50 });
+    const c = await BcClient.connect(ports.baichuan);
+    await c.login('u', 'p');
+    const id = c.send(8, downloadXml(sim.engine.sd.all()[0].files.main.name));
+    await c.waitIndex((f) => f.header.msgId === id);
+    const t0 = Date.now();
+    await sim.close();
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(['eof', 'reset']).toContain(await c.ended);
+  });
+
+  it('takes shorter Baichuan idle times for tests (CamSimOptions.baichuan)', async () => {
+    const sim = await make({ baichuan: { firstMessageMs: 200, idleMs: 300 } });
+    const ports = await sim.listen(ALL0, '127.0.0.1');
+    const t0 = Date.now();
+    const c = await BcClient.connect(ports.baichuan);
+    expect(await c.ended).toBe('eof');
+    expect(Date.now() - t0).toBeLessThan(1500);
+  });
 });

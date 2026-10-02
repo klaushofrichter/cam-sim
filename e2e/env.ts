@@ -19,6 +19,7 @@ export const SIM_ENV: Record<string, string> = {
   CAMSIM_CONTROL_PORT: String(UI_PORT),
   CAMSIM_RTSP_PORT: '18554',
   CAMSIM_ONVIF_PORT: '18000',
+  CAMSIM_BAICHUAN_PORT: '19000',
   CAMSIM_LOG_LEVEL: 'warn',
   // A generated video besides the test pattern (e2e/make-library.mjs).
   CAMSIM_LIBRARY_DIR: join(tmpdir(), 'cam-sim-e2e-library'),
