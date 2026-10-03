@@ -1,4 +1,4 @@
-import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'fs';
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { dirname } from 'path';
 
@@ -9,17 +9,25 @@ export function writeJsonAtomic(file: string, value: unknown): void {
   writeFileAtomic(file, JSON.stringify(value));
 }
 
-export function writeFileAtomic(file: string, text: string): void {
+// `sync: false` skips the fsync, for files rewritten every second that
+// don't have to survive a crash (the SD pipeline's clock).
+export function writeFileAtomic(file: string, text: string, opts: { sync?: boolean } = {}): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
-  const fd = openSync(tmp, 'w', 0o600);
   try {
-    writeSync(fd, text);
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
+    const fd = openSync(tmp, 'w', 0o600);
+    try {
+      writeSync(fd, text);
+      if (opts.sync !== false) fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(tmp, file);
+  } catch (err) {
+    // A failed write (a full disk) leaves no temp file behind.
+    rmSync(tmp, { force: true });
+    throw err;
   }
-  renameSync(tmp, file);
 }
 
 // undefined when the file doesn't exist; throws on unreadable or invalid JSON.
@@ -34,11 +42,13 @@ export function readJson(file: string): unknown {
   return JSON.parse(text);
 }
 
+export const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
+
 // Deep merge of `patch` into `target`, skipping prototype keys.
 export function deepMerge(target: Record<string, any>, patch: Record<string, any>): Record<string, any> {
   for (const [k, v] of Object.entries(patch)) {
     if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-    if (v && typeof v === 'object' && !Array.isArray(v) && target[k] && typeof target[k] === 'object' && !Array.isArray(target[k])) {
+    if (isObject(v) && isObject(target[k])) {
       deepMerge(target[k], v);
     } else {
       target[k] = clone(v);

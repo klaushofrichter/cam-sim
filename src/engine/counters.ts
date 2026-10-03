@@ -37,7 +37,8 @@ export class Counters {
 
   reset(): void {
     // Active counts describe open connections; they are not history.
-    Object.assign(this, { logins: 0, loginAttempts: 0, devInfoCalls: 0, streamsOpened: 0, downloads: 0, droppedDownloads: 0, downloadOrder: [], searches: 0, setCalls: [], reboots: 0, ftpUploads: 0, ftpFailures: 0, ftpDropped: 0, baichuanLogins: 0, baichuanDownloads: 0, baichuanStops: 0, droppedBaichuanDownloads: 0 });
+    const { activeStreams, activeDownloads, baichuanSessions } = this;
+    Object.assign(this, new Counters(), { activeStreams, activeDownloads, baichuanSessions });
   }
 
   snapshot() {

@@ -1,9 +1,10 @@
 import { spawn, type ChildProcess } from 'child_process';
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Engine } from '../engine/engine';
-import { timeValue } from '../engine/clock';
+import { TIME_FORMAT } from '../engine/clock';
+import { writeFileAtomic } from '../util/json-file';
 import type { FlvTag } from '../media/flv';
 import { FlvStreamParser, isConfigTag, isKeyframe } from '../media/flv-stream';
 import { clockText, filterChain, overlayOf } from './overlay';
@@ -29,7 +30,6 @@ export function scrubError(text: string, rtspUrl?: string): string {
 export class SdPipeline implements LiveSubSource {
   private proc?: ChildProcess;
   private gen = 0;
-  private hdr: Buffer = Buffer.alloc(0);
   private cfg: FlvTag[] = [];
   private ready = false;
   private readonly subs = new Set<(t: FlvTag, gen: number) => void>();
@@ -81,7 +81,6 @@ export class SdPipeline implements LiveSubSource {
 
   active(): boolean { return !!this.proc && this.ready; }
   generation(): number { return this.gen; }
-  header(): Buffer { return this.hdr; }
   configTags(): FlvTag[] { return this.cfg; }
   subscribe(fn: (t: FlvTag, gen: number) => void): () => void {
     for (const t of this.gop) fn(t, this.gen);
@@ -91,7 +90,7 @@ export class SdPipeline implements LiveSubSource {
 
   private wanted(): boolean {
     const e = this.engine;
-    return e.pipeline.on && e.power === 'on' && !e.rebooting && !e.offline() && !this.stopping;
+    return e.pipeline.on && !e.offline() && !this.stopping;
   }
 
   // Starts on the next turn, so a start's own announcements (a refusal)
@@ -117,34 +116,22 @@ export class SdPipeline implements LiveSubSource {
 
   // Replaced in one step: drawtext rereads the file on every frame.
   private writeName(running: { Osd: any }): void {
-    const f = this.files();
     try {
-      writeFileSync(join(f.dir, 'name.tmp'), String(running.Osd?.osdChannel?.name ?? ''));
-      renameSync(join(f.dir, 'name.tmp'), f.name);
+      writeFileAtomic(this.files().name, String(running.Osd?.osdChannel?.name ?? ''), { sync: false });
     } catch (err) {
       this.engine.log.warn({ err: (err as Error).message }, 'sd_pipeline_name_write_failed');
     }
   }
 
-  // Never throws: a removed temp folder is recreated, and anything else
-  // (a full disk) is logged, so the simulator can't crash on a clock tick.
+  // Never throws: a removed temp folder is recreated (writeFileAtomic), and
+  // anything else (a full disk) is logged, so the simulator can't crash on a
+  // clock tick.
   private writeClock(): void {
     const e = this.engine;
-    const f = this.files();
-    const write = () => {
-      const t = timeValue(e.clock, e.config.tz).Time;
-      writeFileSync(join(f.dir, 'clock.tmp'), clockText(e.clock.now(), e.config.tz, t));
-      renameSync(join(f.dir, 'clock.tmp'), f.clock);
-    };
     try {
-      write();
-    } catch {
-      try {
-        mkdirSync(f.dir, { recursive: true });
-        write();
-      } catch (err) {
-        e.log.warn({ err: (err as Error).message }, 'sd_pipeline_clock_write_failed');
-      }
+      writeFileAtomic(this.files().clock, clockText(e.clock.now(), e.config.tz, TIME_FORMAT), { sync: false });
+    } catch (err) {
+      e.log.warn({ err: (err as Error).message }, 'sd_pipeline_clock_write_failed');
     }
   }
 
@@ -177,7 +164,6 @@ export class SdPipeline implements LiveSubSource {
     this.gop = [];
     this.expectedExit = false;
     const parser = new FlvStreamParser();
-    parser.on('header', (h: Buffer) => (this.hdr = h));
     parser.on('tag', (t: FlvTag) => {
       if (t.type === 18 || isConfigTag(t)) {
         this.cfg.push(t);

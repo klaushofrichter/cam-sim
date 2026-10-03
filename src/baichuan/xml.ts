@@ -4,8 +4,8 @@
 import { LOGIN_REPLY_LINES } from './device-info';
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" ?>';
-export const doc = (lines: readonly string[]): string => lines.map((l) => `${l}\n`).join('');
-export const bodyXml = (inner: readonly string[]): string => doc([XML_DECL, '<body>', ...inner, '</body>']);
+const doc = (lines: readonly string[]): string => lines.map((l) => `${l}\n`).join('');
+const bodyXml = (inner: readonly string[]): string => doc([XML_DECL, '<body>', ...inner, '</body>']);
 const extXml = (inner: readonly string[]): string => doc([XML_DECL, '<Extension version="1.1">', ...inner, '</Extension>']);
 
 export function nonceXml(nonce: string): string {

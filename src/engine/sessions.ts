@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import type { User } from '../config';
 import type { Clock } from './clock';
 
-export const LEASE_S = 3600;
+const LEASE_S = 3600;
 // The first session id the real camera handed out after a restart.
 const FIRST_SESSION_ID = 10;
 
@@ -60,26 +60,23 @@ export class Sessions {
 
   // HTTP sessions only (the state's activeSessions).
   count(): number {
-    return this.httpOnline().length;
+    this.prune();
+    return this.tokens.size;
   }
 
   // GetOnline: HTTP and Baichuan sessions, by session id, as on the camera.
   online() {
-    const bc = [...this.baichuan].map(([sessionId, s]) => ({ canbeDisconn: 0, ip: s.ip, level: s.user.level, sessionId, userName: s.user.name }));
-    return [...this.httpOnline(), ...bc].sort((a, b) => a.sessionId - b.sessionId);
+    this.prune();
+    const row = (sessionId: number, s: { user: User; ip: string }) => ({ canbeDisconn: 0, ip: s.ip, level: s.user.level, sessionId, userName: s.user.name });
+    const http = [...this.tokens.values()].map((s) => row(s.sessionId, s));
+    const bc = [...this.baichuan].map(([sessionId, s]) => row(sessionId, s));
+    return [...http, ...bc].sort((a, b) => a.sessionId - b.sessionId);
   }
 
-  private httpOnline() {
+  // Ends the sessions whose lease has run out.
+  private prune(): void {
     const now = this.clock.now().getTime();
-    const out = [];
-    for (const [t, s] of this.tokens) {
-      if (s.expiresAt <= now) {
-        this.tokens.delete(t);
-        continue;
-      }
-      out.push({ canbeDisconn: 0, ip: s.ip, level: s.user.level, sessionId: s.sessionId, userName: s.user.name });
-    }
-    return out;
+    for (const [t, s] of this.tokens) if (s.expiresAt <= now) this.tokens.delete(t);
   }
 
   // Baichuan (port 9000) sessions: one per logged-in TCP connection. They take

@@ -1,4 +1,4 @@
-import { localParts } from '../engine/clock';
+import { localParts, p2 } from '../engine/clock';
 
 // What the SD pipeline draws, from the running Osd and Isp settings.
 export interface OverlaySettings {
@@ -9,18 +9,19 @@ export interface OverlaySettings {
   time: { enable: number; pos: string };
 }
 
+const flag = (v: unknown) => (Number(v) === 1 ? 1 : 0);
+
 export function overlayOf(s: { Osd: any; Isp: any }): OverlaySettings {
   return {
-    rotation: Number(s.Isp?.rotation) === 1 ? 1 : 0,
-    mirroring: Number(s.Isp?.mirroring) === 1 ? 1 : 0,
-    watermark: Number(s.Osd?.watermark) === 1 ? 1 : 0,
-    name: { enable: Number(s.Osd?.osdChannel?.enable) === 1 ? 1 : 0, pos: String(s.Osd?.osdChannel?.pos ?? 'Lower Right') },
-    time: { enable: Number(s.Osd?.osdTime?.enable) === 1 ? 1 : 0, pos: String(s.Osd?.osdTime?.pos ?? 'Top Center') },
+    rotation: flag(s.Isp?.rotation),
+    mirroring: flag(s.Isp?.mirroring),
+    watermark: flag(s.Osd?.watermark),
+    name: { enable: flag(s.Osd?.osdChannel?.enable), pos: String(s.Osd?.osdChannel?.pos ?? 'Lower Right') },
+    time: { enable: flag(s.Osd?.osdTime?.enable), pos: String(s.Osd?.osdTime?.pos ?? 'Top Center') },
   };
 }
 
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const p2 = (n: number) => String(n).padStart(2, '0');
 
 // The camera's OSD clock (GetTime timeFmt MM/DD/YYYY, hourFmt 1 = 12 h):
 // "09/29/2026 11:51:48 am TUE", in the camera's zone.

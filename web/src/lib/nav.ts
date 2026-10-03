@@ -14,7 +14,7 @@ export const NAV_ITEMS: ReadonlyArray<{ id: Page; label: string; icon: IconName 
 ];
 
 // cams' breakpoint: at this width and below there is no sidebar, only the drawer.
-export const PHONE_MAX_WIDTH = 767;
+const PHONE_MAX_WIDTH = 767;
 export const PHONE_QUERY = `(max-width: ${PHONE_MAX_WIDTH}px)`;
 export const SIDEBAR_WIDTH = { expanded: 220, collapsed: 64 } as const;
 export const COLLAPSED_KEY = 'camsim-sidebar-collapsed';

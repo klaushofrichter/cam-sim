@@ -1,7 +1,7 @@
 import { join } from 'path';
 import type pino from 'pino';
-import { localParts, isDstOn, type Clock } from './clock';
-import type { Trigger } from './types';
+import { localParts, isDstOn, p2, type Clock } from './clock';
+import { DATE, HMS, TRIGGERS, type Trigger } from './types';
 import { readJson, writeJsonAtomic } from '../util/json-file';
 
 export type { Trigger } from './types';
@@ -63,35 +63,26 @@ export function fileName(stream: Stream, date: string, dst: boolean, start: stri
 // HHMMSS plus `s` seconds, wrapping at midnight.
 export const addSeconds = (hms: string, s: number) => {
   const t = (((Number(hms.slice(0, 2)) * 3600 + Number(hms.slice(2, 4)) * 60 + Number(hms.slice(4, 6)) + s) % 86400) + 86400) % 86400;
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(Math.floor(t / 3600))}${p(Math.floor((t % 3600) / 60))}${p(t % 60)}`;
+  return `${p2(Math.floor(t / 3600))}${p2(Math.floor((t % 3600) / 60))}${p2(t % 60)}`;
 };
 
-const HMS = /^([01]\d|2[0-3])[0-5]\d[0-5]\d$/;
-const TRIGGER_SET = new Set(['motion', 'person', 'vehicle', 'pet']);
 function validRecord(r: any): boolean {
-  return !!r && typeof r === 'object' && typeof r.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && HMS.test(r.start) &&
+  return !!r && typeof r === 'object' && typeof r.id === 'string' && DATE.test(r.date) && HMS.test(r.start) &&
     (r.end === null || HMS.test(r.end)) && (r.mainEnd === null || HMS.test(r.mainEnd)) && typeof r.dst === 'boolean' &&
     (r.video === undefined || (typeof r.video === 'string' && r.video.length <= 64)) &&
-    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => TRIGGER_SET.has(String(t)));
+    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => (TRIGGERS as readonly string[]).includes(String(t)));
 }
 // A recording that was still open when the simulator stopped gets the
 // default post-record length.
 const CLOSE_AFTER_S = 15;
 
 type Day = { year: number; mon: number; day: number; hour?: number; min?: number; sec?: number };
-const p2 = (n: number) => String(n).padStart(2, '0');
 const dayKey = (d: Day) => `${d.year}-${p2(d.mon)}-${p2(d.day)}`;
-const timeObj = (date: string, hms: string) => ({
+export type TimeFields = { year: number; mon: number; day: number; hour: number; min: number; sec: number };
+const timeObj = (date: string, hms: string): TimeFields => ({
   year: Number(date.slice(0, 4)), mon: Number(date.slice(5, 7)), day: Number(date.slice(8, 10)),
   hour: Number(hms.slice(0, 2)), min: Number(hms.slice(2, 4)), sec: Number(hms.slice(4, 6)),
 });
-
-function nextDay(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
 
 // Steps back `days` calendar days with UTC-date arithmetic, so DST changes in
 // between can't land it a day early or late (as in cams' mock).
@@ -99,6 +90,16 @@ function stepBackDate(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
+}
+
+// A stream's end time of day: main runs a little longer than sub.
+const streamEnd = (r: { end: string | null; mainEnd: string | null }, stream: Stream) => (stream === 'main' ? (r.mainEnd ?? r.end) : r.end);
+
+// Camera-local start and end of a stream's clip. One still recording ends at
+// its start; one across midnight ends the next day.
+export function clipSpan(r: Pick<Recording, 'date' | 'start' | 'end' | 'mainEnd'>, stream: Stream): { start: TimeFields; end: TimeFields } {
+  const end = streamEnd(r, stream) ?? r.start;
+  return { start: timeObj(r.date, r.start), end: timeObj(end < r.start ? stepBackDate(r.date, -1) : r.date, end) };
 }
 
 // `sizes` is kept per recording (the clip sizes when it was made), so names
@@ -144,9 +145,8 @@ export class SdCard {
 
   private withFiles(r: Stored): Recording {
     const f = (s: Stream) => {
-      const end = s === 'main' ? (r.mainEnd ?? r.end) : r.end;
       const size = (r.sizes ?? this.currentSizes())[s];
-      return { name: fileName(s, r.date, r.dst, r.start, end ?? '000000', r.triggers, size), size };
+      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size), size };
     };
     const { sizes: _sizes, ...rest } = r;
     void _sizes;
@@ -202,14 +202,13 @@ export class SdCard {
     return this.all()
       .filter((r) => r.date === date && r.start >= lo && r.start <= hi)
       .map((r) => {
-        const end = stream === 'main' ? (r.mainEnd ?? r.end) : r.end;
+        const span = clipSpan(r, stream);
         return {
           name: r.files[stream].name,
           size: String(r.files[stream].size),
           type: stream,
-          StartTime: timeObj(r.date, r.start),
-          // A clip that crosses midnight ends on the next day.
-          EndTime: end ? timeObj(end < r.start ? nextDay(r.date) : r.date, end) : timeObj(r.date, r.start),
+          StartTime: span.start,
+          EndTime: span.end,
           frameRate: 0,
           width: 0,
           height: 0,
@@ -245,17 +244,23 @@ export class SdCard {
     return undefined;
   }
 
+  // The current sizes are looked up once, and only for records made before
+  // sizes were stored.
   private usedBytes(): number {
+    let current: Record<Stream, number> | undefined;
     return this.recs.reduce((n, r) => {
-      const z = r.sizes ?? this.currentSizes();
+      const z = r.sizes ?? (current ??= this.currentSizes());
       return n + z.sub + z.main;
     }, 0);
   }
 
+  count(): number {
+    return this.recs.length;
+  }
+
   // Firmware: capacity is the card size in MB, `size` is the FREE space in MB.
   hddInfo() {
-    const usedMb = Math.ceil(this.usedBytes() / 1048576);
-    return [{ capacity: this.opts.capacityMb, format: 1, mount: 1, number: 0, size: Math.max(0, this.opts.capacityMb - usedMb), storageType: 2 }];
+    return [{ capacity: this.opts.capacityMb, format: 1, mount: 1, number: 0, size: Math.max(0, this.opts.capacityMb - this.usedMb()), storageType: 2 }];
   }
 
   usedMb(): number {

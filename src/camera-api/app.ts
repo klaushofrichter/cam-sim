@@ -2,8 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import type { Engine } from '../engine/engine';
 import { runCommand, fail, ok, type Entry } from './commands';
 import { download, snap, flv, NOT_LOGGED_IN_GET_BODY } from './media-routes';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { sleep } from '../util/sleep';
 
 // Replies are JSON sent as text/html, as the firmware does; a command name
 // is only echoed back when it is a plain identifier.

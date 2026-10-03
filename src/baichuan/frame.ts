@@ -4,7 +4,7 @@
 // both MIT (see THIRD_PARTY_NOTICES). Layout and classes as measured on the
 // RLC-1224A: reference/rlc-1224a/baichuan/README.md.
 
-export const MAGIC = Buffer.from([0xf0, 0xde, 0xbc, 0x0a]);
+const MAGIC = Buffer.from([0xf0, 0xde, 0xbc, 0x0a]);
 
 // Message classes: header bytes 18-19, read big-endian.
 export const CLS_NONCE_REQUEST = 0x1465; // client, 20-byte header
