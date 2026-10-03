@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Code cleanup across the repo (shared helpers, dead code and unused exports removed, local-time formatters built once per zone); no change to what the camera answers or when.
+
 ## v2026.10.03.3
 
 ## v2026.10.03.2
