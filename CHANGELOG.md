@@ -3,6 +3,10 @@
 ## Unreleased
 
 - README: a Related repos section (cams, cam-proxy, cam-proxy-pi-display); cam2's Baichuan port is on its Service (the README said it wasn't yet); the status names the SD pipeline and Baichuan; the web UI's drawer footer.
+- `GET /healthz` also reports the build's version: `{"ok":true,"version":"2026.10.03.2"}` (`dev` outside a release image).
+- Releases: the deploy waits until cam2's `/healthz` serves the version it just built, and the release notes quote the checks under "Verified at release" (rollout, served version, control API answering 401 without its token, when and by which run).
+- CI: `npm audit` at `high` now blocks for dev dependencies too. The one exception, by advisory id, is `.github/audit-allowlist.json`: GHSA-2p57-rm9w-gvfp (`ip` via ftp-srv, the tests' FTP server, no patched release). The gate fails when that advisory disappears, changes or a new `ip` release appears, so the entry gets removed.
+- Dev dependencies: ftp-srv's `uuid` is overridden to ^11.1.1 (was 3.4.0, GHSA-w5hq-g745-h8pq).
 
 ## v2026.10.03.1
 

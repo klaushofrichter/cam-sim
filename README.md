@@ -736,7 +736,7 @@ C=http://127.0.0.1:9443/sim/api
 - `activeSessions` counts HTTP sessions; `baichuanSessions` counts the open, logged-in Baichuan connections (both show in `GetOnline`).
 - `baichuanDownloads` counts cmd 8 requests that were accepted, `droppedBaichuanDownloads` those that ended in a drop (a fault, `downloads.dropActive`, an error), and `baichuanStops` every cmd 9 (stop) after a login, whether or not a download was running. The history counters reset with `reset`; `baichuanSessions` does not.
 
-`GET /healthz` needs no token and answers `{"ok":true}`, for probes.
+`GET /healthz` needs no token and answers `{"ok":true,"version":"<build>"}` (the release version, `dev` outside a release image), for probes and the release's smoke test.
 
 ### Power and one-shot actions
 
@@ -1015,8 +1015,9 @@ manifests.
   the web UI.
 - **Deploys:** a release (merge to `production`) builds the image, pins it by
   digest in kube-setup's manifest, applies it through the in-cluster runner
-  (`cam-sim-runner`), waits for the rollout and checks `/healthz`, and only
-  then tags the release. Releases deploy automatically. cams and cam-proxy
+  (`cam-sim-runner`), waits for the rollout and checks that `/healthz` serves
+  the new version and the control API wants its token, and only then tags the
+  release, quoting those checks under "Verified at release" in its notes. Releases deploy automatically. cams and cam-proxy
   each pin a release tarball as a devDependency and need
   a bump PR after a release; `cams-compat` CI (below) covers cams only, not
   cam-proxy.
@@ -1051,8 +1052,13 @@ scripts/container-smoke.sh
 CI runs:
 - the type checks and the tests;
 - the Playwright e2e suite of the web UI;
-- `npm audit` (blocking for production dependencies) and a check that no
-  media file is committed;
+- `npm audit` at `high`, blocking for all dependencies (dev ones included).
+  The only exception is `.github/audit-allowlist.json`, by advisory id:
+  GHSA-2p57-rm9w-gvfp (`ip`, dev-only via ftp-srv, no patched release). The
+  gate (`scripts/audit-gate.mjs`) fails when that advisory goes away, changes
+  or a new `ip` release appears, so the entry gets removed; the production
+  audit (`--omit=dev`) has no exceptions;
+- a check that no media file is committed;
 - CodeQL, with the accepted exceptions in `.github/codeql-accepted.tsv`;
 - the container smoke test;
 - **cams' own unit and e2e suites against the cam-sim build**
