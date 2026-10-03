@@ -7,6 +7,7 @@ import { join, delimiter } from 'path';
 import net, { type AddressInfo } from 'net';
 import type { Engine } from '../engine/engine';
 import { safeEqual as same } from '../util/safe-equal';
+import { sleep } from '../util/sleep';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
 export const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
@@ -19,8 +20,6 @@ export function findMediaMtx(): string | undefined {
   for (const dev of [join(__dirname, '..', '..', 'tools', 'mediamtx'), join(__dirname, '..', '..', '..', 'tools', 'mediamtx')]) if (existsSync(dev)) return dev;
   return undefined;
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function freePort(host: string): Promise<number> {
   return new Promise((resolve, reject) => {

@@ -1,15 +1,14 @@
 import { createReadStream } from 'fs';
-import { isKeyframe } from '../media/flv-stream';
+import { isConfigTag, isKeyframe } from '../media/flv-stream';
 import { Transform } from 'stream';
 import type { Request, Response } from 'express';
 import type { Engine } from '../engine/engine';
 import type { FlvTag } from '../media/flv';
+import { sleep } from '../util/sleep';
 
 // What the firmware sends for a GET with a bad token (Snap and others):
 // HTTP 200, text/html, and this JSON as the body text.
 export const NOT_LOGGED_IN_GET_BODY = '[{"code":1,"error":{"rspCode":-6,"detail":"please login first"}}]';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // The raw (still percent-encoded) value of a query parameter.
 function rawParam(req: Request, key: string): string | undefined {
@@ -100,7 +99,6 @@ function shifted(tag: FlvTag, offsetMs: number): Buffer {
   return b;
 }
 
-const isConfig = (t: FlvTag) => (t.type === 9 || t.type === 8) && t.bytes[12] === 0;
 // AVC/HEVC end of sequence: never mid-stream (a live camera doesn't end).
 const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 
@@ -129,7 +127,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
     const { header, tags: all } = media.liveFlv(stream);
     const tags = all.filter((t) => !isEndOfSequence(t) && (first || t.type !== 18));
     const loopMs = media.durationMs(stream);
-    const loopTags = tags.filter((t) => t.type !== 18 && !isConfig(t));
+    const loopTags = tags.filter((t) => t.type !== 18 && !isConfigTag(t));
     return { media, header, tags, loopMs, loopTags, canLoop: loopMs > 0 && loopTags.length > 0 };
   };
   let src = load(e.media, true);

@@ -1,7 +1,6 @@
 import type pino from 'pino';
 import { factorySettings, resetDefaults, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
-
-const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
+import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 
 // Factory settings with every well-formed object of `loaded` laid over them.
 // Returns whether anything was missing or malformed.
@@ -21,7 +20,6 @@ function overFactory(name: string, loaded: unknown): { settings: Settings; compl
   }
   return { settings, complete };
 }
-import { clone, deepMerge, readJson, writeJsonAtomic } from '../util/json-file';
 
 type Key = keyof Settings;
 

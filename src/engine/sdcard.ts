@@ -1,6 +1,6 @@
 import { join } from 'path';
 import type pino from 'pino';
-import { localParts, isDstOn, type Clock } from './clock';
+import { localParts, isDstOn, p2, type Clock } from './clock';
 import type { Trigger } from './types';
 import { readJson, writeJsonAtomic } from '../util/json-file';
 
@@ -63,8 +63,7 @@ export function fileName(stream: Stream, date: string, dst: boolean, start: stri
 // HHMMSS plus `s` seconds, wrapping at midnight.
 export const addSeconds = (hms: string, s: number) => {
   const t = (((Number(hms.slice(0, 2)) * 3600 + Number(hms.slice(2, 4)) * 60 + Number(hms.slice(4, 6)) + s) % 86400) + 86400) % 86400;
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(Math.floor(t / 3600))}${p(Math.floor((t % 3600) / 60))}${p(t % 60)}`;
+  return `${p2(Math.floor(t / 3600))}${p2(Math.floor((t % 3600) / 60))}${p2(t % 60)}`;
 };
 
 const HMS = /^([01]\d|2[0-3])[0-5]\d[0-5]\d$/;
@@ -80,7 +79,6 @@ function validRecord(r: any): boolean {
 const CLOSE_AFTER_S = 15;
 
 type Day = { year: number; mon: number; day: number; hour?: number; min?: number; sec?: number };
-const p2 = (n: number) => String(n).padStart(2, '0');
 const dayKey = (d: Day) => `${d.year}-${p2(d.mon)}-${p2(d.day)}`;
 const timeObj = (date: string, hms: string) => ({
   year: Number(date.slice(0, 4)), mon: Number(date.slice(5, 7)), day: Number(date.slice(8, 10)),

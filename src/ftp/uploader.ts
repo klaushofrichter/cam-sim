@@ -3,6 +3,7 @@ import { Client, enterPassiveModeIPv4 } from 'basic-ftp';
 import { localParts } from '../engine/clock';
 import type { Engine } from '../engine/engine';
 import type { Recording } from '../engine/sdcard';
+import { sleep } from '../util/sleep';
 
 // Schedule table key per trigger type (Ftp.schedule.table, as for Rec).
 const SCHEDULE_KEY: Record<string, string> = { motion: 'MD', person: 'AI_PEOPLE', vehicle: 'AI_VEHICLE', pet: 'AI_DOG_CAT' };
@@ -69,8 +70,6 @@ async function uploadOne(t: FtpTarget, dir: string, source: string | Readable, n
     client.close();
   }
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Uploads each finished recording like the RLC-1224A: the clip of the chosen
 // stream and a JPEG, to <remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.*,

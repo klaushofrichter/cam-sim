@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import type pino from 'pino';
 import { FlvWriter, readFlv, splitAnnexB, h265NalType, hvcc, parseAdts, type FlvTag } from './flv';
 import type { MediaSource, Stream } from './source';
+import { sleep } from '../util/sleep';
 
 const run = promisify(execFile);
 
@@ -58,8 +59,9 @@ const X265 = ['-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p'];
 // Clips are 12 s, like the recordings cams' player tests skip through.
 const CLIP_S = '12';
 
-async function ffmpeg(args: string[]): Promise<void> {
-  await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024 });
+// One ffmpeg run, quiet unless it fails (the error carries its stderr).
+export async function ffmpeg(args: string[], signal?: AbortSignal): Promise<void> {
+  await run('ffmpeg', ['-hide_banner', '-nostdin', '-loglevel', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024, signal });
 }
 
 // The camera's main-stream FLV: H.265 with legacy codec id 12, plus AAC,
@@ -125,7 +127,6 @@ async function generate(dir: string): Promise<void> {
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ version: FIXTURE_VERSION }));
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const LOCK_STALE_MS = 180_000;
 
 // A lock directory next to the fixtures (mkdir is atomic across processes),

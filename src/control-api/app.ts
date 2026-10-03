@@ -244,7 +244,7 @@ export function createControlApp(engine: Engine): express.Express {
     devInfo: devInfo(e.config.name, e.serial, e.config.firmVer),
     hddInfo: e.sd.hddInfo(),
     enc: ENC,
-    certificate: { source: e.certificate.source, enable: e.certificate.enable },
+    certificate: { source: e.certs.state.source, enable: e.certs.state.enable },
   }));
   // Whole-object writes through the camera's own validation.
   const SET_FOR: Record<string, string> = { Rec: 'SetRecV20', MdAlarm: 'SetMdAlarm', Isp: 'SetIsp', IrLights: 'SetIrLights', WhiteLed: 'SetWhiteLed', Osd: 'SetOsd', NetPort: 'SetNetPort', Ftp: 'SetFtpV20' };

@@ -241,7 +241,7 @@ describe('control API: clear and factory-reset', () => {
     expect(engine.events.recent(20)).toHaveLength(0);
     expect(engine.faults.list()).toEqual([]);
     expect(engine.settings.running.Rec.postRec).toBe('15 Seconds');
-    expect(engine.certificate).toMatchObject({ source: 'factory', enable: 0 });
+    expect(engine.certs.state).toMatchObject({ source: 'factory', enable: 0 });
     expect(dropped).toEqual([true]); // the FTP queue and others listen for it
     expect(engine.rebooting).toBe(true);
     await new Promise((r) => setTimeout(r, 300));

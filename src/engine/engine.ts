@@ -16,8 +16,9 @@ import type { MediaSource } from '../media/source';
 import type { Library } from '../media/library';
 import { ensureFixtures, defaultFixtureDir, FixtureMedia } from '../media/fixtures';
 import { createLogger } from '../log';
-import { Certificates, type CertState } from '../tls/certs';
+import { Certificates } from '../tls/certs';
 import { RequestLog } from './request-log';
+import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
 const TIMINGS = {
@@ -167,17 +168,13 @@ export class Engine {
     return this.power !== 'on' || this.rebooting || this.certRestarting || !!this.faults.active('offline');
   }
 
-  get certificate(): CertState {
-    return this.certs.state;
-  }
-
   // CertificateClear and a successful ImportCertificate restart the camera's
   // web server: sessions end, and clients must log in again.
   private async certRestart(): Promise<void> {
     this.bus.emit('cert', this.certs.state);
     this.sessions.revokeAll();
     this.certRestarting = true;
-    await new Promise((r) => setTimeout(r, this.timings.certRestartMs));
+    await sleep(this.timings.certRestartMs);
     this.certRestarting = false;
   }
 
@@ -211,7 +208,7 @@ export class Engine {
   // no sessions, and the saved settings take effect.
   private async boot(msOpt?: number): Promise<void> {
     const ms = Math.min(Math.max(0, Number(msOpt ?? this.timings.rebootMs) || 0), 600_000);
-    await new Promise((r) => setTimeout(r, ms));
+    await sleep(ms);
     this.serial = this.newSerial();
     this.sessions.revokeAll();
     this.settings.applySavedOnReboot();
@@ -312,7 +309,7 @@ export class Engine {
       events: this.events.recent(20),
       sd: { usedMb: this.sd.usedMb(), capacityMb: this.config.sdMb, recordings: this.sd.all().length },
       counters: { ...this.counters.snapshot(), activeSessions: this.sessions.count() },
-      certificate: { source: this.certificate.source, enable: this.certificate.enable },
+      certificate: { source: this.certs.state.source, enable: this.certs.state.enable },
       settings: this.settings.running,
       pipeline: this.pipelineState(),
       pipelineMaxMin: this.config.pipelineMaxMin,

@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
 import type { Engine } from '../engine/engine';
-import { FixtureMedia, composeMainFlv, fixturePaths } from './fixtures';
+import { FixtureMedia, composeMainFlv, ffmpeg, fixturePaths } from './fixtures';
 
 const run = promisify(execFile);
 // Bump when the prepared files change, so caches are rebuilt.
@@ -37,10 +37,6 @@ function slug(name: string): string {
 // ffmpeg reads a plain absolute path (no protocol like concat:, no option-like '-').
 const input = (p: string) => `file:${resolve(p)}`;
 const STALE_TMP_MS = 3600_000;
-
-async function ffmpeg(args: string[], signal?: AbortSignal): Promise<void> {
-  await run('ffmpeg', ['-hide_banner', '-nostdin', '-loglevel', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024, signal });
-}
 
 async function probe(file: string): Promise<{ vcodec?: string; acodec?: string; duration: number; fps: number }> {
   const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,avg_frame_rate:format=duration', '-of', 'json', input(file)]);

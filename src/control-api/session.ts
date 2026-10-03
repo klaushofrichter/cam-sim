@@ -1,4 +1,5 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHmac, randomBytes } from 'crypto';
+import { safeEqual } from '../util/safe-equal';
 
 // Per camera: several simulators on one host (ports differ, cookies don't)
 // must not overwrite each other's session.
@@ -17,9 +18,7 @@ export function createSessionSigner(secret: Buffer = randomBytes(32), ttlMs = SE
     verify(value: string | undefined): boolean {
       const m = /^(v1\.(\d{1,15}))\.([0-9a-f]{64})$/.exec(value ?? '');
       if (!m) return false;
-      const want = Buffer.from(mac(m[1]), 'hex');
-      const got = Buffer.from(m[3], 'hex');
-      return want.length === got.length && timingSafeEqual(want, got) && Number(m[2]) > Date.now();
+      return safeEqual(m[3], mac(m[1])) && Number(m[2]) > Date.now();
     },
   };
 }

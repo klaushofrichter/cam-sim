@@ -99,7 +99,7 @@ describe('TLS and certificates', () => {
       const t2 = await login(app);
       const imported = await post(app, 'ImportCertificate', importParam(cert), t2);
       expect(imported.reply.code, `round ${i}: ${imported.res.text}`).toBe(0);
-      expect(engine.certificate.enable, `round ${i}: the import was not applied yet`).toBe(1);
+      expect(engine.certs.state.enable, `round ${i}: the import was not applied yet`).toBe(1);
       expect(engine.offline(), `round ${i}: ImportCertificate answered, the camera is still online`).toBe(true);
     }
   }, 60_000);
@@ -129,7 +129,7 @@ describe('TLS and certificates', () => {
     await waitOnline(engine);
     const again = await start({ CAMSIM_DATA_DIR: dir });
     expect(await peerCN(again.l.ports.https)).toBe('cam2.skylar.technology');
-    expect(again.engine.certificate.enable).toBe(1);
+    expect(again.engine.certs.state.enable).toBe(1);
   });
 
   it('httpsEnable 0 resets HTTPS while HTTP answers', async () => {

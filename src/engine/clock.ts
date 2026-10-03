@@ -28,6 +28,9 @@ export interface LocalParts {
   dst: boolean;
 }
 
+// Two digits, zero-padded.
+export const p2 = (n: number): string => String(n).padStart(2, '0');
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Offset of `tz` from UTC at instant `d`, in minutes east.
@@ -63,7 +66,6 @@ export function localParts(clock: Clock, tz: string, d: Date = clock.now()): Loc
       .map((p) => [p.type, p.value]),
   );
   const [year, mon, day, hour, min, sec] = ['year', 'month', 'day', 'hour', 'minute', 'second'].map((k) => Number(parts[k]));
-  const p2 = (n: number) => String(n).padStart(2, '0');
   return {
     date: `${year}-${p2(mon)}-${p2(day)}`,
     hms: `${p2(hour)}${p2(min)}${p2(sec)}`,
@@ -80,6 +82,9 @@ export function isDstOn(tz: string, date: string): boolean {
   return dstAt(tz, new Date(`${date}T12:00:00Z`));
 }
 
+// The camera's date and clock format (GetTime timeFmt; hourFmt 1 = 12 h).
+export const TIME_FORMAT = { timeFmt: 'MM/DD/YYYY', hourFmt: 1 } as const;
+
 // The GetTime value, in the firmware's shape (reference/rlc-1224a/GetTime.json).
 // `timeZone` is seconds WEST of UTC for standard time. The Dst rule block is
 // the measured US rule; zones without DST report enable 0.
@@ -94,9 +99,9 @@ export function timeValue(clock: Clock, tz: string) {
     },
     Time: {
       year: p.year, mon: p.mon, day: p.day, hour: p.hour, min: p.min, sec: p.sec,
-      hourFmt: 1,
+      hourFmt: TIME_FORMAT.hourFmt,
       isDst: p.dst ? 1 : 0,
-      timeFmt: 'MM/DD/YYYY',
+      timeFmt: TIME_FORMAT.timeFmt,
       timeZone: -standardOffset(tz, p.year) * 60,
     },
   };

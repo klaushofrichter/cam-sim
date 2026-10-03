@@ -1,6 +1,5 @@
 import http from 'http';
 import https from 'https';
-import type { AddressInfo } from 'net';
 import type express from 'express';
 import { createEngine, type Engine } from './engine/engine';
 import { createCameraApp } from './camera-api/app';
@@ -16,6 +15,7 @@ import { createOnvifApp, type OnvifApp } from './onvif/server';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { FIRMWARE_VERSION } from './profile/version';
+import { closeServer, followCertificate, listen } from './util/net';
 import type { CamSimConfig, User } from './config';
 import { BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS } from './config';
 import type { Clock } from './engine/clock';
@@ -141,25 +141,15 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
     // it follows ImportCertificate), with 'auto' when one was configured.
     const tls = config.controlTls === 'on' || (config.controlTls === 'auto' && !!config.tlsCertFile);
     if (tls) {
-      const server = https.createServer({ cert: engine.certificate.cert, key: engine.certificate.key }, controlApp);
-      const onCert = (c: { cert: string; key: string }) => server.setSecureContext({ cert: c.cert, key: c.key });
-      engine.bus.on('cert', onCert);
-      server.on('close', () => engine.bus.off('cert', onCert));
+      const server = https.createServer({ cert: engine.certs.state.cert, key: engine.certs.state.key }, controlApp);
+      server.on('close', followCertificate(engine, server));
       control = server;
     } else control = http.createServer(controlApp);
-    const srv = control;
-    const controlPort = await new Promise<number>((resolve, reject) => {
-      srv.once('error', reject);
-      srv.listen(p.control, host, () => resolve((srv.address() as AddressInfo).port));
-    });
+    const controlPort = await listen(control, p.control, host);
     // ONVIF (device and event services), plain HTTP as on the camera.
     onvifApp = createOnvifApp(engine);
-    const o = http.createServer(onvifApp);
-    onvif = o;
-    const onvifPort = await new Promise<number>((resolve, reject) => {
-      o.once('error', reject);
-      o.listen(p.onvif, host, () => resolve((o.address() as AddressInfo).port));
-    });
+    onvif = http.createServer(onvifApp);
+    const onvifPort = await listen(onvif, p.onvif, host);
     // Baichuan (the camera's port 9000): login and recordings download.
     // Off when the config has no port (CLI without CAMSIM_BAICHUAN_PORT) and
     // listen() doesn't name one.
@@ -196,11 +186,7 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
     onvifApp?.stop();
     engine.stop();
     await camera?.close();
-    for (const srv of [control, onvif]) {
-      if (!srv) continue;
-      srv.closeAllConnections();
-      await new Promise<void>((r) => srv.close(() => r()));
-    }
+    for (const srv of [control, onvif]) if (srv) await closeServer(srv);
   }
 
   return {
