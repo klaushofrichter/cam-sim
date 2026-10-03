@@ -132,8 +132,7 @@ export class SettingsStore {
   // it goes off (measured on cam1 2026-09-30). A newer write replaces a
   // switch still pending.
   private lightLate(was: unknown): void {
-    clearTimeout(this.lightTimer);
-    this.lightTimer = undefined;
+    this.cancelLight();
     const want = this.running.WhiteLed.state;
     if (want === was) return;
     this.running.WhiteLed.state = was;
@@ -144,17 +143,19 @@ export class SettingsStore {
     this.lightTimer.unref?.();
   }
 
-  applySavedOnReboot(): void {
+  private cancelLight(): void {
     clearTimeout(this.lightTimer);
     this.lightTimer = undefined;
+  }
+
+  applySavedOnReboot(): void {
+    this.cancelLight();
     this.running = clone(this.saved);
   }
 
   resetFactory(): void {
-    clearTimeout(this.lightTimer);
-    this.lightTimer = undefined;
     this.saved = factorySettings(this.name);
-    this.running = clone(this.saved);
+    this.applySavedOnReboot();
     this.persist();
   }
 

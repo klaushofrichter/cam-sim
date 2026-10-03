@@ -244,17 +244,23 @@ export class SdCard {
     return undefined;
   }
 
+  // The current sizes are looked up once, and only for records made before
+  // sizes were stored.
   private usedBytes(): number {
+    let current: Record<Stream, number> | undefined;
     return this.recs.reduce((n, r) => {
-      const z = r.sizes ?? this.currentSizes();
+      const z = r.sizes ?? (current ??= this.currentSizes());
       return n + z.sub + z.main;
     }, 0);
   }
 
+  count(): number {
+    return this.recs.length;
+  }
+
   // Firmware: capacity is the card size in MB, `size` is the FREE space in MB.
   hddInfo() {
-    const usedMb = Math.ceil(this.usedBytes() / 1048576);
-    return [{ capacity: this.opts.capacityMb, format: 1, mount: 1, number: 0, size: Math.max(0, this.opts.capacityMb - usedMb), storageType: 2 }];
+    return [{ capacity: this.opts.capacityMb, format: 1, mount: 1, number: 0, size: Math.max(0, this.opts.capacityMb - this.usedMb()), storageType: 2 }];
   }
 
   usedMb(): number {

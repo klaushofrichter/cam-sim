@@ -314,7 +314,7 @@ export class Engine {
       rebooting: this.rebooting,
       faults: this.faults.list(),
       events: this.events.recent(20),
-      sd: { usedMb: this.sd.usedMb(), capacityMb: this.config.sdMb, recordings: this.sd.all().length },
+      sd: { usedMb: this.sd.usedMb(), capacityMb: this.config.sdMb, recordings: this.sd.count() },
       counters: { ...this.counters.snapshot(), activeSessions: this.sessions.count() },
       certificate: { source: this.certs.state.source, enable: this.certs.state.enable },
       settings: this.settings.running,
