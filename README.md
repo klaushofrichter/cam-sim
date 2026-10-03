@@ -899,6 +899,11 @@ pasting the control token once; it's exchanged for a session cookie
 (HttpOnly, SameSite=Strict, 12 hours) and not stored in the browser. Signing
 out, or a simulator restart, ends the session.
 
+Its navigation works like cams and cam-proxy: a sidebar with labels that
+"Collapse" shrinks to icons (remembered per browser), and on phones (767 px
+and narrower) a hamburger at the top left that opens the menu, with the
+camera line, the theme toggle and Sign out, as a drawer over the page.
+
 The UI has four pages:
 
 - **Live:** the sub stream (H.264) or the main stream (H.265 in the camera's
