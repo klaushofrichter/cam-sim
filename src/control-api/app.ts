@@ -27,6 +27,9 @@ function findWebDir(): string | undefined {
   return undefined;
 }
 
+// The longest boot an action may ask for (10 minutes).
+const MAX_BOOT_MS = 600_000;
+
 export function createControlApp(engine: Engine): express.Express {
   const e = engine;
   const app = express();
@@ -163,10 +166,12 @@ export function createControlApp(engine: Engine): express.Express {
   api.post('/actions/:name', (req, res) => {
     const name = req.params.name as ActionName;
     if (!ACTION_NAMES.includes(name)) return bad(res, `action must be one of ${ACTION_NAMES.join(', ')}`);
-    const ms = req.body?.ms;
-    if ((name === 'reboot' || name === 'power-on' || name === 'factory-reset') && ms !== undefined && !(Number.isInteger(ms) && ms >= 0 && ms <= 600_000)) {
-      return bad(res, 'ms must be an integer from 0 to 600000');
-    }
+    // The boot time of reboot, power-on and factory-reset: bounded here, where
+    // the request's value enters, so no timer gets an unchecked duration.
+    const raw: unknown = req.body?.ms;
+    const timed = name === 'reboot' || name === 'power-on' || name === 'factory-reset';
+    const ms = typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= MAX_BOOT_MS ? raw : undefined;
+    if (timed && raw !== undefined && ms === undefined) return bad(res, `ms must be an integer from 0 to ${MAX_BOOT_MS}`);
     const conflict = (error: string) => void res.status(409).json({ error });
     switch (name) {
       case 'tokens.revoke':
