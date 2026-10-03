@@ -3,11 +3,13 @@ import { rateLimit } from 'express-rate-limit';
 import type { Engine } from '../engine/engine';
 import { devInfo } from '../profile/rlc1224a';
 import { localParts } from '../engine/clock';
+import type { Trigger } from '../engine/types';
 import { envelope, fault, operation, field, durationMs, authenticate, esc, NS } from './soap';
 import { TOPICS, topicsFor, notification, currentState, EVENT_PROPERTIES } from './events';
 
 const MAX_SUBSCRIPTIONS = 16;
 const MAX_PULL_WAIT_MS = 60_000;
+const MAX_TTL_MS = 24 * 3600_000;
 // Messages kept for a subscription nobody pulls; the oldest go first.
 const MAX_QUEUE = 1000;
 // A host header fit to go into an address: name or IPv4, or [IPv6], with a port.
@@ -48,7 +50,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
   sweeper.unref();
 
   // Detection changes become Changed notifications in every subscription.
-  const onDetect = ({ type, state }: { type: 'motion' | 'person' | 'vehicle' | 'pet'; state: boolean }) => {
+  const onDetect = ({ type, state }: { type: Trigger; state: boolean }) => {
     if (e.offline()) return;
     const msgs = topicsFor(type).map((t) => notification(t, state, 'Changed'));
     for (const s of subs.values()) {
@@ -82,6 +84,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
 
   const send = (res: Response, body: string) => res.status(200).type('application/soap+xml; charset=utf-8').send(envelope(body));
   const sendFault = (res: Response, sub: string, reason: string) => res.status(400).type('application/soap+xml; charset=utf-8').send(fault(sub, reason));
+  const notSupported = (res: Response) => sendFault(res, 'ter:ActionNotSupported', 'Optional Action Not Implemented');
   const base = (req: Request) => {
     const host = req.get('host') ?? '';
     return `http://${HOST.test(host) ? host : `127.0.0.1:${e.config.ports.onvif}`}`;
@@ -114,7 +117,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
         return send(res, `<tds:GetServicesResponse>${svc(NS.tds, '/onvif/device_service')}${svc(NS.tev, '/onvif/event_service')}</tds:GetServicesResponse>`);
       }
       default:
-        return sendFault(res, 'ter:ActionNotSupported', 'Optional Action Not Implemented');
+        return notSupported(res);
     }
   });
 
@@ -127,14 +130,14 @@ export function createOnvifApp(engine: Engine): OnvifApp {
       case 'CreatePullPointSubscription': {
         expire();
         if (subs.size >= MAX_SUBSCRIPTIONS) return sendFault(res, 'ter:MaxPullPointsReached', 'Too many subscriptions');
-        const ttl = Math.min(durationMs(field(xml, 'InitialTerminationTime'), 60_000), 24 * 3600_000);
+        const ttl = Math.min(durationMs(field(xml, 'InitialTerminationTime'), 60_000), MAX_TTL_MS);
         const idx = nextIdx++;
         const now = Date.now();
         subs.set(idx, { expiresAt: now + ttl, queue: TOPICS.map((t) => notification(t.topic, currentState(e, t.topic), 'Initialized')), wake: new Set() });
         return send(res, `<tev:CreatePullPointSubscriptionResponse><tev:SubscriptionReference><wsa5:Address>${esc(base(req))}/onvif/PullSubManager?Idx=${idx}</wsa5:Address></tev:SubscriptionReference><wsnt:CurrentTime>${utc(now)}</wsnt:CurrentTime><wsnt:TerminationTime>${utc(now + ttl)}</wsnt:TerminationTime></tev:CreatePullPointSubscriptionResponse>`);
       }
       default:
-        return sendFault(res, 'ter:ActionNotSupported', 'Optional Action Not Implemented');
+        return notSupported(res);
     }
   });
 
@@ -174,14 +177,14 @@ export function createOnvifApp(engine: Engine): OnvifApp {
         return send(res, `<tev:PullMessagesResponse><tev:CurrentTime>${utc(Date.now())}</tev:CurrentTime><tev:TerminationTime>${utc(s.expiresAt)}</tev:TerminationTime>${msgs.join('')}</tev:PullMessagesResponse>`);
       }
       case 'Renew': {
-        s.expiresAt = Date.now() + Math.min(durationMs(field(xml, 'TerminationTime'), 60_000), 24 * 3600_000);
+        s.expiresAt = Date.now() + Math.min(durationMs(field(xml, 'TerminationTime'), 60_000), MAX_TTL_MS);
         return send(res, `<wsnt:RenewResponse><wsnt:TerminationTime>${utc(s.expiresAt)}</wsnt:TerminationTime><wsnt:CurrentTime>${utc(Date.now())}</wsnt:CurrentTime></wsnt:RenewResponse>`);
       }
       case 'Unsubscribe':
         end(idx, s);
         return send(res, '<wsnt:UnsubscribeResponse/>');
       default:
-        return sendFault(res, 'ter:ActionNotSupported', 'Optional Action Not Implemented');
+        return notSupported(res);
     }
   });
 

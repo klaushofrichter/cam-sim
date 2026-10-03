@@ -4,20 +4,19 @@
 // abort.txt). After PR #186 9a1bb52 to reolink_aio (MIT, THIRD_PARTY_NOTICES).
 import { open } from 'fs/promises';
 import type { Engine } from '../engine/engine';
-import type { Recording, Stream } from '../engine/sdcard';
+import { clipSpan, type Recording, type Stream, type TimeFields } from '../engine/sdcard';
 import { ENC } from '../profile/rlc1224a';
 import { CLS_CAMERA, encodeFrame } from './frame';
 import { aesEncrypt, encryptChunk } from './cipher';
 import { ENCRYPT_LEN, EXT_BINARY, EXT_CHUNK, fileInfoXml, type Moment } from './xml';
 import { chunkSize, infoRecord } from './records';
-import type { TransferLike } from './server';
 
 // Measured: about 400 KB (13 frames) still arrive after cmd 9 (abort.txt).
-export const FRAMES_AFTER_STOP = 13;
+const FRAMES_AFTER_STOP = 13;
 // Measured: a cmd 8 without cmd 9 lets the running transfer finish its
 // current 128 KiB block and two more (8 chunks from a block boundary) before
 // the new file starts (err-second-download.txt (A): 393216 B under the old id).
-export const BLOCKS_AFTER_REPLACE = 2;
+const BLOCKS_AFTER_REPLACE = 2;
 const CHUNKS_PER_BLOCK = 4; // CHUNK_CYCLE: 3 × 39,400 + 12,872 = 128 KiB
 // The first cmd-8 reply's body: the 106-byte extension and the 32-byte record.
 export const FIRST_REPLY_LEN = Buffer.byteLength(EXT_BINARY) + 32;
@@ -31,21 +30,12 @@ export interface BcFile {
   end: Moment;
 }
 
-const moment = (date: string, hms: string): Moment => ({
-  year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)), day: Number(date.slice(8, 10)),
-  hour: Number(hms.slice(0, 2)), minute: Number(hms.slice(2, 4)), second: Number(hms.slice(4, 6)),
-});
-
-function nextDay(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
+const moment = (t: TimeFields): Moment => ({ year: t.year, month: t.mon, day: t.day, hour: t.hour, minute: t.min, second: t.sec });
 
 // Camera-local start and end; a clip across midnight ends the next day.
 export function timesOf(rec: Recording, stream: Stream): { start: Moment; end: Moment } {
-  const end = (stream === 'main' ? (rec.mainEnd ?? rec.end) : rec.end) ?? rec.start;
-  return { start: moment(rec.date, rec.start), end: moment(end < rec.start ? nextDay(rec.date) : rec.date, end) };
+  const { start, end } = clipSpan(rec, stream);
+  return { start: moment(start), end: moment(end) };
 }
 
 // Recordings whose size mismatch was logged, per engine (once per recording).
@@ -102,21 +92,21 @@ export interface TransferDeps {
   delayMs(): number | undefined; // baichuan.delayMs, read before each chunk
   dropMidway(): boolean; // baichuan.dropMidway, read at the start
   onDrop(): void; // closes the connection
-  prev?: TransferLike; // a transfer this one replaced: it starts once that one ends
+  prev?: Transfer; // a transfer this one replaced: it starts once that one ends
 }
 
 // One cmd-8 transfer. Every frame echoes cmd 8's message id; there is no
 // terminator. It reads one chunk at a time and waits for the socket to drain,
 // so a slow reader slows it down instead of growing a buffer.
-export class Transfer implements TransferLike {
+export class Transfer {
   done = false;
-  readonly ended: Promise<void>;
+  readonly ended: Promise<void>; // resolves when it has ended, however
   private endedResolve!: () => void;
   private cancelled = false;
   private tail?: number; // frames still allowed after cmd 9 or a replacing cmd 8
   private recordSent = false;
   private nextChunk = 0; // index of the next chunk to go out
-  private prev?: TransferLike; // dropped once it has ended
+  private prev?: Transfer; // dropped once it has ended
   private wake?: () => void; // ends a running baichuan.delayMs wait
 
   constructor(private readonly d: TransferDeps) {

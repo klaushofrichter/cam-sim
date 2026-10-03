@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
 import type { Engine } from '../engine/engine';
-import { FixtureMedia, composeMainFlv, fixturePaths } from './fixtures';
+import { FixtureMedia, composeMainFlv, ffmpeg, fixturePaths } from './fixtures';
 
 const run = promisify(execFile);
 // Bump when the prepared files change, so caches are rebuilt.
@@ -38,10 +38,6 @@ function slug(name: string): string {
 const input = (p: string) => `file:${resolve(p)}`;
 const STALE_TMP_MS = 3600_000;
 
-async function ffmpeg(args: string[], signal?: AbortSignal): Promise<void> {
-  await run('ffmpeg', ['-hide_banner', '-nostdin', '-loglevel', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024, signal });
-}
-
 async function probe(file: string): Promise<{ vcodec?: string; acodec?: string; duration: number; fps: number }> {
   const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,avg_frame_rate:format=duration', '-of', 'json', input(file)]);
   const j = JSON.parse(stdout) as { streams?: Array<{ codec_type: string; codec_name: string; avg_frame_rate?: string }>; format?: { duration?: string } };
@@ -65,21 +61,27 @@ export class Library {
     this.entries.set('test-pattern', { id: 'test-pattern', name: 'Test pattern', state: 'ready', converted: true });
     // Every cached copy stays servable, so recordings keep their video after
     // a restart, also when its source was removed.
-    for (const [id, dir] of this.cachedCopies()) engine.registerMedia(id, new FixtureMedia(fixturePaths(dir)));
+    for (const [id, dir] of this.cachedCopies()) this.adopt(id, dir);
     for (const s of this.scan()) {
       this.sources.set(s.id, s);
       const e: VideoEntry = { id: s.id, name: s.name, state: 'pending' };
       this.entries.set(s.id, e);
       try {
-        const meta = this.readMeta(this.dirFor(s));
+        const dir = this.dirFor(s);
+        const meta = this.readMeta(dir);
         if (meta) {
           Object.assign(e, { state: 'ready', converted: meta.converted, durationS: meta.durationS });
-          engine.registerMedia(s.id, new FixtureMedia(fixturePaths(this.dirFor(s))));
+          this.adopt(s.id, dir);
         }
       } catch {
         // the source vanished while scanning: prepareAll reports it
       }
     }
+  }
+
+  // A prepared copy becomes servable (recordings made from it, select()).
+  private adopt(id: string, dir: string): void {
+    this.engine.registerMedia(id, new FixtureMedia(fixturePaths(dir)));
   }
 
   private readMeta(dir: string): { id: string; key: string; converted: boolean; durationS: number } | undefined {
@@ -153,10 +155,6 @@ export class Library {
     return [all[0], ...all.slice(1).sort((a, b) => a.id.localeCompare(b.id))].map((e) => ({ ...e }));
   }
 
-  selected(): string {
-    return this.engine.videoId;
-  }
-
   // null on success, or why not.
   select(id: string): string | null {
     const entry = this.entries.get(id);
@@ -191,8 +189,9 @@ export class Library {
       e.state = 'preparing';
       this.engine.bus.emit('video', { id: s.id, state: e.state });
       try {
-        Object.assign(e, await this.prepare(s), { state: 'ready' as const });
-        this.engine.registerMedia(s.id, new FixtureMedia(fixturePaths(this.dirFor(s))));
+        const { dir, ...meta } = await this.prepare(s);
+        Object.assign(e, meta, { state: 'ready' as const });
+        this.adopt(s.id, dir);
       } catch (err) {
         if (this.abort.signal.aborted) {
           e.state = 'pending';
@@ -213,20 +212,25 @@ export class Library {
 
   private sourceKey(s: Source): string {
     const c = this.engine.config;
-    return s.paths.map((p) => `${resolve(p)}:${statSync(p).size}:${statSync(p).mtimeMs}`).join('|') + `|${c.mainSize}|${c.maxVideoS}`;
+    return s.paths.map((p) => {
+      const st = statSync(p);
+      return `${resolve(p)}:${st.size}:${st.mtimeMs}`;
+    }).join('|') + `|${c.mainSize}|${c.maxVideoS}`;
   }
 
   // One folder per source version and settings, so instances sharing the
   // cache never overwrite each other's copy.
-  private dirFor(s: Source): string {
-    return join(this.opts.cacheDir, `${s.id}-${hash(this.sourceKey(s), 10)}`);
+  private dirFor(s: Source, key = this.sourceKey(s)): string {
+    return join(this.opts.cacheDir, `${s.id}-${hash(key, 10)}`);
   }
 
-  private async prepare(s: Source): Promise<{ converted: boolean; durationS: number }> {
-    const dir = this.dirFor(s);
+  // Answers the folder it is in, so it is the one adopted even if the
+  // source changes meanwhile.
+  private async prepare(s: Source): Promise<{ dir: string; converted: boolean; durationS: number }> {
     const key = this.sourceKey(s);
+    const dir = this.dirFor(s, key);
     const cached = this.readMeta(dir);
-    if (cached) return { converted: cached.converted, durationS: cached.durationS };
+    if (cached) return { dir, converted: cached.converted, durationS: cached.durationS };
     mkdirSync(this.opts.cacheDir, { recursive: true });
     const tmp = join(this.opts.cacheDir, `.${s.id}.tmp-${randomBytes(4).toString('hex')}`);
     mkdirSync(tmp);
@@ -236,8 +240,11 @@ export class Library {
       const limit = ['-t', String(this.engine.config.maxVideoS)];
       const silent = ['-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono'];
       let converted = true;
+      // The first path's probe, reused when a pair is converted.
+      let first: Awaited<ReturnType<typeof probe>> | undefined;
       if (s.kind === 'pair') {
         const [m, sub] = await Promise.all(s.paths.map(probe));
+        first = m;
         if (m.vcodec === 'hevc' && sub.vcodec === 'h264') {
           converted = false;
           // The camera's own encodings: copied. Audio made AAC if it isn't,
@@ -253,7 +260,7 @@ export class Library {
       }
       if (converted) {
         const from = [...limit, '-i', input(s.paths[0])];
-        const hasAudio = !!(await probe(s.paths[0])).acodec;
+        const hasAudio = !!(first ?? (await probe(s.paths[0]))).acodec;
         const quiet = hasAudio ? [] : silent;
         const amap = hasAudio ? ['-map', '0:v:0', '-map', '0:a:0'] : ['-map', '0:v:0', '-map', '1:a:0', '-shortest'];
         const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
@@ -284,7 +291,7 @@ export class Library {
         // Another instance made the same version first: use its copy.
         if (!this.readMeta(dir)) throw err;
       }
-      return { converted, durationS: meta.durationS };
+      return { dir, converted, durationS: meta.durationS };
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

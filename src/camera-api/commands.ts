@@ -6,6 +6,7 @@ import { timeValue } from '../engine/clock';
 import { validPair } from '../tls/certs';
 import { testFtp } from '../ftp/uploader';
 import { devInfo, ENC, ABILITY, IR_LIGHTS_EXTRA, AI_TYPES, type AiType } from '../profile/rlc1224a';
+import { sleep } from '../util/sleep';
 
 // Error details as the firmware words them (measured where noted).
 const DETAIL: Record<number, string> = {
@@ -17,12 +18,13 @@ const DETAIL: Record<number, string> = {
   [-56]: 'err get data from json', // measured (GetPushV20)
   [-64]: 'err received data from json', // measured (Search, onlyStatus with reversed months)
   [-67]: 'param error',
+  [-454]: 'ftp connect failed',
 };
 
 export type Entry = Record<string, unknown>;
 export const ok = (cmd: string, value: unknown, extra: Entry = {}): Entry => ({ cmd, code: 0, ...extra, value });
 export const fail = (cmd: string, rspCode: number): Entry => ({ cmd, code: 1, error: { detail: DETAIL[rspCode] ?? 'param error', rspCode } });
-export const UNKNOWN: Entry = { cmd: 'Unknown', code: 1, error: { detail: 'not support', rspCode: -9 } };
+const UNKNOWN: Entry = { cmd: 'Unknown', code: 1, error: { detail: 'not support', rspCode: -9 } };
 
 export interface Ctx {
   engine: Engine;
@@ -42,10 +44,9 @@ export interface Ctx {
 // connection itself (like the firmware sometimes does).
 type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // First two characters, `**`, last two. Names under 5 characters are left
 // as they are (the camera's mask for them is not measured).
-export const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
+const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
 
 const getter = (key: string, pick: (e: Engine, p: any) => unknown): Handler => (c) => ok(c.cmd, { [key]: pick(c.engine, c.param) });
 
@@ -132,10 +133,9 @@ const HANDLERS: Record<string, Handler> = {
   },
   TestFtp: async (c) => {
     const r = await testFtp(c.engine, c.param?.Ftp);
-    if (r === -454) return { cmd: c.cmd, code: 1, error: { detail: 'ftp connect failed', rspCode: -454 } };
     return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
   },
-  GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certificate.enable, keyName: 'server.key' } }),
+  GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certs.state.enable, keyName: 'server.key' } }),
   CertificateClear: (c) => {
     c.beforeReply(() => c.engine.clearCertificate());
     return ok(c.cmd, { rspCode: 200 });
@@ -145,7 +145,7 @@ const HANDLERS: Record<string, Handler> = {
     const pem = (x: any) => (typeof x?.content === 'string' ? Buffer.from(x.content, 'base64').toString('utf8') : '');
     const cert = pem(ic.crt), key = pem(ic.key);
     // Validate now, apply when the reply goes out (the web server restarts).
-    if (c.engine.certificate.enable === 1) return ok(c.cmd, { rspCode: 200 });
+    if (c.engine.certs.state.enable === 1) return ok(c.cmd, { rspCode: 200 });
     if (!validPair(cert, key)) return fail(c.cmd, -4);
     c.beforeReply(() => c.engine.importCertificate(cert, key));
     return ok(c.cmd, { rspCode: 200 });
@@ -176,7 +176,7 @@ function setCommand(c: Ctx): Entry {
   return r ? fail(c.cmd, r.rspCode) : ok(c.cmd, { rspCode: 200 });
 }
 
-export async function runCommand(c: Ctx): Promise<Entry | 'destroyed'> {
+export function runCommand(c: Ctx): Entry | 'destroyed' | Promise<Entry | 'destroyed'> {
   if (Object.hasOwn(HANDLERS, c.cmd)) return HANDLERS[c.cmd](c);
   if (isSetCommand(c.cmd)) return setCommand(c);
   return UNKNOWN;

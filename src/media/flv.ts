@@ -100,7 +100,6 @@ export function splitAnnexB(buf: Buffer): Buffer[] {
 }
 
 export const h265NalType = (nalu: Buffer) => (nalu[0] >> 1) & 0x3f;
-export const h264NalType = (nalu: Buffer) => nalu[0] & 0x1f;
 
 // Removes emulation-prevention bytes (00 00 03 → 00 00).
 function unescapeRbsp(b: Buffer): Buffer {

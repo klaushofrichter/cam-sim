@@ -6,25 +6,14 @@
 import net, { type AddressInfo } from 'net';
 import { randomBytes } from 'crypto';
 import type { Engine } from '../engine/engine';
-import { BAICHUAN_OVER_LIMIT_HELD_MAX, BAICHUAN_SESSION_LIMIT, type User } from '../config';
+import { BAICHUAN_OVER_LIMIT_HELD_MAX, BAICHUAN_SESSION_LIMIT, type CamSimConfig, type User } from '../config';
 import { CLS_CAMERA, CLS_NONCE_REPLY, CLS_NONCE_REQUEST, ENC_CHOICE, FrameParser, channelOf, encodeFrame, type BcFrame } from './frame';
 import { aesDecrypt, aesEncrypt, aesKey, bcXor, md5_31 } from './cipher';
 import { LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, PUSHES, loginReplyXml, nonceXml, tagValue, type PushMessage } from './xml';
 import { FIRST_REPLY_LEN, Transfer, fileInfoReply, resolveFile } from './vod';
 
-export interface BaichuanOptions {
-  idleMs?: number; // default config.baichuan.idleMs (32 s)
-  firstMessageMs?: number; // default config.baichuan.firstMessageMs (12.5 s)
-}
-
-// What the server needs of a connection's running download (vod.ts).
-export interface TransferLike {
-  readonly done: boolean;
-  readonly ended: Promise<void>; // resolves when it has ended, however
-  cancel(): void; // stop at once, without a message (the connection is going)
-  stop(): void; // cmd 9: the frames already in flight, then nothing
-  replace(): void; // a new cmd 8: up to a 128 KiB boundary and a little more, then nothing
-}
+// Defaults: config.baichuan (idle close 32 s, 12.5 s before a first message).
+export type BaichuanOptions = Partial<CamSimConfig['baichuan']>;
 
 class Conn {
   readonly parser = new FrameParser();
@@ -41,7 +30,7 @@ class Conn {
   late?: NodeJS.Timeout; // the 291/677/600/669 group, before it went out
   lateArmedByMessage = false; // the first message after login set its timer
   lateSent = false;
-  transfer?: TransferLike;
+  transfer?: Transfer;
 
   constructor(readonly socket: net.Socket) {
     this.ip = socket.remoteAddress ?? '';
@@ -63,7 +52,7 @@ export class BaichuanServer {
   private readonly firstMessageMs: number;
   private readonly hooks = { dropAll: () => this.dropAll(), dropTransfers: () => this.dropTransfers() };
   private readonly onFaults = () => {
-    if (this.down()) this.dropAll();
+    if (this.engine.down()) this.dropAll();
   };
 
   constructor(private readonly engine: Engine, opts: BaichuanOptions = {}) {
@@ -122,12 +111,6 @@ export class BaichuanServer {
     }
   }
 
-  // Powered off, rebooting or the offline fault: port 9000 is down too.
-  private down(): boolean {
-    const e = this.engine;
-    return e.power !== 'on' || e.rebooting || !!e.faults.active('offline');
-  }
-
   // The fault can only lower the measured limit.
   private limit(): number {
     return Math.min(this.engine.faults.active('baichuan.sessionLimit')?.max ?? BAICHUAN_SESSION_LIMIT, BAICHUAN_SESSION_LIMIT);
@@ -135,7 +118,7 @@ export class BaichuanServer {
 
   private accept(socket: net.Socket): void {
     socket.on('error', () => undefined);
-    if (this.down()) return void socket.resetAndDestroy();
+    if (this.engine.down()) return void socket.resetAndDestroy();
     const c = new Conn(socket);
     // Measured: connections over the limit are accepted, then reset at their
     // first message; connections that never logged in count too.
@@ -152,7 +135,7 @@ export class BaichuanServer {
 
   private onData(c: Conn, data: Buffer): void {
     if (c.closed || c.ending) return;
-    if (!c.counted || this.down()) return void c.socket.resetAndDestroy();
+    if (!c.counted || this.engine.down()) return void c.socket.resetAndDestroy();
     let frames: BcFrame[];
     try {
       frames = c.parser.push(data);

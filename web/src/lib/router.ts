@@ -2,8 +2,6 @@ import { writable } from 'svelte/store';
 
 import { PAGES, type Page } from './pages';
 
-export { PAGES, type Page };
-
 const fromHash = (): Page => {
   const h = location.hash.replace(/^#\/?/, '');
   return (PAGES as readonly string[]).includes(h) ? (h as Page) : 'live';

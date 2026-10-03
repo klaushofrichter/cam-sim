@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Code cleanup across the repo (shared helpers, dead code and unused exports removed, local-time formatters built once per zone); no change to what the camera answers or when.
+
+## v2026.10.03.3
+
 ## v2026.10.03.2
 
 - README: a Related repos section (cams, cam-proxy, cam-proxy-pi-display); cam2's Baichuan port is on its Service (the README said it wasn't yet); the status names the SD pipeline and Baichuan; the web UI's drawer footer.

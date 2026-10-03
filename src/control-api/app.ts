@@ -1,8 +1,8 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { createHash, timingSafeEqual } from 'crypto';
 import type { Engine } from '../engine/engine';
-import { FAULT_NAMES, ACTION_NAMES, FaultError, type FaultName } from '../engine/faults';
-import { TRIGGERS, type Trigger } from '../engine/types';
+import { FAULT_NAMES, ACTION_NAMES, FaultError, type ActionName, type FaultName } from '../engine/faults';
+import { DATE, HMS, TRIGGERS, type Trigger } from '../engine/types';
 import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
@@ -26,6 +26,9 @@ function findWebDir(): string | undefined {
   }
   return undefined;
 }
+
+// The longest boot an action may ask for (10 minutes).
+const MAX_BOOT_MS = 600_000;
 
 export function createControlApp(engine: Engine): express.Express {
   const e = engine;
@@ -107,7 +110,6 @@ export function createControlApp(engine: Engine): express.Express {
   });
   api.get('/events', (req, res) => void res.json(e.events.recent(Math.min(500, Number(req.query.limit) || 50))));
 
-  const HMS = /^([01]\d|2[0-3])[0-5]\d[0-5]\d$/;
   api.post('/recordings/seed', (req, res) => {
     const clips = req.body?.clips;
     let list: SeedClip[];
@@ -162,36 +164,42 @@ export function createControlApp(engine: Engine): express.Express {
   });
 
   api.post('/actions/:name', (req, res) => {
-    const name = req.params.name;
-    if (!(ACTION_NAMES as readonly string[]).includes(name)) return bad(res, `action must be one of ${ACTION_NAMES.join(', ')}`);
-    if (name === 'tokens.revoke') e.sessions.revokeAll();
-    if (name === 'flv.dropActive') e.dropFlv();
-    if (name === 'downloads.dropActive') e.dropDownloads();
-    const ms = req.body?.ms;
-    if ((name === 'reboot' || name === 'power-on' || name === 'factory-reset') && ms !== undefined && !(Number.isInteger(ms) && ms >= 0 && ms <= 600_000)) {
-      return bad(res, 'ms must be an integer from 0 to 600000');
-    }
-    if (name === 'reboot') {
-      if (e.power !== 'on') return void res.status(409).json({ error: 'powered_off' });
-      void e.reboot({ ms, dropsConnection: req.body?.dropsConnection === true });
-      return void res.status(202).end();
-    }
-    if (name === 'clear') {
-      e.clear();
-      return void res.status(204).end();
-    }
-    if (name === 'factory-reset') {
-      if (!e.factoryReset({ ms })) return void res.status(409).json({ error: e.power === 'on' ? 'busy' : 'powered_off' });
-      return void res.status(202).end();
-    }
-    if (name === 'power-off') {
-      if (!e.powerOff()) return void res.status(409).json({ error: e.power === 'off' ? 'already_off' : 'busy' });
-      return void res.status(204).end();
-    }
-    if (name === 'power-on') {
-      if (e.power !== 'off') return void res.status(409).json({ error: 'already_on' });
-      void e.powerOn(ms);
-      return void res.status(202).end();
+    const name = req.params.name as ActionName;
+    if (!ACTION_NAMES.includes(name)) return bad(res, `action must be one of ${ACTION_NAMES.join(', ')}`);
+    // The boot time of reboot, power-on and factory-reset: bounded here, where
+    // the request's value enters, so no timer gets an unchecked duration.
+    const raw: unknown = req.body?.ms;
+    const timed = name === 'reboot' || name === 'power-on' || name === 'factory-reset';
+    const ms = typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= MAX_BOOT_MS ? raw : undefined;
+    if (timed && raw !== undefined && ms === undefined) return bad(res, `ms must be an integer from 0 to ${MAX_BOOT_MS}`);
+    const conflict = (error: string) => void res.status(409).json({ error });
+    switch (name) {
+      case 'tokens.revoke':
+        e.sessions.revokeAll();
+        break;
+      case 'flv.dropActive':
+        e.dropFlv();
+        break;
+      case 'downloads.dropActive':
+        e.dropDownloads();
+        break;
+      case 'clear':
+        e.clear();
+        break;
+      case 'reboot':
+        if (e.power !== 'on') return conflict('powered_off');
+        void e.reboot({ ms, dropsConnection: req.body?.dropsConnection === true });
+        return void res.status(202).end();
+      case 'factory-reset':
+        if (!e.factoryReset({ ms })) return conflict(e.power === 'on' ? 'busy' : 'powered_off');
+        return void res.status(202).end();
+      case 'power-off':
+        if (!e.powerOff()) return conflict(e.power === 'off' ? 'already_off' : 'busy');
+        break;
+      case 'power-on':
+        if (e.power !== 'off') return conflict('already_on');
+        void e.powerOn(ms);
+        return void res.status(202).end();
     }
     res.status(204).end();
   });
@@ -212,7 +220,6 @@ export function createControlApp(engine: Engine): express.Express {
     streamFlv(e, res, stream, { count: false });
   });
 
-  const DATE = /^\d{4}-\d{2}-\d{2}$/;
   api.get('/recordings', (req, res) => {
     const date = String(req.query.date ?? '');
     if (!DATE.test(date)) return bad(res, 'date must be YYYY-MM-DD');
@@ -244,7 +251,7 @@ export function createControlApp(engine: Engine): express.Express {
     devInfo: devInfo(e.config.name, e.serial, e.config.firmVer),
     hddInfo: e.sd.hddInfo(),
     enc: ENC,
-    certificate: { source: e.certificate.source, enable: e.certificate.enable },
+    certificate: { source: e.certs.state.source, enable: e.certs.state.enable },
   }));
   // Whole-object writes through the camera's own validation.
   const SET_FOR: Record<string, string> = { Rec: 'SetRecV20', MdAlarm: 'SetMdAlarm', Isp: 'SetIsp', IrLights: 'SetIrLights', WhiteLed: 'SetWhiteLed', Osd: 'SetOsd', NetPort: 'SetNetPort', Ftp: 'SetFtpV20' };

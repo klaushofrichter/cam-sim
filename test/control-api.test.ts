@@ -114,6 +114,14 @@ describe('control API: faults, actions, reset', () => {
     await new Promise((r) => setTimeout(r, 120));
     expect(engine.offline()).toBe(false);
     expect((await request(ctl).post('/sim/api/actions/nope').set(auth)).status).toBe(400);
+    // The boot time is bounded to 0..600000 ms where it enters.
+    for (const action of ['reboot', 'power-on', 'factory-reset']) {
+      for (const ms of [600_001, -1, 1.5, '100', 1e12]) {
+        const r = await request(ctl).post(`/sim/api/actions/${action}`).set(auth).send({ ms });
+        expect(r.status, `${action} ms=${ms}`).toBe(400);
+        expect(r.body.detail).toBe('ms must be an integer from 0 to 600000');
+      }
+    }
   });
 
   it('power-off takes the camera down until power-on boots it', async () => {
@@ -241,7 +249,7 @@ describe('control API: clear and factory-reset', () => {
     expect(engine.events.recent(20)).toHaveLength(0);
     expect(engine.faults.list()).toEqual([]);
     expect(engine.settings.running.Rec.postRec).toBe('15 Seconds');
-    expect(engine.certificate).toMatchObject({ source: 'factory', enable: 0 });
+    expect(engine.certs.state).toMatchObject({ source: 'factory', enable: 0 });
     expect(dropped).toEqual([true]); // the FTP queue and others listen for it
     expect(engine.rebooting).toBe(true);
     await new Promise((r) => setTimeout(r, 300));
@@ -252,6 +260,14 @@ describe('control API: clear and factory-reset', () => {
   it('refuses an unknown action, and factory-reset while powered off', async () => {
     const { engine, ctl } = await setup();
     expect((await request(ctl).post('/sim/api/actions/nope').set(auth)).status).toBe(400);
+    // The boot time is bounded to 0..600000 ms where it enters.
+    for (const action of ['reboot', 'power-on', 'factory-reset']) {
+      for (const ms of [600_001, -1, 1.5, '100', 1e12]) {
+        const r = await request(ctl).post(`/sim/api/actions/${action}`).set(auth).send({ ms });
+        expect(r.status, `${action} ms=${ms}`).toBe(400);
+        expect(r.body.detail).toBe('ms must be an integer from 0 to 600000');
+      }
+    }
     engine.powerOff();
     expect((await request(ctl).post('/sim/api/actions/factory-reset').set(auth)).status).toBe(409);
   });
