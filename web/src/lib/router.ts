@@ -1,7 +1,8 @@
 import { writable } from 'svelte/store';
 
-export const PAGES = ['live', 'playback', 'settings', 'simulator'] as const;
-export type Page = (typeof PAGES)[number];
+import { PAGES, type Page } from './pages';
+
+export { PAGES, type Page };
 
 const fromHash = (): Page => {
   const h = location.hash.replace(/^#\/?/, '');
