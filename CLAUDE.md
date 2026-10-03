@@ -12,7 +12,7 @@ Reolink RLC-1224A simulator: the camera's HTTP API, FLV, RTSP, ONVIF events and 
 
 ## Branches and releases
 
-- Work on a feature branch, PR to `main` (required checks `test`, `codeql`). `main` builds `:main` only and is never deployed.
+- Work on a feature branch, PR to `main` (checks `test`, `e2e`, `codeql`, `container`, and `cams` from cams-compat). `production` requires `test`, `e2e` and `codeql` (strict, enforce_admins on: Klaus's choice). `main` builds `:main` only and is never deployed.
 - To release: PR `main` -> `production`, then merge. The release job pins the image digest in kube-setup, deploys `cam2` through `cam-sim-runner`, checks `/healthz`, then tags `vYYYY.MM.DD.N`. Never store a version in the sources.
 - After a release, cams and cam-proxy need a PR that bumps their cam-sim tarball. `cams-compat` CI runs cams' suites against this build; nothing does that for cam-proxy.
 - Put user-visible changes under `## Unreleased` in CHANGELOG.md.
