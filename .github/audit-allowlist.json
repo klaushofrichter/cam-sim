@@ -1,0 +1,11 @@
+[
+  {
+    "id": "GHSA-2p57-rm9w-gvfp",
+    "package": "ip",
+    "range": "<=2.0.1",
+    "latest": "2.0.1",
+    "via": "ftp-srv (dev dependency: the tests' FTP server)",
+    "reason": "SSRF in ip.isPublic; no patched ip release exists. Dev-only, never in the image or the npm package; the production audit still blocks it.",
+    "approved": "2026-10-03 by Klaus (Dependabot alert #1 dismissed as tolerable risk)"
+  }
+]

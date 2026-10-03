@@ -45,10 +45,14 @@ security:
 paths:
   /healthz:
     get:
-      summary: Liveness and readiness (no auth, no details)
+      summary: Liveness and readiness (no auth); reports the build's version
       security: []
       responses:
-        '200': { description: up }
+        '200':
+          description: 'up; `version` is the build (`APP_VERSION`, bare like `2026.10.03.1`; `dev` outside a release image)'
+          content:
+            application/json:
+              schema: { type: object, required: [ok, version], properties: { ok: { type: boolean }, version: { type: string } } }
   /sim/login:
     post:
       summary: Web UI login - exchanges the control token for a session cookie
