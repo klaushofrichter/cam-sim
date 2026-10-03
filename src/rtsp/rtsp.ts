@@ -11,7 +11,7 @@ import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
-export const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
+const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
 type Stream = keyof typeof RTSP_PATHS;
 
 // CAMSIM_MEDIAMTX, then `mediamtx` on PATH, then tools/mediamtx (development).

@@ -12,11 +12,11 @@ import { ENCRYPT_LEN, EXT_BINARY, EXT_CHUNK, fileInfoXml, type Moment } from './
 import { chunkSize, infoRecord } from './records';
 
 // Measured: about 400 KB (13 frames) still arrive after cmd 9 (abort.txt).
-export const FRAMES_AFTER_STOP = 13;
+const FRAMES_AFTER_STOP = 13;
 // Measured: a cmd 8 without cmd 9 lets the running transfer finish its
 // current 128 KiB block and two more (8 chunks from a block boundary) before
 // the new file starts (err-second-download.txt (A): 393216 B under the old id).
-export const BLOCKS_AFTER_REPLACE = 2;
+const BLOCKS_AFTER_REPLACE = 2;
 const CHUNKS_PER_BLOCK = 4; // CHUNK_CYCLE: 3 × 39,400 + 12,872 = 128 KiB
 // The first cmd-8 reply's body: the 106-byte extension and the 32-byte record.
 export const FIRST_REPLY_LEN = Buffer.byteLength(EXT_BINARY) + 32;

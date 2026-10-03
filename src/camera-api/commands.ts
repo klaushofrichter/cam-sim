@@ -24,7 +24,7 @@ const DETAIL: Record<number, string> = {
 export type Entry = Record<string, unknown>;
 export const ok = (cmd: string, value: unknown, extra: Entry = {}): Entry => ({ cmd, code: 0, ...extra, value });
 export const fail = (cmd: string, rspCode: number): Entry => ({ cmd, code: 1, error: { detail: DETAIL[rspCode] ?? 'param error', rspCode } });
-export const UNKNOWN: Entry = { cmd: 'Unknown', code: 1, error: { detail: 'not support', rspCode: -9 } };
+const UNKNOWN: Entry = { cmd: 'Unknown', code: 1, error: { detail: 'not support', rspCode: -9 } };
 
 export interface Ctx {
   engine: Engine;
@@ -46,7 +46,7 @@ type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
 
 // First two characters, `**`, last two. Names under 5 characters are left
 // as they are (the camera's mask for them is not measured).
-export const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
+const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
 
 const getter = (key: string, pick: (e: Engine, p: any) => unknown): Handler => (c) => ok(c.cmd, { [key]: pick(c.engine, c.param) });
 

@@ -30,7 +30,6 @@ export function scrubError(text: string, rtspUrl?: string): string {
 export class SdPipeline implements LiveSubSource {
   private proc?: ChildProcess;
   private gen = 0;
-  private hdr: Buffer = Buffer.alloc(0);
   private cfg: FlvTag[] = [];
   private ready = false;
   private readonly subs = new Set<(t: FlvTag, gen: number) => void>();
@@ -82,7 +81,6 @@ export class SdPipeline implements LiveSubSource {
 
   active(): boolean { return !!this.proc && this.ready; }
   generation(): number { return this.gen; }
-  header(): Buffer { return this.hdr; }
   configTags(): FlvTag[] { return this.cfg; }
   subscribe(fn: (t: FlvTag, gen: number) => void): () => void {
     for (const t of this.gop) fn(t, this.gen);
@@ -166,7 +164,6 @@ export class SdPipeline implements LiveSubSource {
     this.gop = [];
     this.expectedExit = false;
     const parser = new FlvStreamParser();
-    parser.on('header', (h: Buffer) => (this.hdr = h));
     parser.on('tag', (t: FlvTag) => {
       if (t.type === 18 || isConfigTag(t)) {
         this.cfg.push(t);

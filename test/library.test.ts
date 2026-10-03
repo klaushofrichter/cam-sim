@@ -50,7 +50,7 @@ describe('video library', () => {
     await lib.prepareAll();
     const before = await engine.media.snapshot();
     expect(lib.select('garden-walk')).toBeNull();
-    expect(lib.selected()).toBe('garden-walk');
+    expect(engine.videoId).toBe('garden-walk');
     expect(Buffer.compare(await engine.media.snapshot(), before)).not.toBe(0);
     const main = readFlv(readFileSync(engine.media.clipPath('main').replace('clip-main.mp4', 'main.flv')));
     expect(main.tags.find((t) => t.type === 9)?.codecId).toBe(12);

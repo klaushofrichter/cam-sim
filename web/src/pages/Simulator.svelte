@@ -59,11 +59,7 @@
     if (active(f.name)) return run(`${f.name} off`, () => api('DELETE', `/faults/${f.name}`));
     const p = params[f.name];
     const body: Record<string, unknown> = {};
-    if (f.params.includes('ms')) body.ms = Number(p.ms);
-    if (f.params.includes('count')) body.count = Number(p.count);
-    if (f.params.includes('cmds')) body.cmds = p.cmds.split(',').map((s) => s.trim()).filter(Boolean);
-    if (f.params.includes('rspCode')) body.rspCode = Number(p.rspCode);
-    if (f.params.includes('max')) body.max = Number(p.max);
+    for (const k of f.params) body[k] = k === 'cmds' ? p.cmds.split(',').map((s) => s.trim()).filter(Boolean) : Number(p[k]);
     return run(`${f.name} on`, () => api('PUT', `/faults/${f.name}`, body));
   }
 
@@ -107,6 +103,7 @@
     // The box shows the real state, also when the API refused the change.
     box.checked = !!(await api<{ pipeline?: { on: boolean } }>('GET', '/state').catch(() => null))?.pipeline?.on;
   }
+  const timeOf = (at: string) => new Date(at).toLocaleTimeString();
   const counters = $derived(Object.entries($simState?.counters ?? {}).filter(([, v]) => typeof v === 'number'));
 </script>
 
@@ -202,10 +199,10 @@
             {#each rows as r, i (i)}
               {#if r.kind === 'request'}
                 {@const q = r.data as RequestRecord}
-                <tr data-testid="log-row"><td class="mono">{new Date(q.at).toLocaleTimeString()}</td><td>{q.method} {q.port}</td><td class="mono">{q.cmd || q.path}</td><td class:bad={q.status === 0 || q.status >= 400}>{q.status || 'dropped'} · {q.ms} ms</td></tr>
+                <tr data-testid="log-row"><td class="mono">{timeOf(q.at)}</td><td>{q.method} {q.port}</td><td class="mono">{q.cmd || q.path}</td><td class:bad={q.status === 0 || q.status >= 400}>{q.status || 'dropped'} · {q.ms} ms</td></tr>
               {:else}
                 {@const ev = r.data as { at: string; type: string; durationS: number; recordingId: string | null }}
-                <tr data-testid="log-row" class="event"><td class="mono">{new Date(ev.at).toLocaleTimeString()}</td><td>event</td><td>{ev.type} {ev.durationS} s</td><td>{ev.recordingId ? 'recorded' : 'not recorded'}</td></tr>
+                <tr data-testid="log-row" class="event"><td class="mono">{timeOf(ev.at)}</td><td>event</td><td>{ev.type} {ev.durationS} s</td><td>{ev.recordingId ? 'recorded' : 'not recorded'}</td></tr>
               {/if}
             {:else}
               <tr><td colspan="4" class="muted">Camera requests and events appear here as they happen.</td></tr>

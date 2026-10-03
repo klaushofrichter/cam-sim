@@ -75,7 +75,7 @@ async function uploadOne(t: FtpTarget, dir: string, source: string | Readable, n
 // one at a time. Failures are logged and counted, not retried. At most
 // MAX_PENDING wait; more are dropped (counted), so a slow server can't grow
 // the backlog without bound.
-export const MAX_PENDING = 20;
+const MAX_PENDING = 20;
 
 export class FtpUploader {
   private readonly queue: Recording[] = [];

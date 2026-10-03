@@ -5,7 +5,7 @@ const KEY = 'camsim-theme';
 
 // Order: explicit attribute (set by the head script or a toggle), then the
 // system preference. The same tokens as cams (styles/theme.css).
-export function currentTheme(): Theme {
+function currentTheme(): Theme {
   const attr = document.documentElement.dataset.theme;
   if (attr === 'light' || attr === 'dark') return attr;
   return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';

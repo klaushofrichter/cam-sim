@@ -155,10 +155,6 @@ export class Library {
     return [all[0], ...all.slice(1).sort((a, b) => a.id.localeCompare(b.id))].map((e) => ({ ...e }));
   }
 
-  selected(): string {
-    return this.engine.videoId;
-  }
-
   // null on success, or why not.
   select(id: string): string | null {
     const entry = this.entries.get(id);

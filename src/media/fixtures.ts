@@ -12,7 +12,7 @@ import { sleep } from '../util/sleep';
 const run = promisify(execFile);
 
 // Bump when the generated files change, so caches are rebuilt.
-export const FIXTURE_VERSION = 3;
+const FIXTURE_VERSION = 3;
 
 export interface FixturePaths {
   dir: string;
