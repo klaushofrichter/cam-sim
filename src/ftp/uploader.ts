@@ -3,10 +3,9 @@ import { Client, enterPassiveModeIPv4 } from 'basic-ftp';
 import { localParts } from '../engine/clock';
 import type { Engine } from '../engine/engine';
 import type { Recording } from '../engine/sdcard';
+import { scheduled } from '../engine/types';
 import { sleep } from '../util/sleep';
 
-// Schedule table key per trigger type (Ftp.schedule.table, as for Rec).
-const SCHEDULE_KEY: Record<string, string> = { motion: 'MD', person: 'AI_PEOPLE', vehicle: 'AI_VEHICLE', pet: 'AI_DOG_CAT' };
 const TIMEOUT_MS = 15_000;
 
 export interface FtpTarget {
@@ -129,9 +128,7 @@ export class FtpUploader {
     const ftp = e.settings.running.Ftp;
     if (ftp.enable !== 1 || !ftp.server) return;
     const weekday = new Date(`${rec.date}T12:00:00Z`).getUTCDay();
-    const slot = weekday * 24 + Number(rec.start.slice(0, 2));
-    const scheduled = rec.triggers.some((t) => String(ftp.schedule?.table?.[SCHEDULE_KEY[t]] ?? '')[slot] === '1');
-    if (!scheduled) return;
+    if (!rec.triggers.some((t) => scheduled(ftp.schedule?.table, t, weekday, Number(rec.start.slice(0, 2))))) return;
 
     const stem = `${e.config.name}_00_${rec.date.replaceAll('-', '')}${rec.start}`;
     const dir = [String(ftp.remoteDir ?? '').replace(/\/+$/, ''), ftp.autoDir === 1 ? rec.date.replaceAll('-', '/') : ''].filter(Boolean).join('/');

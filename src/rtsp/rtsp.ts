@@ -7,6 +7,7 @@ import { join, delimiter } from 'path';
 import net, { type AddressInfo } from 'net';
 import type { Engine } from '../engine/engine';
 import { safeEqual as same } from '../util/safe-equal';
+import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
@@ -31,6 +32,9 @@ async function freePort(host: string): Promise<number> {
     });
   });
 }
+
+// A wildcard bind address is reached on the loopback.
+const connectHost = (host: string) => (host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host);
 
 class Stopped extends Error {}
 
@@ -107,20 +111,16 @@ export class RtspService {
       return;
     }
     const host = this.opts.host ?? '127.0.0.1';
-    this.boundPort = this.opts.port || (await freePort(host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host));
+    this.boundPort = this.opts.port || (await freePort(connectHost(host)));
     this.check();
 
-    this.auth = http.createServer((req, res) => {
-      let body = '';
-      req.on('data', (c) => (body += c));
-      req.on('end', () => {
-        try {
-          res.statusCode = this.allow(JSON.parse(body)) ? 200 : 401;
-        } catch {
-          res.statusCode = 400;
-        }
-        res.end();
-      });
+    this.auth = http.createServer(async (req, res) => {
+      try {
+        res.statusCode = this.allow(JSON.parse(await text(req))) ? 200 : 401;
+      } catch {
+        res.statusCode = 400;
+      }
+      res.end();
     });
     await new Promise<void>((r, j) => this.auth!.once('error', j).listen(0, '127.0.0.1', () => r()));
     this.check();
@@ -208,7 +208,7 @@ export class RtspService {
       s.once('connect', () => (s.destroy(), r(true)));
       s.once('error', () => r(false));
       s.once('timeout', () => (s.destroy(), r(false)));
-      s.connect(this.boundPort, host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host);
+      s.connect(this.boundPort, connectHost(host));
     });
   }
 
@@ -229,6 +229,10 @@ export class RtspService {
   // The SD pipeline publishes sub itself while it runs (spec 2026-09-29).
   publisherUrl(stream: Stream): string | undefined {
     if (!this.up || this.mtxExited) return undefined;
+    return this.pubUrl(stream);
+  }
+
+  private pubUrl(stream: Stream): string {
     return `rtsp://camsim-publisher:${this.pubPassword}@127.0.0.1:${this.boundPort}/${RTSP_PATHS[stream]}`;
   }
 
@@ -243,9 +247,8 @@ export class RtspService {
     const e = this.engine;
     if (this.stopping || this.mtxExited) return;
     if (stream === 'sub' && this.subMode === 'pipeline') return;
-    const url = `rtsp://camsim-publisher:${this.pubPassword}@127.0.0.1:${this.boundPort}/${RTSP_PATHS[stream]}`;
     const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', '-i', e.media.clipPath(stream),
-      '-c', 'copy', '-f', 'rtsp', '-rtsp_transport', 'tcp', url], { stdio: ['ignore', 'ignore', 'pipe'] });
+      '-c', 'copy', '-f', 'rtsp', '-rtsp_transport', 'tcp', this.pubUrl(stream)], { stdio: ['ignore', 'ignore', 'pipe'] });
     p.stderr?.on('data', (d) => e.log.debug({ ffmpeg: String(d).trim().replaceAll(this.pubPassword, '***') }, 'rtsp_publisher'));
     p.on('error', (err) => e.log.error({ err: err.message }, 'rtsp_publisher_spawn_failed'));
     p.on('exit', () => {

@@ -18,6 +18,7 @@ const DETAIL: Record<number, string> = {
   [-56]: 'err get data from json', // measured (GetPushV20)
   [-64]: 'err received data from json', // measured (Search, onlyStatus with reversed months)
   [-67]: 'param error',
+  [-454]: 'ftp connect failed',
 };
 
 export type Entry = Record<string, unknown>;
@@ -132,7 +133,6 @@ const HANDLERS: Record<string, Handler> = {
   },
   TestFtp: async (c) => {
     const r = await testFtp(c.engine, c.param?.Ftp);
-    if (r === -454) return { cmd: c.cmd, code: 1, error: { detail: 'ftp connect failed', rspCode: -454 } };
     return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
   },
   GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certs.state.enable, keyName: 'server.key' } }),
@@ -176,7 +176,7 @@ function setCommand(c: Ctx): Entry {
   return r ? fail(c.cmd, r.rspCode) : ok(c.cmd, { rspCode: 200 });
 }
 
-export async function runCommand(c: Ctx): Promise<Entry | 'destroyed'> {
+export function runCommand(c: Ctx): Entry | 'destroyed' | Promise<Entry | 'destroyed'> {
   if (Object.hasOwn(HANDLERS, c.cmd)) return HANDLERS[c.cmd](c);
   if (isSetCommand(c.cmd)) return setCommand(c);
   return UNKNOWN;

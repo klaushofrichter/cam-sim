@@ -164,8 +164,15 @@ export class Engine {
     return this.media;
   }
 
+  // Powered off, booting, rebooting or the offline fault: every port is down.
+  down(): boolean {
+    return this.power !== 'on' || this.rebooting || !!this.faults.active('offline');
+  }
+
+  // Down, or the web server restarting after a certificate change (HTTP,
+  // HTTPS, RTSP, ONVIF; Baichuan's port 9000 stays up through that).
   offline(): boolean {
-    return this.power !== 'on' || this.rebooting || this.certRestarting || !!this.faults.active('offline');
+    return this.down() || this.certRestarting;
   }
 
   // CertificateClear and a successful ImportCertificate restart the camera's

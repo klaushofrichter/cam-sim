@@ -10,7 +10,7 @@ import { RtspService, findMediaMtx } from './rtsp/rtsp';
 import { Library } from './media/library';
 import { SdPipeline } from './pipeline/sd-pipeline';
 import { findFonts } from './pipeline/fonts';
-import { BaichuanServer } from './baichuan/server';
+import { BaichuanServer, type BaichuanOptions } from './baichuan/server';
 import { createOnvifApp, type OnvifApp } from './onvif/server';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -55,7 +55,7 @@ export interface CamSimOptions {
   maxVideoS?: number;
   logLevel?: string;
   log?: pino.Logger;
-  baichuan?: { idleMs?: number; firstMessageMs?: number }; // shorter Baichuan idle closes, for tests
+  baichuan?: BaichuanOptions; // shorter Baichuan idle closes, for tests
 }
 
 export interface Ports {

@@ -92,7 +92,7 @@ export class SdPipeline implements LiveSubSource {
 
   private wanted(): boolean {
     const e = this.engine;
-    return e.pipeline.on && e.power === 'on' && !e.rebooting && !e.offline() && !this.stopping;
+    return e.pipeline.on && !e.offline() && !this.stopping;
   }
 
   // Starts on the next turn, so a start's own announcements (a refusal)

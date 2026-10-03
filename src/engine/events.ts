@@ -3,7 +3,7 @@ import { localParts, isDstOn, type Clock } from './clock';
 import type { Rng } from './rng';
 import { addSeconds, type SdCard, type Recording } from './sdcard';
 import type { SettingsStore } from './settings';
-import type { Trigger } from './types';
+import { scheduled, type Trigger } from './types';
 
 // Clips follow the sub stream's keyframes, every 4 s (measured on cam1,
 // 2026-09-28 to 30, 37 back-to-back clips): a detection lands on that grid,
@@ -24,8 +24,6 @@ export function postRecSeconds(v: unknown): number {
   return Number(m[1]) * (m[2].toLowerCase() === 'minute' ? 60 : 1);
 }
 
-// Schedule table key per trigger type (GetRecV20 schedule.table).
-const SCHEDULE_KEY: Record<Trigger, string> = { motion: 'MD', person: 'AI_PEOPLE', vehicle: 'AI_VEHICLE', pet: 'AI_DOG_CAT' };
 // Firmware example: sub ends 065224, main 065226 for the same event.
 const MAIN_EXTRA_S = 2;
 
@@ -68,13 +66,12 @@ export class Events extends EventEmitter {
     let recording: Recording | null = null;
     const rec = this.o.settings.running.Rec;
     const p = localParts(this.o.clock, this.o.tz, now);
-    const slot = p.weekday * 24 + p.hour;
-    const scheduled = types.filter((t) => String(rec.schedule?.table?.[SCHEDULE_KEY[t]] ?? '')[slot] === '1');
-    if (rec.enable === 1 && scheduled.length) {
+    const allowed = types.filter((t) => scheduled(rec.schedule?.table, t, p.weekday, p.hour));
+    if (rec.enable === 1 && allowed.length) {
       const detected = gridFloor(now.getTime());
       const endsAt = gridCeil(now.getTime() + (durationS + postRecSeconds(rec.postRec)) * 1000);
       if (this.current) {
-        this.o.sd.extend(this.current.id, scheduled);
+        this.o.sd.extend(this.current.id, allowed);
         if (endsAt > this.current.endsAt) this.scheduleEnd(this.current.id, this.current.startMs, endsAt);
         recording = this.o.sd.byId(this.current.id) ?? null;
       } else {
@@ -84,7 +81,7 @@ export class Events extends EventEmitter {
         const startMs = rec.preRec === 1 ? detected - PRE_REC_MS : detected;
         const s = localParts(this.o.clock, this.o.tz, new Date(startMs));
         const at = localParts(this.o.clock, this.o.tz, new Date(detected));
-        recording = this.o.sd.add({ date: s.date, start: s.hms, triggers: scheduled, dst: isDstOn(this.o.tz, s.date), picture: `${at.date.replaceAll('-', '')}${at.hms}` });
+        recording = this.o.sd.add({ date: s.date, start: s.hms, triggers: allowed, dst: isDstOn(this.o.tz, s.date), picture: `${at.date.replaceAll('-', '')}${at.hms}` });
         this.scheduleEnd(recording.id, startMs, endsAt);
       }
     }
