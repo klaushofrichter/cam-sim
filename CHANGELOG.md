@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.03.2
+
 - README: a Related repos section (cams, cam-proxy, cam-proxy-pi-display); cam2's Baichuan port is on its Service (the README said it wasn't yet); the status names the SD pipeline and Baichuan; the web UI's drawer footer.
 - `GET /healthz` also reports the build's version: `{"ok":true,"version":"2026.10.03.2"}` (`dev` outside a release image).
 - Releases: the deploy waits until cam2's `/healthz` serves the version it just built, and the release notes quote the checks under "Verified at release" (rollout, served version, control API answering 401 without its token, when and by which run).
