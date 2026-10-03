@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- README: a Related repos section (cams, cam-proxy, cam-proxy-pi-display); cam2's Baichuan port is on its Service (the README said it wasn't yet); the status names the SD pipeline and Baichuan; the web UI's drawer footer.
+
 ## v2026.10.03.1
 
 - Web UI navigation works like cams and cam-proxy: on desktop the sidebar shows icons and labels and "Collapse" shrinks it to icons (remembered per browser); on phones (767 px and narrower) the icon rail is gone and a hamburger at the top left opens the menu as a drawer over the page. Its footer has what the phone top bar leaves out (model, firmware and serial), the theme toggle and Sign out. The drawer closes on navigation, Back or Forward, a tap outside, the close button, Escape or Sign out, and gives focus back to the hamburger. The phone top bar stays on one row: hamburger, logo, camera name and power state. The nav items are hash links (`#/live`, …, as before), so they open in a new tab.

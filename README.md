@@ -38,13 +38,26 @@ One container is one camera. It runs headless by default; an optional
 [video library](#video-library) (Plan 2), the [web UI](#web-ui) (Plan 3),
 `cam2` in the cluster (Plan 4, see [below](#cam2-in-the-cluster)),
 [RTSP](#rtsp) and [ONVIF](#onvif) events (Plan 5), and
-[FTP upload](#ftp-upload) (Plan 6). Still open from the
+[FTP upload](#ftp-upload) (Plan 6), the [SD pipeline](#sd-pipeline) and the
+[Baichuan](#baichuan-port-9000) server for recording downloads. Still open from the
 [design spec](docs/superpowers/specs/2026-09-26-cam-sim-design.md): a curated
 set of clips captured for the library, drawing the OSD on the video (see
 [What differs](#what-differs-from-the-real-camera)), and recordings cut from
 the video.
 Without a library, pictures, live video and recordings are an ffmpeg
 **test pattern**.
+
+## Related repos
+
+- [cams](https://github.com/klaushofrichter/cams): the camera viewer. cam-sim is
+  the camera in its unit and e2e tests, and `cam2` in production; this repo's
+  `cams-compat` CI runs cams' suites against every cam-sim change.
+- [cam-proxy](https://github.com/klaushofrichter/cam-proxy): the camera gateway.
+  cam-sim is the camera in its tests, and `cam2` is the camera of the cluster's
+  cam-proxy (FTP uploads, RTSP, ONVIF, Baichuan).
+- [cam-proxy-pi-display](https://github.com/klaushofrichter/cam-proxy-pi-display):
+  the e-paper status display on the Pi. It reads cam-proxy's local health API
+  and never talks to a camera, so cam-sim plays no part there.
 
 ## Contents
 
@@ -900,9 +913,11 @@ pasting the control token once; it's exchanged for a session cookie
 out, or a simulator restart, ends the session.
 
 Its navigation works like cams and cam-proxy: a sidebar with labels that
-"Collapse" shrinks to icons (remembered per browser), and on phones (767 px
-and narrower) a hamburger at the top left that opens the menu, with the
-camera line, the theme toggle and Sign out, as a drawer over the page.
+"Collapse" shrinks to icons (remembered per browser). On phones (767 px and
+narrower) a hamburger at the top left opens the menu as a drawer over the
+page; its footer has the camera's model, firmware and serial, the theme
+toggle and Sign out. The menu items are hash links (`#/live`, …), so they
+open in a new tab.
 
 The UI has four pages:
 
@@ -973,9 +988,9 @@ manifests.
     LAN (Service `cam2-gateway`), in plain text like the camera, for
     cam-proxy;
   - the camera's HTTP(S) ports stay inside the cluster;
-  - Baichuan (port 9000) is not on the `cam2` Service yet: it needs a
-    cluster-internal Service port, requested through kube-setup. No LAN
-    exposure is needed, since the Pi's cam-proxy talks to the real camera.
+  - Baichuan (port 9000) is a cluster-internal port of the `cam2` Service,
+    for the cluster's cam-proxy; it is not open to the LAN (the Pi's
+    cam-proxy talks to the real camera).
   - cam2 uploads its finished clips by FTP(S) to cam-proxy in the cluster
     (`cam-proxy.cam-proxy.svc.cluster.local:2121`, sub stream); the setting
     lives in cam2's persisted settings, set through cam-proxy's
@@ -1041,7 +1056,9 @@ CI runs:
 - CodeQL, with the accepted exceptions in `.github/codeql-accepted.tsv`;
 - the container smoke test;
 - **cams' own unit and e2e suites against the cam-sim build**
-  (`.github/workflows/cams-compat.yml`).
+  (`.github/workflows/cams-compat.yml`, on PRs to `main` and daily).
+
+`production` requires `test`, `e2e` and `codeql`.
 
 No camera footage is committed or published; the test patterns are
 generated. The screenshots in `docs/screenshots/` are the exception, and show
