@@ -29,7 +29,7 @@ describe('web UI serving', () => {
     expect((await request(ctl).get('/anything')).text).toContain('<div id="app">');
     expect((await request(ctl).get('/assets/a.js')).status).toBe(200);
     expect((await request(ctl).get('/sim/api/state')).status).toBe(401);
-    expect((await request(ctl).get('/healthz')).body).toEqual({ ok: true });
+    expect((await request(ctl).get('/healthz')).body).toEqual({ ok: true, version: process.env.APP_VERSION || 'dev' });
   });
 
   it('is off without CAMSIM_WEB_UI, and without a control token', async () => {

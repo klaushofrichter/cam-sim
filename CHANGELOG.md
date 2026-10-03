@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+- README: a Related repos section (cams, cam-proxy, cam-proxy-pi-display); cam2's Baichuan port is on its Service (the README said it wasn't yet); the status names the SD pipeline and Baichuan; the web UI's drawer footer.
+- `GET /healthz` also reports the build's version: `{"ok":true,"version":"2026.10.03.2"}` (`dev` outside a release image).
+- Releases: the deploy waits until cam2's `/healthz` serves the version it just built, and the release notes quote the checks under "Verified at release" (rollout, served version, control API answering 401 without its token, when and by which run).
+- CI: `npm audit` at `high` now blocks for dev dependencies too. The one exception, by advisory id, is `.github/audit-allowlist.json`: GHSA-2p57-rm9w-gvfp (`ip` via ftp-srv, the tests' FTP server, no patched release). The gate fails when that advisory disappears, changes or a new `ip` release appears, so the entry gets removed.
+- Dev dependencies: ftp-srv's `uuid` is overridden to ^11.1.1 (was 3.4.0, GHSA-w5hq-g745-h8pq).
+
+## v2026.10.03.1
+
 - Web UI navigation works like cams and cam-proxy: on desktop the sidebar shows icons and labels and "Collapse" shrinks it to icons (remembered per browser); on phones (767 px and narrower) the icon rail is gone and a hamburger at the top left opens the menu as a drawer over the page. Its footer has what the phone top bar leaves out (model, firmware and serial), the theme toggle and Sign out. The drawer closes on navigation, Back or Forward, a tap outside, the close button, Escape or Sign out, and gives focus back to the hamburger. The phone top bar stays on one row: hamburger, logo, camera name and power state. The nav items are hash links (`#/live`, …, as before), so they open in a new tab.
+
+## v2026.10.02.2
+
 - Baichuan: new state counter `baichuanStops` (every cmd 9 after a login, running download or not), next to `baichuanDownloads` and `droppedBaichuanDownloads`. It resets with the other history counters.
 - Baichuan: at most 20 connections are held over the 12-session limit; the next one is reset at once, so a client opening thousands can't exhaust the simulator's file descriptors (before, each was held until its first message or 12.5 s).
 - A `listen()` that fails to bind (port in use) now closes the listeners it had already opened (camera HTTP/HTTPS, control, ONVIF, Baichuan) before it rejects. The simulator is not usable afterwards; create a new one.
@@ -10,15 +21,10 @@
 - README: a running Baichuan download keeps its session alive, measured on the real camera on 2026-10-02 (a 9 MB main file read throttled for 77.6 s, no drop).
 - Tests: issue #57's four flaky tests now report the failing response; the ONVIF digest test uses a fixed nonce and time; timing bounds that failed under load are wider; the sync-secrets test no longer fails when the random token contains "PAT"; new tests for split headers (19/23 bytes), a bad magic mid-stream and `bcXor`'s byte offset.
 - `GetFtpV20` returns the FTP `userName` masked like the real camera (first two characters, `**`, last two: `camera` -> `ca**ra`; measured on the Pi 2026-10-02); names under 5 characters stay as they are. `SetFtpV20` and `TestFtp` keep the full name, and the stored value is unchanged. A client that reads the Ftp object and writes it back whole now sends the masked name, as it would to the real camera.
+
+## v2026.10.02.1
+
 - Baichuan server on the camera's TCP port 9000 (`CAMSIM_BAICHUAN_PORT`), as measured on the RLC-1224A (`reference/rlc-1224a/baichuan/`):
-  - Commands: login (cmd 1); download (8, the file byte-equal to HTTP `Download`); stop (9); file info (13); LinkType (93); logout (2).
-  - Sessions show in `GetOnline`; the 12-connection limit, the 32 s idle close and the post-login pushes work as on the camera.
-  - New faults `baichuan.refuse`, `baichuan.dropMidway`, `baichuan.delayMs`, `baichuan.loginFail` and `baichuan.sessionLimit` (`max`). `offline`, `power-off`, `reboot` and `downloads.dropActive` also act on port 9000.
-  - New state counters `baichuanSessions`, `baichuanLogins`, `baichuanDownloads` and `droppedBaichuanDownloads`.
-  - The image exposes 9000 and sets `CAMSIM_BAICHUAN_PORT=9000`. Outside the image the CLI opens a Baichuan port only when `CAMSIM_BAICHUAN_PORT` is set, so several simulators still run side by side.
-  - `createCamSim().listen()` also opens a Baichuan port (a free one unless `baichuan` is named) and returns it; `CamSimOptions.baichuan` shortens the idle timeouts for tests.
-  - The reolink_aio MIT notice is in `THIRD_PARTY_NOTICES`.
-  - Simulator page: the Baichuan faults (with a `max` input for the session limit); counters show in the Counters card.
 
 ## v2026.10.01.1
 

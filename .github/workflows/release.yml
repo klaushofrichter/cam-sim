@@ -74,6 +74,12 @@ jobs:
     runs-on: [self-hosted, k3s]
     permissions:
       contents: read
+    # What the deploy observed, for the release notes' "Verified at release".
+    outputs:
+      generation: ${{ steps.rollout.outputs.generation }}
+      served: ${{ steps.smoke.outputs.served }}
+      api_unauthenticated: ${{ steps.smoke.outputs.api_unauthenticated }}
+      checked_at: ${{ steps.smoke.outputs.checked_at }}
     steps:
       - name: Install kubectl and configure in-cluster access
         run: |
@@ -119,24 +125,48 @@ jobs:
       # The runner may get/watch/patch deployments/cam2 by name only, so
       # `kubectl rollout status` (which lists) is not allowed: poll instead.
       - name: Wait for the rollout
+        id: rollout
         run: |
           set -euo pipefail
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             read -r gen observed updated available <<<"$(kubectl get deployment cam2 -n cam-sim \
               -o jsonpath='{.metadata.generation} {.status.observedGeneration} {.status.updatedReplicas} {.status.availableReplicas}')"
             echo "generation=${gen} observed=${observed} updated=${updated:-0} available=${available:-0}"
-            if [ "$gen" = "$observed" ] && [ "${updated:-0}" = 1 ] && [ "${available:-0}" = 1 ]; then exit 0; fi
+            if [ "$gen" = "$observed" ] && [ "${updated:-0}" = 1 ] && [ "${available:-0}" = 1 ]; then
+              echo "generation=${gen}" >> "$GITHUB_OUTPUT"; exit 0
+            fi
             sleep 5
           done
           echo "::error::cam2 did not roll out in 5 minutes"; exit 1
 
+      # The new pod, not an old one still answering: the served version must match.
       - name: Smoke-test cam2
+        id: smoke
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
-          curl -sfk --max-time 10 https://cam2.cam-sim.svc.cluster.local:9443/healthz | grep -q '"ok":true'
-          code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 https://cam2.cam-sim.svc.cluster.local:9443/sim/api/state)
+          URL=https://cam2.cam-sim.svc.cluster.local:9443
+          served=""
+          for _ in $(seq 1 24); do
+            body=$(curl -sfk --max-time 5 "$URL/healthz" || true)
+            # Whitespace-tolerant (cluster requirements §1).
+            if printf '%s' "$body" | grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
+              served=$(printf '%s' "$body" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 || true)
+            fi
+            echo "served version: ${served:-none}"
+            [ "$served" = "$VERSION" ] && break
+            sleep 5
+          done
+          [ "$served" = "$VERSION" ] || { echo "::error::cam2 serves ${served:-nothing}, expected ${VERSION}"; exit 1; }
+          code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$URL/sim/api/state")
           [ "$code" = 401 ] || { echo "::error::control API without a token answered ${code}, expected 401"; exit 1; }
-          echo "cam2 healthy; control API requires its token"
+          {
+            echo "served=${served}"
+            echo "api_unauthenticated=${code}"
+            echo "checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+          echo "cam2 serves v${VERSION}; control API requires its token"
 
   publish:
     needs: [build, deploy]
@@ -167,6 +197,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.build.outputs.version }}
+          GENERATION: ${{ needs.deploy.outputs.generation }}
+          SERVED: ${{ needs.deploy.outputs.served }}
+          API_CODE: ${{ needs.deploy.outputs.api_unauthenticated }}
+          CHECKED_AT: ${{ needs.deploy.outputs.checked_at }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
@@ -186,5 +220,13 @@ jobs:
           fi
           printf '\nImage: `ghcr.io/klaushofrichter/cam-sim:%s` (linux/amd64, linux/arm64)\n' "$TAG" >> /tmp/notes.md
           printf '\nnpm: `"cam-sim": "https://github.com/%s/releases/download/%s/cam-sim-%s.tgz"`\n' "$GITHUB_REPOSITORY" "$TAG" "$TAG" >> /tmp/notes.md
+          # Only what the deploy job checked; the release exists only if it passed.
+          {
+            printf '\n### Verified at release\n\n'
+            printf -- '- Deployment `cam2` (namespace `cam-sim`) rolled out: generation %s, 1 updated and available replica\n' "$GENERATION"
+            printf -- '- `GET https://cam2.cam-sim.svc.cluster.local:9443/healthz` -> ok, served version `%s`, matching this build\n' "$SERVED"
+            printf -- '- `GET /sim/api/state` without a token -> %s (control API requires its token)\n' "$API_CODE"
+            printf -- '- Checked at %s by [run %s](%s/%s/actions/runs/%s)\n' "$CHECKED_AT" "$GITHUB_RUN_ID" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+          } >> /tmp/notes.md
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file /tmp/notes.md "cam-sim-${TAG}.tgz"
           echo "Released $TAG"

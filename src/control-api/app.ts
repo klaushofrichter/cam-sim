@@ -32,7 +32,9 @@ export function createControlApp(engine: Engine): express.Express {
   const app = express();
   app.disable('x-powered-by');
 
-  app.get('/healthz', (_req, res) => void res.json({ ok: true }));
+  // The build's version (bare, as the release stamps it), so the release can check
+  // that cam2 serves the build it just deployed.
+  app.get('/healthz', (_req, res) => void res.json({ ok: true, version: process.env.APP_VERSION || 'dev' }));
 
   // A generous ceiling for everything on the control port but /healthz (the UI polls
   // little; SSE and live video are single long requests).
