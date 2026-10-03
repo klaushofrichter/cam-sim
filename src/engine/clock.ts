@@ -33,9 +33,25 @@ export const p2 = (n: number): string => String(n).padStart(2, '0');
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Intl formatters are slow to build, and the SD pipeline's clock asks for
+// the local time every second: one formatter of each kind per zone.
+function perZone(make: (tz: string) => Intl.DateTimeFormat): (tz: string) => Intl.DateTimeFormat {
+  const byZone = new Map<string, Intl.DateTimeFormat>();
+  return (tz) => {
+    let f = byZone.get(tz);
+    if (!f) byZone.set(tz, (f = make(tz)));
+    return f;
+  };
+}
+const offsetFormat = perZone((tz) => new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' }));
+const partsFormat = perZone((tz) => new Intl.DateTimeFormat('en-US', {
+  timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short',
+}));
+
 // Offset of `tz` from UTC at instant `d`, in minutes east.
 function offsetMinutes(tz: string, d: Date): number {
-  const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' })
+  const name = offsetFormat(tz)
     .formatToParts(d)
     .find((p) => p.type === 'timeZoneName')?.value ?? 'GMT';
   const m = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
@@ -43,13 +59,24 @@ function offsetMinutes(tz: string, d: Date): number {
   return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
 }
 
+// The January and July offsets of a zone's year, computed once per zone and year.
+const seasons = new Map<string, { jan: number; jul: number }>();
+function seasonOffsets(tz: string, year: number): { jan: number; jul: number } {
+  const key = `${tz}|${year}`;
+  let o = seasons.get(key);
+  if (!o) seasons.set(key, (o = { jan: offsetMinutes(tz, new Date(Date.UTC(year, 0, 15))), jul: offsetMinutes(tz, new Date(Date.UTC(year, 6, 15))) }));
+  return o;
+}
+
 // Standard-time offset: the smaller of the January and July offsets.
 function standardOffset(tz: string, year: number): number {
-  return Math.min(offsetMinutes(tz, new Date(Date.UTC(year, 0, 15))), offsetMinutes(tz, new Date(Date.UTC(year, 6, 15))));
+  const o = seasonOffsets(tz, year);
+  return Math.min(o.jan, o.jul);
 }
 
 function hasDst(tz: string, year: number): boolean {
-  return offsetMinutes(tz, new Date(Date.UTC(year, 0, 15))) !== offsetMinutes(tz, new Date(Date.UTC(year, 6, 15)));
+  const o = seasonOffsets(tz, year);
+  return o.jan !== o.jul;
 }
 
 function dstAt(tz: string, d: Date): boolean {
@@ -57,14 +84,7 @@ function dstAt(tz: string, d: Date): boolean {
 }
 
 export function localParts(clock: Clock, tz: string, d: Date = clock.now()): LocalParts {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short',
-    })
-      .formatToParts(d)
-      .map((p) => [p.type, p.value]),
-  );
+  const parts = Object.fromEntries(partsFormat(tz).formatToParts(d).map((p) => [p.type, p.value]));
   const [year, mon, day, hour, min, sec] = ['year', 'month', 'day', 'hour', 'minute', 'second'].map((k) => Number(parts[k]));
   return {
     date: `${year}-${p2(mon)}-${p2(day)}`,
