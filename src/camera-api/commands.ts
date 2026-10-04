@@ -5,7 +5,7 @@ import { isSetCommand } from '../engine/settings';
 import { timeValue } from '../engine/clock';
 import { validPair } from '../tls/certs';
 import { testFtp } from '../ftp/uploader';
-import { devInfo, ENC, ABILITY, IR_LIGHTS_EXTRA, AI_TYPES, type AiType } from '../profile/rlc1224a';
+import { devInfo, NAME_MAX, ENC, ABILITY, IR_LIGHTS_EXTRA, AI_TYPES, type AiType } from '../profile/rlc1224a';
 import { sleep } from '../util/sleep';
 
 // Error details as the firmware words them (measured where noted).
@@ -29,6 +29,7 @@ const UNKNOWN: Entry = { cmd: 'Unknown', code: 1, error: { detail: 'not support'
 export interface Ctx {
   engine: Engine;
   cmd: string;
+  action?: number;
   param: any;
   session: SessionInfo;
   token: string;
@@ -73,7 +74,19 @@ const HANDLERS: Record<string, Handler> = {
   },
   GetDevInfo: (c) => {
     c.engine.counters.devInfoCalls++;
-    return ok(c.cmd, { DevInfo: devInfo(c.engine.config.name, c.engine.serial, c.engine.config.firmVer) });
+    return ok(c.cmd, { DevInfo: devInfo(c.engine.settings.name, c.engine.serial, c.engine.config.firmVer) });
+  },
+  // The camera's name, one value with GetDevInfo.name and the OSD text
+  // (measured 2026-10-03). action 1 adds the initial value and the range the
+  // camera reports (minLen 0, though it refuses an empty name). The initial
+  // value is the simulator's factory name (CAMSIM_NAME; cam1's not measured).
+  GetDevName: (c) => {
+    const value = { DevName: { name: c.engine.settings.name } };
+    if (c.action !== 1) return ok(c.cmd, value);
+    return ok(c.cmd, value, {
+      initial: { DevName: { name: c.engine.settings.factoryName } },
+      range: { DevName: { name: { maxLen: NAME_MAX, minLen: 0 } } },
+    });
   },
   GetTime: (c) => ok(c.cmd, timeValue(c.engine.clock, c.engine.config.tz)),
   GetHddInfo: getter('HddInfo', (e) => e.sd.hddInfo()),
@@ -171,13 +184,15 @@ function setCommand(c: Ctx): Entry {
   const failing = e.faults.consume('settings.fail', c.cmd);
   if (failing) return fail(c.cmd, failing.rspCode ?? -67);
   if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
-  const r = e.settings.set(c.cmd, c.param, { strictPartial: !!e.faults.active('settings.strictPartial') });
+  const r = c.cmd === 'SetDevName'
+    ? e.settings.setName(c.param?.DevName?.name)
+    : e.settings.set(c.cmd, c.param, { strictPartial: !!e.faults.active('settings.strictPartial') });
   if (!r) e.bus.emit('settings', { cmd: c.cmd });
   return r ? fail(c.cmd, r.rspCode) : ok(c.cmd, { rspCode: 200 });
 }
 
 export function runCommand(c: Ctx): Entry | 'destroyed' | Promise<Entry | 'destroyed'> {
   if (Object.hasOwn(HANDLERS, c.cmd)) return HANDLERS[c.cmd](c);
-  if (isSetCommand(c.cmd)) return setCommand(c);
+  if (isSetCommand(c.cmd) || c.cmd === 'SetDevName') return setCommand(c);
   return UNKNOWN;
 }

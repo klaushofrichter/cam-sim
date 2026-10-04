@@ -303,7 +303,7 @@ export class Engine {
 
   state() {
     return {
-      name: this.config.name,
+      name: this.settings.name,
       serial: this.serial,
       model: 'RLC-1224A',
       firmVer: this.config.firmVer,

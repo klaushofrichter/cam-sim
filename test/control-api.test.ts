@@ -213,6 +213,41 @@ describe('control API: request log and SSE', () => {
     ac.abort();
     expect(text).toMatch(/id: \d+\nevent: event\ndata: \{.*"type":"pet"/);
   });
+
+  it('sends the state again when the camera name changes, and shows it in /settings', async () => {
+    const { ctl, cam, engine } = await setup({ CAMSIM_NAME: 'Den' });
+    closers.push(() => engine.stop());
+    const srv = await listen(ctl);
+    closers.push(srv.close);
+    const ac = new AbortController();
+    const res = await fetch(`${srv.url}/sim/api/stream`, { headers: auth, signal: ac.signal });
+    const reader = res.body!.getReader();
+    let text = '';
+    while (!/"name":"Den"/.test(text)) text += new TextDecoder().decode((await reader.read()).value);
+    const t = await login(cam);
+    const isp = (await post(cam, 'GetIsp', {}, t)).reply.value.Isp;
+    await post(cam, 'SetIsp', { Isp: isp }, t); // no new name: no state
+    await post(cam, 'SetDevName', { DevName: { name: 'Backyard Left' } }, t);
+    while (!/"name":"Backyard Left"/.test(text)) text += new TextDecoder().decode((await reader.read()).value);
+    ac.abort();
+    expect(text.match(/event: state\n/g)).toHaveLength(2);
+    const body = (await request(ctl).get('/sim/api/settings').set(auth)).body;
+    expect(body.devInfo.name).toBe('Backyard Left');
+    expect(body.settings.Osd.osdChannel.name).toBe('Backyard Left');
+    expect((await request(ctl).get('/sim/api/state').set(auth)).body.name).toBe('Backyard Left');
+  });
+
+  it('PUT /settings/Osd renames the camera with the camera\'s rules', async () => {
+    const { ctl, cam, engine } = await setup({ CAMSIM_NAME: 'Den' });
+    const osd = engine.settings.get('Osd');
+    const bad = await request(ctl).put('/sim/api/settings/Osd').set(auth).send({ ...osd, osdChannel: { ...osd.osdChannel, name: 'Den_1' } });
+    expect(bad.status).toBe(400);
+    expect(bad.body).toEqual({ error: 'invalid', rspCode: -54 });
+    expect((await request(ctl).put('/sim/api/settings/Osd').set(auth).send({ ...osd, osdChannel: { ...osd.osdChannel, name: 'Garage' } })).status).toBe(200);
+    const t = await login(cam);
+    expect((await post(cam, 'GetDevName', {}, t)).reply.value.DevName.name).toBe('Garage');
+    expect((await post(cam, 'GetDevInfo', {}, t)).reply.value.DevInfo.name).toBe('Garage');
+  });
 });
 
 // #23: named actions for a known test state.

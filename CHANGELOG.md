@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Camera name, as measured on cam1 (2026-10-03): new `GetDevName` / `SetDevName` (`{DevName:{name}}`; `action: 1` adds `initial` and `range` `{maxLen:31,minLen:0}`). `GetDevName`, `GetDevInfo.name` and the OSD's `osdChannel.name` are now one value: `SetDevName` or a whole-object `SetOsd` with a new name changes all three. Before, `GetDevInfo.name` stayed `CAMSIM_NAME` whatever the OSD said, and `GetDevName` answered `-9`.
+- The camera's name rules for both `SetDevName` and `SetOsd`: 1–31 characters of ASCII letters, digits, space and `- ( ) + = [ ] { }`, no leading or trailing space. A refused character, a non-ASCII letter, an outer space or the empty name answers rspCode `-54` (before: accepted, or `-56` for control characters); longer than 31 `-56`. A refused name keeps the old one.
+- The name is stored with the settings (survives reboot, power cycle and a restart with `CAMSIM_DATA_DIR`); a settings reset brings back `CAMSIM_NAME`. A `SetOsd` without `osdChannel.name` keeps the name (before, a partial `SetOsd` emptied it at the next reboot).
+- The SD pipeline draws the new name, and the web UI's top bar and Settings page follow a rename made over the camera API (the control stream sends `state` again when the name changes; `/sim/api/state` and `/sim/api/settings` report the current name).
+
+## v2026.10.03.4
+
 - Code cleanup across the repo (shared helpers, dead code and unused exports removed, local-time formatters built once per zone); no change to what the camera answers or when.
 
 ## v2026.10.03.3
