@@ -126,7 +126,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
-| `CAMSIM_NAME` | `Cam` | camera name: `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (stored; drawn on live SD only while the [SD pipeline](#sd-pipeline) is on) |
+| `CAMSIM_NAME` | `Cam` | the factory camera name: `GetDevName`, `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (one value; `SetDevName` or `SetOsd` change it, it is stored and a settings reset brings this one back; drawn on live SD only while the [SD pipeline](#sd-pipeline) is on) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
 | `CAMSIM_SPEED` | `fast` | `real` adds the camera's timings: Login ~0.2 s, Search ~0.3 s, Download 150 KB/s, reboot 60 s, certificate restart 10 s. `fast` keeps the behaviour with short timings |
@@ -295,6 +295,7 @@ post Logout
 | | `DelUser` | `{User:{userName}}` | `{rspCode:200}` |
 | | `ModifyUser` | `{User:{userName,password?,level?}}` | `{rspCode:200}`; a new password ends that user's sessions |
 | Device | `GetDevInfo` | `{}` | `{DevInfo:{model,firmVer,hardVer,serial,name,…}}`; the serial starts with `SIM` and changes at every boot |
+| | `GetDevName` / `SetDevName` | `{channel:0}` / `{DevName:{name}}` | `{DevName:{name}}`; with `action: 1` also `initial` (the factory name, `CAMSIM_NAME`) and `range: {DevName:{name:{maxLen:31,minLen:0}}}`. **One name:** `GetDevName`, `GetDevInfo.name` and the OSD's `osdChannel.name` are the same value, and `SetDevName` or a `SetOsd` with a new `osdChannel.name` change all three (measured 2026-10-03). Rules: 1–31 characters of ASCII letters, digits, space and `- ( ) + = [ ] { }`, no leading or trailing space; anything else (`_`, `.`, `é`, the empty name, …) `-54`, longer than 31 `-56`; a refused name keeps the old one. Stored like the other settings (survives reboot, power cycle and a restart with `CAMSIM_DATA_DIR`) |
 | | `GetTime` | `{}` | `{Dst:{enable,offset,…},Time:{year,mon,day,hour,min,sec,isDst,timeZone,…}}`; `timeZone` is seconds **west** of UTC (Chicago: 21600) |
 | | `GetHddInfo` | `{}` | `{HddInfo:[{capacity,size,mount,format,number,storageType}]}`; MB, **`size` is the free space** |
 | | `GetEnc` | `{channel:0}` | `{Enc:{mainStream:{vType:"h265",size:"4512*2512",frameRate:20,…},subStream:{vType:"h264",size:"896*512",frameRate:10,…}}}` |
@@ -311,7 +312,7 @@ post Logout
 | Image and lights | `GetIsp` / `SetIsp` | `{channel:0}` / `{Isp:{…}}` | `dayNight` `Auto`, `Color`, `Black&White`; `rotation` (upside down), `mirroring` (left–right), …; stored only, the video doesn't change (see [What differs](#what-differs-from-the-real-camera)) |
 | | `GetIrLights` / `SetIrLights` | `{channel:0}` / `{IrLights:{state}}` | `Auto`, `Off`; the reply also carries `initial` and `range`, as on the camera |
 | | `GetWhiteLed` / `SetWhiteLed` | `{channel:0}` / `{WhiteLed:{…}}` | `mode` 0–3, `bright` 0–100; `state` is the manual light switch, 0 off / 1 on (only the numbers 0 and 1, otherwise `-56`), and stays on until switched off (measured 2026-09-29); `GetWhiteLed` reports a new `state` late, about 1 s after switching on and 3 s after switching off (measured 2026-09-30) |
-| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; name ≤ 31 bytes. **Stored and validated only: nothing is drawn on the video** unless the [SD pipeline](#sd-pipeline) is on (live SD only; see [What differs](#what-differs-from-the-real-camera)) |
+| | `GetOsd` / `SetOsd` | `{channel:0}` / `{Osd:{…}}` | camera name (`osdChannel`), date and time (`osdTime`), Reolink logo (`watermark` 0/1); positions `Upper Left` … `Lower Right`; the name is the camera's name (see `SetDevName`: same value, same rules), and a `SetOsd` without `osdChannel.name` keeps it. **Stored and validated only: nothing is drawn on the video** unless the [SD pipeline](#sd-pipeline) is on (live SD only; see [What differs](#what-differs-from-the-real-camera)) |
 | FTP | `GetFtpV20` / `SetFtpV20` | `{}` / `{Ftp:{…}}` | see [FTP upload](#ftp-upload); `server: ""` answers `-4` |
 | | `TestFtp` | `{Ftp:{<the whole object>}}` | runs a whole session like the camera and stores a small `<Name>_00_<local time>.txt` in the login folder, saves no settings: `{rspCode:200}`; a partial object `-56` "err get data from json"; unreachable server or refused login `-454` "ftp connect failed" (both measured) |
 | Certificates | `GetCertificateInfo` | `{}` | `{CertificateInfo:{crtName,enable,keyName}}`; `enable` is 1 once one is installed |

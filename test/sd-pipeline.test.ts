@@ -156,6 +156,10 @@ describe('SdPipeline', () => {
     expect(p.generation()).toBe(g);
     const dir = (p as unknown as { dir: string }).dir;
     expect(readFileSync(`${dir}/name.txt`, 'utf8')).toBe('Renamed');
+    expect(e.settings.setName('Backyard Left')).toBeNull(); // SetDevName
+    e.bus.emit('settings', { cmd: 'SetDevName' });
+    await until(() => readFileSync(`${dir}/name.txt`, 'utf8') === 'Backyard Left');
+    expect(p.generation()).toBe(g);
     const isp = (e.settings.running as unknown as { Isp: { mirroring: number } }).Isp;
     isp.mirroring = isp.mirroring ? 0 : 1;
     e.bus.emit('settings', { cmd: 'SetIsp' });

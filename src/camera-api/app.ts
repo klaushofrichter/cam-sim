@@ -74,7 +74,7 @@ export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }
         out.push(fail(cmd, -6));
         continue;
       }
-      const r = await runCommand({ engine: e, cmd, param, session, token, req, res, beforeReply: (fn) => void beforeReply.push(fn) });
+      const r = await runCommand({ engine: e, cmd, action: Number(item?.action) || 0, param, session, token, req, res, beforeReply: (fn) => void beforeReply.push(fn) });
       if (r === 'destroyed') return;
       out.push(r);
     }

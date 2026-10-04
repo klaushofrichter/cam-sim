@@ -1,7 +1,10 @@
 <script lang="ts">
   import { api, ApiError } from '../lib/api';
+  import { simState } from '../lib/state';
 
   type Obj = Record<string, any>;
+  // The camera's name rules (measured on cam1 2026-10-03); the camera answers -54 or -56 otherwise.
+  const NAME_HINT = "The camera's name (also GetDevName and GetDevInfo.name): 1–31 letters, digits, spaces and - ( ) + = [ ] { }, no space at either end";
   interface All {
     settings: { Rec: Obj; MdAlarm: Obj; AiAlarm: Record<string, Obj>; Isp: Obj; IrLights: Obj; WhiteLed: Obj; Osd: Obj; NetPort: Obj };
     devInfo: Obj;
@@ -40,6 +43,18 @@
     }
   }
   void load();
+
+  // A rename over the camera API (SetDevName, SetOsd) arrives as a new state
+  // on the feed: show the camera's name in the form, the other fields as edited.
+  let seenName: string | undefined;
+  $effect(() => {
+    const name = $simState?.name;
+    if (name === undefined || name === seenName) return;
+    const first = seenName === undefined;
+    seenName = name;
+    if (first || !osd.osdChannel) return;
+    osd.osdChannel.name = name;
+  });
 
   async function save(card: string, writes: Array<[string, Obj]>) {
     saveState[card] = 'Saving…';
@@ -120,7 +135,7 @@
       <div class="card">
         <h3>On-screen text</h3>
         <label class="row"><input type="checkbox" checked={osd.osdChannel.enable === 1} onchange={(e) => (osd.osdChannel.enable = e.currentTarget.checked ? 1 : 0)} /> Camera name</label>
-        <input class="text" bind:value={osd.osdChannel.name} data-testid="osd-name" />
+        <input class="text" bind:value={osd.osdChannel.name} data-testid="osd-name" aria-label="Camera name" title={NAME_HINT} />
         <label class="row">Name position <select bind:value={osd.osdChannel.pos}>{#each POSITIONS as p (p)}<option>{p}</option>{/each}</select></label>
         <label class="row"><input type="checkbox" checked={osd.osdTime.enable === 1} onchange={(e) => (osd.osdTime.enable = e.currentTarget.checked ? 1 : 0)} /> Date and time</label>
         <label class="row">Time position <select bind:value={osd.osdTime.pos}>{#each POSITIONS as p (p)}<option>{p}</option>{/each}</select></label>

@@ -15,10 +15,22 @@ export function sse(engine: Engine, req: Request, res: Response): void {
     engine.bus.on(topic, h);
     return [topic, h] as const;
   });
+  // A new camera name (SetDevName, SetOsd, the Settings page, a settings
+  // reset) is part of the state: send it again when the name changed.
+  let name = engine.settings.name;
+  const onName = () => {
+    if (engine.settings.name === name) return;
+    name = engine.settings.name;
+    send('state', engine.state());
+  };
+  engine.bus.on('settings', onName);
+  engine.bus.on('state', onName);
   const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15_000);
   send('state', engine.state());
   req.on('close', () => {
     clearInterval(heartbeat);
+    engine.bus.off('settings', onName);
+    engine.bus.off('state', onName);
     for (const [topic, h] of handlers) engine.bus.off(topic, h);
   });
 }

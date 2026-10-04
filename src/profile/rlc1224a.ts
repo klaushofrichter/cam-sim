@@ -49,6 +49,20 @@ export const IR_LIGHTS_EXTRA = {
 };
 
 export const OSD_POSITIONS = ['Upper Left', 'Top Center', 'Upper Right', 'Lower Left', 'Bottom Center', 'Lower Right'];
+
+// The camera's name (GetDevName, GetDevInfo.name and the OSD text are one
+// value), measured on cam1 2026-10-03: 1–31 characters of ASCII letters,
+// digits, space and - ( ) + = [ ] { }, no leading or trailing space. Longer
+// than 31 answers -56, anything else (a refused character, a non-ASCII letter,
+// the empty name, an outer space) -54. Not measured: a value that isn't a
+// string (-56 here, the firmware's "err get data from json"), and which code
+// wins when a name is both too long and has a refused character (-56 here).
+export const NAME_MAX = 31;
+export const NAME_RE = /^[A-Za-z0-9()+=\[\]{}-](?:[A-Za-z0-9 ()+=\[\]{}-]{0,29}[A-Za-z0-9()+=\[\]{}-])?$/;
+export function nameRspCode(name: unknown): number | null {
+  if (typeof name !== 'string' || Buffer.byteLength(name, 'utf8') > NAME_MAX) return -56;
+  return NAME_RE.test(name) ? null : -54;
+}
 export const AI_TYPES = ['people', 'vehicle', 'dog_cat'] as const;
 export type AiType = (typeof AI_TYPES)[number];
 

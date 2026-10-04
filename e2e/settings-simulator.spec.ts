@@ -26,6 +26,24 @@ test('an invalid OSD name shows the camera error and changes nothing', async ({ 
   expect((await camCmd(request, t, 'GetOsd')).value.Osd.osdChannel.name).toBe('e2e-cam');
 });
 
+test('the camera name is one value: the Settings page renames it, SetDevName shows in the UI', async ({ page, request }) => {
+  await signIn(page);
+  await page.goto('/#/settings');
+  await page.getByTestId('osd-name').fill('Den_1');
+  await page.getByTestId('save-osd').click();
+  await expect(page.getByTestId('save-osd-state')).toContainText('-54');
+  await page.getByTestId('osd-name').fill('Backyard Left');
+  await page.getByTestId('save-osd').click();
+  await expect(page.getByTestId('save-osd-state')).toHaveText('Saved');
+  await expect(page.getByTestId('camera-name')).toHaveText('Backyard Left');
+  const t = await camLogin(request);
+  expect((await camCmd(request, t, 'GetDevName')).value.DevName.name).toBe('Backyard Left');
+  expect((await camCmd(request, t, 'GetDevInfo')).value.DevInfo.name).toBe('Backyard Left');
+  expect((await camCmd(request, t, 'SetDevName', { DevName: { name: 'Garage' } })).code).toBe(0);
+  await expect(page.getByTestId('camera-name')).toHaveText('Garage');
+  await expect(page.getByTestId('osd-name')).toHaveValue('Garage');
+});
+
 test('a fault switched on in the UI changes what the camera answers', async ({ page, request }) => {
   await signIn(page);
   await page.goto('/#/simulator');

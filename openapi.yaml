@@ -296,7 +296,11 @@ paths:
       description: >
         Osd (camera name, date and time, the `watermark` logo) is stored, validated and
         returned like the others, but nothing is drawn on the video: cam-sim plays its
-        source (the test pattern or a library video) as it is.
+        source (the test pattern or a library video) as it is. `Osd.osdChannel.name` is
+        the camera's name (the same value as GetDevName and GetDevInfo.name), with the
+        camera's rules: 1–31 characters of ASCII letters, digits, space and
+        `- ( ) + = [ ] { }`, no space at either end (400 with rspCode -54; -56 when longer
+        than 31).
       responses:
         '200': { description: the stored object }
         '400': { description: 'invalid value: {error: invalid, rspCode}' }
