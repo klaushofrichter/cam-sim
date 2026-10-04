@@ -36,7 +36,9 @@ describe('SettingsStore', () => {
     const s = make();
     s.set('SetOsd', { Osd: { channel: 0, osdTime: { enable: 0, pos: 'Top Center' } } }, { strictPartial: true });
     expect(s.running.Osd.watermark).toBe(0);
-    expect(s.running.Osd.osdChannel.name).toBe('');
+    // The OSD name is the camera's name: a SetOsd without one keeps it.
+    expect(s.running.Osd.osdChannel.name).toBe('Den');
+    expect(s.saved.Osd.osdChannel.name).toBe('Den');
   });
 
   it('a whole-object Set keeps every key', () => {
@@ -78,7 +80,9 @@ describe('SettingsStore', () => {
     ['SetWhiteLed', { WhiteLed: { state: true } }, -56],
     ['SetOsd', { Osd: { osdTime: { pos: 'Middle' } } }, -67],
     ['SetOsd', { Osd: { osdChannel: { name: 'x'.repeat(32) } } }, -56],
-    ['SetOsd', { Osd: { osdChannel: { name: 'a\u0007b' } } }, -56],
+    ['SetOsd', { Osd: { osdChannel: { name: 'a\u0007b' } } }, -54],
+    ['SetOsd', { Osd: { osdChannel: { name: '' } } }, -54],
+    ['SetOsd', { Osd: { osdChannel: { name: 7 } } }, -56],
     ['SetFtpV20', { Ftp: { server: '' } }, -4],
   ];
   it.each(invalid)('%s %j → %i and nothing changes', (cmd, param, code) => {

@@ -1,5 +1,5 @@
 import type pino from 'pino';
-import { factorySettings, resetDefaults, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
+import { factorySettings, resetDefaults, nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 
 // Factory settings with every well-formed object of `loaded` laid over them.
@@ -63,8 +63,11 @@ function validate(cmd: string, p: any): number | null {
   if (cmd === 'SetOsd') {
     const o = p?.Osd ?? {};
     for (const part of [o.osdChannel, o.osdTime]) if (part?.pos !== undefined && !OSD_POSITIONS.includes(part.pos)) return -67;
-    const name = o.osdChannel?.name;
-    if (name !== undefined && (typeof name !== 'string' || Buffer.byteLength(name, 'utf8') > 31 || /\p{C}/u.test(name))) return -56;
+    // The OSD name is the camera's name, with the same rules as SetDevName.
+    if (o.osdChannel?.name !== undefined) {
+      const r = nameRspCode(o.osdChannel.name);
+      if (r !== null) return r;
+    }
   }
   if (cmd === 'SetFtpV20' && p?.Ftp?.server === '') return -4;
   return null;
@@ -77,12 +80,12 @@ function validate(cmd: string, p: any): number | null {
 export class SettingsStore {
   running: Settings;
   saved: Settings;
-  private readonly name: string;
+  readonly factoryName: string;
   private readonly file?: string;
   private lightTimer?: ReturnType<typeof setTimeout>;
 
   constructor(opts: { name: string; file?: string; log: pino.Logger }) {
-    this.name = opts.name;
+    this.factoryName = opts.name;
     this.file = opts.file;
     let saved = factorySettings(opts.name);
     if (opts.file) {
@@ -119,8 +122,14 @@ export class SettingsStore {
       this.saved.AiAlarm[t] = deepMerge(defaults.AiAlarm[t], sent);
       this.running.AiAlarm[t] = opts.strictPartial ? clone(this.saved.AiAlarm[t]) : deepMerge(this.running.AiAlarm[t], sent);
     } else {
+      const name = this.name;
       this.saved[key] = deepMerge(defaults[key] as Record<string, any>, sent) as any;
       this.running[key] = (opts.strictPartial ? clone(this.saved[key]) : deepMerge(this.running[key] as Record<string, any>, sent)) as any;
+      // The OSD name is the camera's name (one value with GetDevName and
+      // GetDevInfo.name): a SetOsd without one leaves it as it is. Not
+      // measured, but the camera refuses an empty name, so the partial-Set
+      // reset can't empty it.
+      if (key === 'Osd' && sent.osdChannel?.name === undefined) this.storeName(name);
     }
     if (key === 'WhiteLed') this.lightLate(lightWas);
     this.persist();
@@ -148,13 +157,33 @@ export class SettingsStore {
     this.lightTimer = undefined;
   }
 
+  // The camera's name: GetDevName, GetDevInfo.name and the OSD text are one
+  // value (measured on cam1 2026-10-03), kept in Osd.osdChannel.name.
+  get name(): string {
+    return this.running.Osd.osdChannel.name;
+  }
+
+  // SetDevName: the camera's rules; a refused name keeps the old one.
+  setName(name: unknown): { rspCode: number } | null {
+    const rsp = nameRspCode(name);
+    if (rsp !== null) return { rspCode: rsp };
+    this.storeName(name as string);
+    this.persist();
+    return null;
+  }
+
+  private storeName(name: string): void {
+    this.running.Osd.osdChannel.name = name;
+    this.saved.Osd.osdChannel.name = name;
+  }
+
   applySavedOnReboot(): void {
     this.cancelLight();
     this.running = clone(this.saved);
   }
 
   resetFactory(): void {
-    this.saved = factorySettings(this.name);
+    this.saved = factorySettings(this.factoryName);
     this.applySavedOnReboot();
     this.persist();
   }
