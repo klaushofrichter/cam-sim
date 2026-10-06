@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeCamera, post, login } from '../helpers';
+import { DEFAULT_NTP } from '../../src/profile/rlc1224a';
 
 describe('camera API: settings', () => {
   it('Get/Set with whole objects, counting Set calls', async () => {
@@ -105,5 +106,23 @@ describe('camera API: settings', () => {
     expect((await post(app, 'GetFtpV20', { channel: 0 }, t)).reply.value.Ftp.userName).toBe('ca**ra');
     await post(app, 'SetFtpV20', { Ftp: { ...ftp, server: '127.0.0.1', userName: 'cam' } }, t);
     expect((await post(app, 'GetFtpV20', { channel: 0 }, t)).reply.value.Ftp.userName).toBe('cam');
+  });
+
+  // Not measured yet (cam-proxy P4 measures GetNtp on the multi-camera host):
+  // the Reolink API document's shape until then.
+  it('GetNtp answers the Ntp object; SetNtp stores a whole object', async () => {
+    const { app, engine } = await makeCamera();
+    const t = await login(app);
+    const before = (await post(app, 'GetNtp', {}, t)).reply;
+    expect(before).toEqual({ cmd: 'GetNtp', code: 0, value: { Ntp: DEFAULT_NTP } });
+    expect(DEFAULT_NTP).toEqual({ enable: 1, interval: 1440, port: 123, server: 'pool.ntp.org' });
+    const set = await post(app, 'SetNtp', { Ntp: { ...DEFAULT_NTP, server: '192.168.60.1' } }, t);
+    expect(set.reply).toEqual({ cmd: 'SetNtp', code: 0, value: { rspCode: 200 } });
+    expect((await post(app, 'GetNtp', {}, t)).reply.value.Ntp).toEqual({ ...DEFAULT_NTP, server: '192.168.60.1' });
+    expect(engine.counters.setCalls).toEqual(['SetNtp']);
+    // Survives a reboot (a whole-object Set).
+    await engine.reboot({ ms: 1, dropsConnection: false });
+    const t2 = await login(app);
+    expect((await post(app, 'GetNtp', {}, t2)).reply.value.Ntp.server).toBe('192.168.60.1');
   });
 });

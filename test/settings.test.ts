@@ -106,6 +106,20 @@ describe('SettingsStore', () => {
     expect(s.running.NetPort.httpEnable).toBe(0);
   });
 
+  it('a settings file from before Ntp existed is complete: factory Ntp, no warning', () => {
+    const f = join(dir, 'settings.json');
+    const old = new SettingsStore({ name: 'Den', file: f, log: logSink().log });
+    old.set('SetIsp', { Isp: { ...(old.get('Isp') as any), dayNight: 'Color' } }, ok);
+    const saved = JSON.parse(readFileSync(f, 'utf8'));
+    delete saved.Ntp;
+    writeFileSync(f, JSON.stringify(saved));
+    const sink = logSink();
+    const s = new SettingsStore({ name: 'Den', file: f, log: sink.log });
+    expect(s.running.Ntp.server).toBe('pool.ntp.org');
+    expect(s.running.Isp.dayNight).toBe('Color');
+    expect(sink.lines.join('')).not.toContain('settings_file_invalid');
+  });
+
   it('persists the saved state', () => {
     const f = join(dir, 'settings.json');
     const s = make(f);

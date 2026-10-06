@@ -49,7 +49,7 @@ describe('Faults', () => {
 
   it('knows every fault of the spec', () => {
     expect([...FAULT_NAMES].sort()).toEqual([
-      'baichuan.delayMs', 'baichuan.dropMidway', 'baichuan.loginFail', 'baichuan.refuse', 'baichuan.sessionLimit',
+      'baichuan.delayMs', 'baichuan.dropMidway', 'baichuan.loginFail', 'baichuan.refuse', 'baichuan.sessionLimit', 'cert.ignoreImport',
       'downloads.delayMs', 'downloads.dropFirst', 'downloads.dropMidway', 'downloads.refuse',
       'flv.delayMs', 'flv.reset', 'ftp.delayMs', 'ftp.fail', 'latencyMs', 'offline', 'rtsp.refuse', 'rtsp.reset', 'search.delayMs',
       'settings.fail', 'settings.ignore', 'settings.strictPartial', 'snap.fail',

@@ -2,6 +2,9 @@ import type pino from 'pino';
 import { factorySettings, resetDefaults, nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 
+// Settings keys added after files were first written (2026-10-05: Ntp).
+const ADDED_LATER: Array<keyof Settings> = ['Ntp'];
+
 // Factory settings with every well-formed object of `loaded` laid over them.
 // Returns whether anything was missing or malformed.
 function overFactory(name: string, loaded: unknown): { settings: Settings; complete: boolean } {
@@ -10,6 +13,8 @@ function overFactory(name: string, loaded: unknown): { settings: Settings; compl
   let complete = true;
   for (const key of Object.keys(settings) as Array<keyof Settings>) {
     const v = loaded[key];
+    // Keys newer than the file: the factory value, and the file is fine.
+    if (v === undefined && ADDED_LATER.includes(key)) continue;
     if (key === 'AiAlarm') {
       for (const t of AI_TYPES) {
         if (isObject(v) && isObject(v[t])) deepMerge(settings.AiAlarm[t], v[t]);
@@ -33,6 +38,7 @@ const SET_COMMANDS: Record<string, Key> = {
   SetOsd: 'Osd',
   SetFtpV20: 'Ftp',
   SetNetPort: 'NetPort',
+  SetNtp: 'Ntp',
 };
 
 export const isSetCommand = (cmd: string): boolean => Object.hasOwn(SET_COMMANDS, cmd);
