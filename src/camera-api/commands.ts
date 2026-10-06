@@ -92,6 +92,7 @@ const HANDLERS: Record<string, Handler> = {
   GetHddInfo: getter('HddInfo', (e) => e.sd.hddInfo()),
   GetEnc: getter('Enc', () => ENC),
   GetNetPort: getter('NetPort', (e) => e.settings.get('NetPort')),
+  GetNtp: getter('Ntp', (e) => e.settings.get('Ntp')),
   GetAbility: (c) => ok(c.cmd, ABILITY),
   GetRecV20: getter('Rec', (e) => e.settings.get('Rec')),
   GetMdAlarm: getter('MdAlarm', (e) => e.settings.get('MdAlarm')),
@@ -158,6 +159,9 @@ const HANDLERS: Record<string, Handler> = {
     const pem = (x: any) => (typeof x?.content === 'string' ? Buffer.from(x.content, 'base64').toString('utf8') : '');
     const cert = pem(ic.crt), key = pem(ic.key);
     // Validate now, apply when the reply goes out (the web server restarts).
+    // Over an installed certificate the firmware answers 200 and changes
+    // nothing (measured); the fault does the same on any certificate.
+    if (c.engine.faults.consume('cert.ignoreImport')) return ok(c.cmd, { rspCode: 200 });
     if (c.engine.certs.state.enable === 1) return ok(c.cmd, { rspCode: 200 });
     if (!validPair(cert, key)) return fail(c.cmd, -4);
     c.beforeReply(() => c.engine.importCertificate(cert, key));

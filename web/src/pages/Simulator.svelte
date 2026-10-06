@@ -28,6 +28,7 @@
     { name: 'baichuan.delayMs', label: 'Wait before each Baichuan chunk', params: ['ms'] },
     { name: 'baichuan.loginFail', label: 'Baichuan logins answer 401 (remainTimes 10)', params: ['count'] },
     { name: 'baichuan.sessionLimit', label: 'At most N Baichuan connections (the camera allows 12)', params: ['max'] },
+    { name: 'cert.ignoreImport', label: 'Certificate import ignored (answers 200, changes nothing)', params: [] },
   ];
   let params = $state<Record<string, { ms: number; count: number; cmds: string; rspCode: number; max: number }>>(
     Object.fromEntries(FAULTS.map((f) => [f.name, { ms: 1000, count: 1, cmds: 'SetWhiteLed', rspCode: -67, max: 2 }])),

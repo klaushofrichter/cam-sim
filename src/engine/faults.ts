@@ -10,6 +10,7 @@ export const FAULT_NAMES = [
   'ftp.fail', 'ftp.delayMs',
   'rtsp.refuse', 'rtsp.reset',
   'baichuan.refuse', 'baichuan.dropMidway', 'baichuan.delayMs', 'baichuan.loginFail', 'baichuan.sessionLimit',
+  'cert.ignoreImport',
 ] as const;
 export type FaultName = (typeof FAULT_NAMES)[number];
 
