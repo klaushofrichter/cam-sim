@@ -40,6 +40,10 @@ export const DEFAULT_NET_PORT = {
   onvifEnable: 1, onvifPort: 8000, rtmpEnable: 1, rtmpPort: 1935, rtspEnable: 1, rtspPort: 554,
 };
 
+// GetNtp: not measured on the RLC-1224A yet (cam-proxy P4 measures it on the
+// multi-camera host); the Reolink API document's object until then.
+export const DEFAULT_NTP = { enable: 1, interval: 1440, port: 123, server: 'pool.ntp.org' };
+
 export const ABILITY = ability;
 
 // GetIrLights answers with these next to `value`, even for action 0.
@@ -77,6 +81,7 @@ export interface Settings {
   Osd: Obj;
   Ftp: Obj;
   NetPort: Obj;
+  Ntp: Obj;
 }
 
 const ALL = '1'.repeat(168);
@@ -157,6 +162,7 @@ export function factorySettings(name: string): Settings {
       server: '', streamType: 0, userName: '', videoName: '',
     },
     NetPort: { ...DEFAULT_NET_PORT },
+    Ntp: { ...DEFAULT_NTP },
   };
 }
 

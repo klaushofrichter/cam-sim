@@ -83,6 +83,22 @@ describe('TLS and certificates', () => {
     expect(await peerCN(l.ports.https)).toBe('cam3.skylar.technology');
   });
 
+  it('cert.ignoreImport: ImportCertificate answers 200 and changes nothing, even on the factory certificate', async () => {
+    const { l, app, engine } = await start();
+    engine.faults.set({ name: 'cert.ignoreImport', count: 1 });
+    const t = await login(app);
+    expect((await post(app, 'ImportCertificate', importParam(await camCert()), t)).reply).toEqual({ cmd: 'ImportCertificate', code: 0, value: { rspCode: 200 } });
+    expect(engine.offline()).toBe(false); // no web server restart
+    expect(engine.certs.state.enable).toBe(0);
+    expect(await peerCN(l.ports.https)).toBe('CERTIFICATE');
+    expect((await post(app, 'GetCertificateInfo', {}, t)).reply.value.CertificateInfo.enable).toBe(0);
+    // count 1: the next import takes effect.
+    expect(engine.faults.active('cert.ignoreImport')).toBeUndefined();
+    await post(app, 'ImportCertificate', importParam(await camCert()), t);
+    await waitOnline(engine);
+    expect(await peerCN(l.ports.https)).toBe('cam2.skylar.technology');
+  });
+
   // Issue #57: the import applied on the reply's 'finish', which can come after
   // the client has the reply; a client (or this test) reading the state at once
   // saw the camera still online. It applies before the reply goes out now.

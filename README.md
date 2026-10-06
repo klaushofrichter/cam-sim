@@ -300,6 +300,7 @@ post Logout
 | | `GetHddInfo` | `{}` | `{HddInfo:[{capacity,size,mount,format,number,storageType}]}`; MB, **`size` is the free space** |
 | | `GetEnc` | `{channel:0}` | `{Enc:{mainStream:{vType:"h265",size:"4512*2512",frameRate:20,…},subStream:{vType:"h264",size:"896*512",frameRate:10,…}}}` |
 | | `GetNetPort` / `SetNetPort` | `{}` / `{NetPort:{…}}` | ports and `*Enable` flags |
+| | `GetNtp` / `SetNtp` | `{}` / `{Ntp:{…}}` | `{Ntp:{enable,interval,port,server}}`, factory `{enable:1,interval:1440,port:123,server:"pool.ntp.org"}`. **Not measured yet**: the Reolink API document's shape. A settings object like the others (write the whole object) |
 | | `GetAbility` | `{User:{userName}}` | the camera's capability flags |
 | | `Reboot` | `{}` | `{rspCode:200}`, **or the connection drops first** (half the time, seeded) |
 | Recording | `GetRecV20` / `SetRecV20` | `{channel:0}` / `{Rec:{…}}` | `enable`, `postRec` (`"15 Seconds"`, `"30 Seconds"`, `"1 Minute"`: how long a recording runs on after its last event; the camera's "Post-Motion Record"), `preRec` (1: recordings start 4 s before the event), `saveDay`, `schedule.table` (168 characters per trigger type) |
@@ -825,6 +826,7 @@ matching requests.
 | `baichuan.delayMs` | `ms` | wait this long before each Baichuan chunk (a slow transfer) |
 | `baichuan.loginFail` | `count` optional | Baichuan logins answer 401 with `remainTimes` 10 |
 | `baichuan.sessionLimit` | `max` | at most `max` Baichuan connections at once (`max` at most 12) instead of 12; one more is accepted, then reset at its first message |
+| `cert.ignoreImport` | `count` optional | `ImportCertificate` answers `{rspCode:200}` and installs nothing, even over the factory certificate (the firmware does this over an installed one; a camera refusing a leaf looks the same) |
 
 ```sh
 ctl -X PUT $C/faults/settings.fail -d '{"cmds":["SetWhiteLed"]}'

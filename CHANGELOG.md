@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New fault `cert.ignoreImport` (optional `count`): `ImportCertificate` answers `{rspCode:200}` and installs nothing, even over the factory certificate, as the firmware does over an installed certificate. For cam-proxy's certificate push and its fallback to the camera's own certificate.
+- New `GetNtp` / `SetNtp` (`{Ntp:{enable,interval,port,server}}`), a settings object like the others (whole-object Set, stored, survives reboot). Not measured on the RLC-1224A yet: the Reolink API document's shape and factory values (`pool.ntp.org`, 1440 min, port 123) until cam-proxy's P4 measurement. A settings file written before this keeps working (factory `Ntp`, no `settings_file_invalid` warning).
+
 ## v2026.10.03.5
 
 - Camera name, as measured on cam1 (2026-10-03): new `GetDevName` / `SetDevName` (`{DevName:{name}}`; `action: 1` adds `initial` and `range` `{maxLen:31,minLen:0}`). `GetDevName`, `GetDevInfo.name` and the OSD's `osdChannel.name` are now one value: `SetDevName` or a whole-object `SetOsd` with a new name changes all three. Before, `GetDevInfo.name` stayed `CAMSIM_NAME` whatever the OSD said, and `GetDevName` answered `-9`.
