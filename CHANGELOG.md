@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.13.1
+
 ## v2026.10.05.1
 
 - New fault `cert.ignoreImport` (optional `count`): `ImportCertificate` answers `{rspCode:200}` and installs nothing, even over the factory certificate, as the firmware does over an installed certificate. For cam-proxy's certificate push and its fallback to the camera's own certificate.
