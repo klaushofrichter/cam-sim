@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.05.1
+
 - New fault `cert.ignoreImport` (optional `count`): `ImportCertificate` answers `{rspCode:200}` and installs nothing, even over the factory certificate, as the firmware does over an installed certificate. For cam-proxy's certificate push and its fallback to the camera's own certificate.
 - New `GetNtp` / `SetNtp` (`{Ntp:{enable,interval,port,server}}`), a settings object like the others (whole-object Set, stored, survives reboot). Not measured on the RLC-1224A yet: the Reolink API document's shape and factory values (`pool.ntp.org`, 1440 min, port 123) until cam-proxy's P4 measurement. A settings file written before this keeps working (factory `Ntp`, no `settings_file_invalid` warning).
 
