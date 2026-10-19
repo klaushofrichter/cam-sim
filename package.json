@@ -36,21 +36,21 @@
     "selfsigned": "^5.5.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.64.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@testing-library/svelte": "^5.4.2",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
     "@types/supertest": "^7.2.1",
     "ftp-srv": "^4.6.3",
-    "jsdom": "^30.1.2",
+    "jsdom": "^30.1.3",
     "mpegts.js": "^1.8.2",
     "supertest": "^7.3.1",
     "svelte": "^5.57.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "overrides": {
     "ftp-srv": {
