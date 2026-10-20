@@ -8,6 +8,7 @@ import type pino from 'pino';
 import { FlvWriter, readFlv, splitAnnexB, h265NalType, hvcc, parseAdts, type FlvTag } from './flv';
 import type { MediaSource, Stream } from './source';
 import { sleep } from '../util/sleep';
+import { profileFor, type CameraProfile } from '../profile/profile';
 
 const run = promisify(execFile);
 
@@ -25,7 +26,23 @@ export interface FixturePaths {
 
 const FILES = { snapshot: 'snapshot.jpg', subFlv: 'sub.flv', mainFlv: 'main.flv', clipSub: 'clip-sub.mp4', clipMain: 'clip-main.mp4' };
 
-export const defaultFixtureDir = () => join(tmpdir(), `cam-sim-fixtures-${FIXTURE_VERSION}`);
+// What the test pattern is generated as: the model's sub size and frame
+// rates (the RLC-1224A's 896x512 at 10 fps and main at 20 fps by default). The
+// suffix keeps other models' fixtures apart from the default ones.
+export interface FixtureSpec {
+  sub: string;
+  subFps: number;
+  mainFps: number;
+  suffix: string;
+}
+
+export function fixtureSpec(profile: CameraProfile = profileFor(undefined)): FixtureSpec {
+  const { sub, subFps, mainFps } = profile.media;
+  const suffix = profile.model === profileFor(undefined).model ? '' : `-${profile.model.toLowerCase()}`;
+  return { sub, subFps, mainFps, suffix };
+}
+
+export const defaultFixtureDir = (profile?: CameraProfile) => join(tmpdir(), `cam-sim-fixtures-${FIXTURE_VERSION}${fixtureSpec(profile).suffix}`);
 
 export function fixturePaths(dir: string): FixturePaths {
   return {
@@ -38,19 +55,26 @@ export function fixturePaths(dir: string): FixturePaths {
   };
 }
 
-function complete(dir: string): boolean {
+// The manifest names the model for non-default ones, so a fixture folder is
+// only used for the model it was made for.
+function manifest(spec: FixtureSpec): Record<string, unknown> {
+  return spec.suffix ? { version: FIXTURE_VERSION, model: spec.suffix.slice(1) } : { version: FIXTURE_VERSION };
+}
+
+function complete(dir: string, spec: FixtureSpec): boolean {
   try {
     const m = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
-    return m.version === FIXTURE_VERSION && Object.values(FILES).every((f) => existsSync(join(dir, f)));
+    return m.version === FIXTURE_VERSION && m.model === manifest(spec).model && Object.values(FILES).every((f) => existsSync(join(dir, f)));
   } catch {
     return false;
   }
 }
 
-const SUB = 'testsrc2=size=896x512:rate=10';
-// Main is generated at 1280x720 rather than 4512x2512 so the fixtures build in
-// seconds; GetEnc still reports the camera's real sizes.
-const MAIN = 'testsrc2=size=1280x720:rate=20';
+const sub = (s: FixtureSpec) => `testsrc2=size=${s.sub}:rate=${s.subFps}`;
+// Main is generated at 1280x720 rather than the camera's size (4512x2512 on
+// the RLC-1224A) so the fixtures build in seconds; GetEnc still reports the
+// camera's real sizes.
+const main = (s: FixtureSpec) => `testsrc2=size=1280x720:rate=${s.mainFps}`;
 const TONE = 'sine=frequency=440:sample_rate=16000';
 const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
 // Fast presets: fixtures build in seconds even on small CI runners.
@@ -105,8 +129,10 @@ export function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
   return Buffer.concat([w.header(true, true), ...tags.map((t) => t.buf)]);
 }
 
-async function generate(dir: string): Promise<void> {
+async function generate(dir: string, spec: FixtureSpec): Promise<void> {
   const p = fixturePaths(dir);
+  const SUB = sub(spec);
+  const MAIN = main(spec);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-frames:v', '1', p.snapshot]);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', '6',
     ...X264, '-profile:v', 'high', '-g', '40', '-bf', '0',
@@ -116,7 +142,7 @@ async function generate(dir: string): Promise<void> {
   await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-t', '6', ...X265,
     '-x265-params', 'keyint=40:min-keyint=40:bframes=0:aud=1:repeat-headers=1:log-level=error', '-f', 'hevc', h265]);
   await ffmpeg(['-f', 'lavfi', '-i', TONE, '-t', '6', '-c:a', 'aac', '-f', 'adts', aac]);
-  writeFileSync(p.mainFlv, composeMainFlv(readFileSync(h265), readFileSync(aac), 20));
+  writeFileSync(p.mainFlv, composeMainFlv(readFileSync(h265), readFileSync(aac), spec.mainFps));
   rmSync(h265);
   rmSync(aac);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
@@ -124,14 +150,14 @@ async function generate(dir: string): Promise<void> {
   await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
     ...X265, '-tag:v', 'hvc1', '-x265-params', 'keyint=40:log-level=error',
     '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipMain]);
-  writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ version: FIXTURE_VERSION }));
+  writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest(spec)));
 }
 
 const LOCK_STALE_MS = 180_000;
 
 // A lock directory next to the fixtures (mkdir is atomic across processes),
 // so parallel test workers wait for one encode instead of all encoding.
-async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+async function withLock<T>(dir: string, spec: FixtureSpec, fn: () => Promise<T>): Promise<T> {
   const lock = `${dir}.lock`;
   mkdirSync(join(dir, '..'), { recursive: true });
   for (;;) {
@@ -139,7 +165,7 @@ async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
       mkdirSync(lock);
       break;
     } catch {
-      if (complete(dir)) return undefined as T;
+      if (complete(dir, spec)) return undefined as T;
       try {
         if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { recursive: true, force: true });
       } catch {
@@ -158,25 +184,26 @@ async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
 // Generates the test-pattern fixtures once per directory: under a lock, into
 // a private temp directory that is renamed into place, so parallel test
 // workers and processes can all call this at the same time.
-export async function ensureFixtures(dir: string, log: pino.Logger): Promise<FixturePaths> {
-  if (complete(dir)) return fixturePaths(dir);
-  await withLock(dir, () => build(dir, log));
-  if (!complete(dir)) throw new Error(`fixtures in ${dir} are incomplete`);
+export async function ensureFixtures(dir: string, log: pino.Logger, profile?: CameraProfile): Promise<FixturePaths> {
+  const spec = fixtureSpec(profile);
+  if (complete(dir, spec)) return fixturePaths(dir);
+  await withLock(dir, spec, () => build(dir, log, spec));
+  if (!complete(dir, spec)) throw new Error(`fixtures in ${dir} are incomplete`);
   return fixturePaths(dir);
 }
 
-async function build(dir: string, log: pino.Logger): Promise<void> {
-  if (complete(dir)) return;
+async function build(dir: string, log: pino.Logger, spec: FixtureSpec): Promise<void> {
+  if (complete(dir, spec)) return;
   const tmp = `${dir}.tmp-${randomBytes(4).toString('hex')}`;
   mkdirSync(tmp, { recursive: true });
   log.info({ dir }, 'fixtures_generating');
   try {
-    await generate(tmp);
+    await generate(tmp, spec);
     try {
       renameSync(tmp, dir);
     } catch {
       // Another worker finished first (or an old incomplete dir is in the way).
-      if (!complete(dir)) {
+      if (!complete(dir, spec)) {
         rmSync(dir, { recursive: true, force: true });
         renameSync(tmp, dir);
       }

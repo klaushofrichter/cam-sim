@@ -9,7 +9,7 @@ import type { Engine } from '../engine/engine';
 import { BAICHUAN_OVER_LIMIT_HELD_MAX, BAICHUAN_SESSION_LIMIT, type CamSimConfig, type User } from '../config';
 import { CLS_CAMERA, CLS_NONCE_REPLY, CLS_NONCE_REQUEST, ENC_CHOICE, FrameParser, channelOf, encodeFrame, type BcFrame } from './frame';
 import { aesDecrypt, aesEncrypt, aesKey, bcXor, md5_31 } from './cipher';
-import { LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, PUSHES, loginReplyXml, nonceXml, tagValue, type PushMessage } from './xml';
+import { LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, loginReplyXml, nonceXml, tagValue, type PushMessage } from './xml';
 import { FIRST_REPLY_LEN, Transfer, fileInfoReply, resolveFile } from './vod';
 
 // Defaults: config.baichuan (idle close 32 s, 12.5 s before a first message).
@@ -39,8 +39,9 @@ class Conn {
 
 type Log = (status: number, replyLen?: number) => void;
 
-// The late push group goes this long before the idle close (PUSHES delayMs).
-const LATE_BEFORE_IDLE_MS = PUSHES.find((p) => p.trigger === 'beforeIdleClose')?.delayMs ?? 1;
+// The late push group goes this long before the idle close (its delayMs in
+// the model's pushes, profile baichuan.pushes).
+const lateBeforeIdleMs = (pushes: readonly PushMessage[]) => pushes.find((p) => p.trigger === 'beforeIdleClose')?.delayMs ?? 1;
 
 // The traced nonce is 29 characters; its alphabet was redacted.
 const newNonce = () => randomBytes(15).toString('hex').toUpperCase().slice(0, 29);
@@ -181,7 +182,7 @@ export class BaichuanServer {
       this.closeAfterFlush(c);
     }, ms);
     c.idle.unref();
-    if (c.key && !c.lateSent && !c.lateArmedByMessage) this.armLate(c, Math.max(0, ms - LATE_BEFORE_IDLE_MS));
+    if (c.key && !c.lateSent && !c.lateArmedByMessage) this.armLate(c, Math.max(0, ms - lateBeforeIdleMs(this.engine.profile.baichuan.pushes)));
   }
 
   private handle(c: Conn, f: BcFrame): void {
@@ -234,7 +235,7 @@ export class BaichuanServer {
     const ch = channelOf(msgId);
     if (cmd === 1 && cls === CLS_NONCE_REQUEST) {
       c.nonce = newNonce();
-      const body = bcXor(Buffer.from(nonceXml(c.nonce)), ch);
+      const body = bcXor(Buffer.from(nonceXml(c.nonce, this.engine.profile.baichuan.authTypes)), ch);
       this.send(c, encodeFrame({ cmd, msgId, status: ENC_CHOICE, cls: CLS_NONCE_REPLY, body }));
       return log(200, body.length);
     }
@@ -264,7 +265,7 @@ export class BaichuanServer {
     c.sessionId = this.engine.sessions.openBaichuan(user, c.ip);
     this.engine.counters.baichuanSessions++;
     this.engine.counters.baichuanLogins++;
-    const body = bcXor(Buffer.from(loginReplyXml(randomBytes(8).toString('hex'), randomBytes(8).toString('hex'))), ch);
+    const body = bcXor(Buffer.from(loginReplyXml(randomBytes(8).toString('hex'), randomBytes(8).toString('hex'), this.engine.profile.baichuan.loginReplyLines)), ch);
     this.send(c, encodeFrame({ cmd, msgId, status: 200, cls: CLS_CAMERA, body }));
     log(200, body.length);
     this.schedulePushes(c);
@@ -316,7 +317,7 @@ export class BaichuanServer {
   // (message id 0, channel 0, status 200): 78/79 0.3 s and 464/547 0.4 s after
   // the login reply. The 291/677/600/669 group comes once per session (armLate).
   private schedulePushes(c: Conn): void {
-    const early = PUSHES.filter((p) => p.trigger === 'afterLogin');
+    const early = this.engine.profile.baichuan.pushes.filter((p) => p.trigger === 'afterLogin');
     for (const ms of new Set(early.map((p) => p.delayMs))) {
       const t = setTimeout(() => this.sendPushes(c, early.filter((p) => p.delayMs === ms)), ms);
       t.unref();
@@ -337,7 +338,7 @@ export class BaichuanServer {
     clearTimeout(c.late);
     if (c.lateSent) return;
     c.lateSent = true;
-    this.sendPushes(c, PUSHES.filter((p) => p.trigger === 'beforeIdleClose'));
+    this.sendPushes(c, this.engine.profile.baichuan.pushes.filter((p) => p.trigger === 'beforeIdleClose'));
   }
 
   // Logout and the idle close: an orderly end (FIN) after the queued frames, as the

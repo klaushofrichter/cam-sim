@@ -1,6 +1,6 @@
 # cam-sim
 
-Reolink RLC-1224A simulator: the camera's HTTP API, FLV, RTSP, ONVIF events and FTP upload, plus a control API (`/sim/api/*`) and web UI. It is cams' and cam-proxy's test camera (a release tarball in their package.json) and runs as `cam2` in the cluster. Spec: `docs/superpowers/specs/2026-09-26-cam-sim-design.md`. Plans: `docs/superpowers/plans/`.
+Reolink RLC-1224A simulator (or a CX820 with `CAMSIM_MODEL=CX820`; one profile per model in `src/profile/`, from captures in `reference/<model>/`): the camera's HTTP API, FLV, RTSP, ONVIF events and FTP upload, plus a control API (`/sim/api/*`) and web UI. It is cams' and cam-proxy's test camera (a release tarball in their package.json) and runs as `cam2` in the cluster. Spec: `docs/superpowers/specs/2026-09-26-cam-sim-design.md`. Plans: `docs/superpowers/plans/`.
 
 ## Commands
 

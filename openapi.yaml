@@ -3,7 +3,7 @@ info:
   title: cam-sim control API
   version: '1'
   description: >
-    Controls a simulated Reolink RLC-1224A camera: events, recordings, faults,
+    Controls a simulated Reolink RLC-1224A camera (or a CX820, CAMSIM_MODEL): events, recordings, faults,
     actions and state. Every /sim/api route needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`,
     or the web UI's session cookie (from /sim/login); with the cookie, writes also need the
     header `X-CamSim-UI: 1`. A token in the URL is refused. Without a configured token the API

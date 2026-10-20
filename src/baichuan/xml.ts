@@ -8,10 +8,13 @@ const doc = (lines: readonly string[]): string => lines.map((l) => `${l}\n`).joi
 const bodyXml = (inner: readonly string[]): string => doc([XML_DECL, '<body>', ...inner, '</body>']);
 const extXml = (inner: readonly string[]): string => doc([XML_DECL, '<Extension version="1.1">', ...inner, '</Extension>']);
 
-export function nonceXml(nonce: string): string {
+// The nonce reply's authTypeList: the RLC-1224A's (the CX820 adds sigV3, cx820.ts).
+export const RLC_AUTH_TYPES = ['password', 'sigV1', 'authLogin', 'getAccesskey'] as const;
+
+export function nonceXml(nonce: string, authTypes: readonly string[] = RLC_AUTH_TYPES): string {
   return bodyXml([
     '<Encryption version="1.1">', '<type>md5</type>', `<nonce>${nonce}</nonce>`, '<authTypeList>',
-    '<authType>password</authType>', '<authType>sigV1</authType>', '<authType>authLogin</authType>', '<authType>getAccesskey</authType>',
+    ...authTypes.map((t) => `<authType>${t}</authType>`),
     '</authTypeList>', '</Encryption>',
   ]);
 }
@@ -26,8 +29,8 @@ export const EXT_CHUNK = extXml(['<binaryData>1</binaryData>', `<encryptLen>${EN
 
 const SECRET_CODE = '<secretCode>REDACTED</secretCode>';
 const BOOT_SECRET = '<bootSecret>REDACTED</bootSecret>';
-export function loginReplyXml(secretCode: string, bootSecret: string): string {
-  return doc(LOGIN_REPLY_LINES.map((l) => (l === SECRET_CODE ? `<secretCode>${secretCode}</secretCode>` : l === BOOT_SECRET ? `<bootSecret>${bootSecret}</bootSecret>` : l)));
+export function loginReplyXml(secretCode: string, bootSecret: string, lines: readonly string[] = LOGIN_REPLY_LINES): string {
+  return doc(lines.map((l) => (l === SECRET_CODE ? `<secretCode>${secretCode}</secretCode>` : l === BOOT_SECRET ? `<bootSecret>${bootSecret}</bootSecret>` : l)));
 }
 
 // Unsolicited pushes, message id 0, channel 0, as measured in
@@ -51,7 +54,7 @@ export interface PushMessage {
   xml: string;
 }
 export const LATE_AFTER_LINK_TYPE_MS = 3;
-const afterLogin = (cmd: number, delayMs: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'afterLogin', delayMs, xml: bodyXml(inner) });
+export const afterLogin = (cmd: number, delayMs: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'afterLogin', delayMs, xml: bodyXml(inner) });
 const late = (cmd: number, inner: readonly string[]): PushMessage => ({ cmd, trigger: 'beforeIdleClose', delayMs: 1, xml: bodyXml(inner) });
 export const PUSHES: readonly PushMessage[] = [
   afterLogin(78, 300, ['<VideoInput version="1.1">', '<channelId>0</channelId>', '<bright>128</bright>', '<contrast>128</contrast>', '<saturation>128</saturation>', '<hue>128</hue>', '</VideoInput>']),

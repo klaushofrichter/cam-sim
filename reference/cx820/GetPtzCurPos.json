@@ -1,0 +1,18 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetPtzCurPos",
+   "code": 0,
+   "value": {
+    "PtzCurPos": {
+     "Fpos": -1,
+     "Ppos": -1,
+     "Tpos": -1,
+     "Zpos": -1,
+     "channel": 0
+    }
+   }
+  }
+ ]
+}

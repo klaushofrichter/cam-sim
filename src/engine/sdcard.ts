@@ -45,18 +45,19 @@ export const DEMO_CLIPS: SeedClip[] = [
 const ROOT = '/mnt/sda/Mp4Record';
 // Trigger bit positions (reolink_aio layout, name versions 9 and 10): bit 55 − pos.
 const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20, motion: 24 };
-// Flags of a real clip without trigger bits.
+// Flags of a real clip without trigger bits: the model's (profile fileFlags),
+// the RLC-1224A's by default.
 const BASE_FLAGS: Record<Stream, bigint> = { sub: 0x55148000000000n, main: 0x7b288200000000n };
 
-export function flagsHex(stream: Stream, triggers: Trigger[]): string {
-  let v = BASE_FLAGS[stream];
+export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = BASE_FLAGS): string {
+  let v = base[stream];
   for (const t of triggers) v |= 1n << BigInt(55 - TRIGGER_POS[t]);
   return v.toString(16).toUpperCase().padStart(14, '0');
 }
 
-export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number): string {
+export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = BASE_FLAGS): string {
   const ymd = date.replaceAll('-', '');
-  const base = `Rec${stream === 'sub' ? 'S' : 'M'}0A_${dst ? 'DST' : ''}${ymd}_${start}_${end}_0_${flagsHex(stream, triggers)}_${size.toString(16).toUpperCase()}.mp4`;
+  const base = `Rec${stream === 'sub' ? 'S' : 'M'}0A_${dst ? 'DST' : ''}${ymd}_${start}_${end}_0_${flagsHex(stream, triggers, flags)}_${size.toString(16).toUpperCase()}.mp4`;
   return `${ROOT}/${date}/${base}`;
 }
 
@@ -113,7 +114,7 @@ export class SdCard {
   private seq = 0;
   private readonly file?: string;
 
-  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string }) {
+  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string; fileFlags?: Record<Stream, bigint> }) {
     if (opts.dir) {
       this.file = join(opts.dir, 'index.json');
       try {
@@ -146,7 +147,7 @@ export class SdCard {
   private withFiles(r: Stored): Recording {
     const f = (s: Stream) => {
       const size = (r.sizes ?? this.currentSizes())[s];
-      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size), size };
+      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size, this.opts.fileFlags), size };
     };
     const { sizes: _sizes, ...rest } = r;
     void _sizes;

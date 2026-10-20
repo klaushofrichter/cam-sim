@@ -1,0 +1,59 @@
+# err-protocol.txt
+#
+# CX820, firmware v3.2.0.5316, measured 2026-10-20.
+# A request before login, bad magic, an unknown command.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   (A) cmd 93 before any login on a fresh connection.
+   0.000  TCP connect <camera>:9000 ok (1 ms)
+   0.000  -> cmd 93 (LinkType before login) hdr[24]=[f0 de bc 0a 5d 00 00 00 00 00 00 00 fa 01 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=1 ch=250 len=0 payloadOffset=0 enc=aes
+   0.015  <- eof
+   0.015  TCP close
+#   (B) 24 bytes with a bad magic on a fresh connection.
+   0.016  TCP connect <camera>:9000 ok (1 ms)
+   0.017  -> 24 bytes 00 (bad magic)
+   0.035  <- eof
+   0.035  TCP close
+#   (C) cmd 4000 (unknown) after login, then cmd 93 to see the session still works.
+   0.036  TCP connect <camera>:9000 ok (1 ms)
+   0.037  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.039  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 52 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=338 payloadOffset=- ext=0B(none) body=338B(bc)
+    (Encryption XML with the nonce, as in login-proxy.txt)
+   0.039  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    (LoginUser/LoginNet XML, as in login-proxy.txt)
+   0.068  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 b1 0d 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=3505 payloadOffset=0 ext=0B(none) body=3505B(bc)
+    (login reply XML: DeviceInfo + StreamInfoList, as in login-proxy.txt)
+   0.071  -> cmd 4000 (unknown cmd) hdr[24]=[f0 de bc 0a a0 0f 00 00 00 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=0 payloadOffset=0 enc=aes
+   0.078  <- cmd 4000 hdr[24]=[f0 de bc 0a a0 0f 00 00 00 00 00 00 fa 03 00 00 95 01 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=405 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.078  -> cmd 93 (LinkType) hdr[24]=[f0 de bc 0a 5d 00 00 00 00 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=0 payloadOffset=0 enc=aes
+   0.083  <- cmd 93 hdr[24]=[f0 de bc 0a 5d 00 00 00 6d 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=109 payloadOffset=0 ext=0B(none) body=109B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LinkType version="1.1">
+    <type>LAN</type>
+    </LinkType>
+    </body>
+   0.105  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 05 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=5 ch=250 len=188 payloadOffset=0 enc=aes
+    (LoginUser XML with the plain user name and REDACTED password, as in login-proxy.txt)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.108  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 c3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=195 payloadOffset=0 ext=0B(none) body=195B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+    (unsolicited push; XML as in login-proxy.txt)
+   0.124  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+   0.124  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 05 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=5 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   0.187  <- after logout: eof
+   0.188  TCP close

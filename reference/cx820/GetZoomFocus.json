@@ -1,0 +1,13 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetZoomFocus",
+   "code": 1,
+   "error": {
+    "detail": "the respode of msg is err",
+    "rspCode": -54
+   }
+  }
+ ]
+}

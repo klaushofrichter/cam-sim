@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A second camera model: `CAMSIM_MODEL=CX820` (in process `createCamSim({ model: 'CX820' })`) answers as a Reolink CX820, from read-only captures of the real camera (cam4, firmware v3.2.0.5316, `reference/cx820/`): its DevInfo, GetEnc (4K H.265 main at 25 fps, 640×360 sub), GetAbility, settings (120×67 areas, Isp and WhiteLed keys), GetUser without CurUser, GetWhiteLed's `initial`/`range`, the FTP user and password masks (`c**4`, 11 stars), record file flags, and on Baichuan its nonce reply (`sigV3`), login reply and push timing. The test pattern and converted videos follow its sub size and frame rates. The default stays `RLC-1224A`, unchanged. See the README's Camera models.
+
+## v2026.10.13.1
+
 ## v2026.10.05.1
 
 - New fault `cert.ignoreImport` (optional `count`): `ImportCertificate` answers `{rspCode:200}` and installs nothing, even over the factory certificate, as the firmware does over an installed certificate. For cam-proxy's certificate push and its fallback to the camera's own certificate.

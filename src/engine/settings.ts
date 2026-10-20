@@ -1,5 +1,6 @@
 import type pino from 'pino';
-import { factorySettings, resetDefaults, nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
+import { nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
+import { profileFor, type CameraProfile } from '../profile/profile';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 
 // Settings keys added after files were first written (2026-10-05: Ntp).
@@ -7,8 +8,8 @@ const ADDED_LATER: Array<keyof Settings> = ['Ntp'];
 
 // Factory settings with every well-formed object of `loaded` laid over them.
 // Returns whether anything was missing or malformed.
-function overFactory(name: string, loaded: unknown): { settings: Settings; complete: boolean } {
-  const settings = factorySettings(name);
+function overFactory(profile: CameraProfile, name: string, loaded: unknown): { settings: Settings; complete: boolean } {
+  const settings = profile.factorySettings(name);
   if (!isObject(loaded)) return { settings, complete: false };
   let complete = true;
   for (const key of Object.keys(settings) as Array<keyof Settings>) {
@@ -47,7 +48,7 @@ const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as
 
 // Firmware range checks for the keys that were sent: -56 for a bad number,
 // -67 for a bad enum value, -4 for FTP's empty server (all measured).
-function validate(cmd: string, p: any): number | null {
+function validate(profile: CameraProfile, cmd: string, p: any): number | null {
   if (cmd === 'SetMdAlarm') {
     const s = p?.MdAlarm?.newSens?.sensDef;
     if (s !== undefined && !int(s, 1, 50)) return -56;
@@ -61,7 +62,7 @@ function validate(cmd: string, p: any): number | null {
   if (cmd === 'SetIrLights' && !['Auto', 'Off'].includes(p?.IrLights?.state)) return -67;
   if (cmd === 'SetWhiteLed') {
     const w = p?.WhiteLed ?? {};
-    if (w.mode !== undefined && ![0, 1, 2, 3].includes(w.mode)) return -67;
+    if (w.mode !== undefined && !profile.whiteLedModes.includes(w.mode)) return -67;
     if (w.bright !== undefined && !int(w.bright, 0, 100)) return -56;
     // The manual light: only the numbers 0 and 1 (measured 2026-09-29).
     if (w.state !== undefined && w.state !== 0 && w.state !== 1) return -56;
@@ -89,16 +90,18 @@ export class SettingsStore {
   readonly factoryName: string;
   private readonly file?: string;
   private lightTimer?: ReturnType<typeof setTimeout>;
+  private readonly profile: CameraProfile;
 
-  constructor(opts: { name: string; file?: string; log: pino.Logger }) {
+  constructor(opts: { name: string; file?: string; log: pino.Logger; profile?: CameraProfile }) {
     this.factoryName = opts.name;
     this.file = opts.file;
-    let saved = factorySettings(opts.name);
+    this.profile = opts.profile ?? profileFor(undefined);
+    let saved = this.profile.factorySettings(opts.name);
     if (opts.file) {
       try {
         const loaded = readJson(opts.file);
         if (loaded !== undefined) {
-          const r = overFactory(opts.name, loaded);
+          const r = overFactory(this.profile, opts.name, loaded);
           saved = r.settings;
           if (!r.complete) opts.log.warn({ file: opts.file }, 'settings_file_invalid');
         }
@@ -118,10 +121,14 @@ export class SettingsStore {
   set(cmd: string, param: any, opts: { strictPartial: boolean }): { rspCode: number } | null {
     if (!isSetCommand(cmd)) throw new Error(`not a settings command: ${cmd}`);
     const key = SET_COMMANDS[cmd];
-    const rsp = validate(cmd, param);
+    const rsp = validate(this.profile, cmd, param);
     if (rsp !== null) return { rspCode: rsp };
-    const sent = (param?.[key] ?? {}) as Record<string, any>;
-    const defaults = resetDefaults();
+    let sent = (param?.[key] ?? {}) as Record<string, any>;
+    // A model that masks the FTP password in GetFtpV20 gets the mask back
+    // from clients that write the whole object: keep the stored password.
+    const mask = this.profile.ftpPasswordMask;
+    if (key === 'Ftp' && mask !== undefined && sent.password === mask) sent = { ...sent, password: this.running.Ftp.password };
+    const defaults = this.profile.resetDefaults();
     const lightWas = this.running.WhiteLed.state;
     if (key === 'AiAlarm') {
       const t = sent.ai_type as AiType;
@@ -189,7 +196,7 @@ export class SettingsStore {
   }
 
   resetFactory(): void {
-    this.saved = factorySettings(this.factoryName);
+    this.saved = this.profile.factorySettings(this.factoryName);
     this.applySavedOnReboot();
     this.persist();
   }

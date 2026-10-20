@@ -1,0 +1,14 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetDevName",
+   "code": 0,
+   "value": {
+    "DevName": {
+     "name": "Cam"
+    }
+   }
+  }
+ ]
+}
