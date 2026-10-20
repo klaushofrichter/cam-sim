@@ -1,0 +1,47 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "Search",
+   "code": 0,
+   "value": {
+    "SearchResult": {
+     "File": [
+      {
+       "EndTime": {
+        "day": 20,
+        "hour": 11,
+        "min": 8,
+        "mon": 10,
+        "sec": 14,
+        "year": 2026
+       },
+       "StartTime": {
+        "day": 20,
+        "hour": 11,
+        "min": 7,
+        "mon": 10,
+        "sec": 52,
+        "year": 2026
+       },
+       "frameRate": 0,
+       "height": 0,
+       "name": "/mnt/sda/Mp4Record/2026-10-20/RecM0A_DST20261020_110752_110814_0_67328280000000_4DD005.mp4",
+       "size": "5099525",
+       "type": "main",
+       "width": 0
+      }
+     ],
+     "Status": [
+      {
+       "mon": 10,
+       "table": "0000000000000000000100000000000",
+       "year": 2026
+      }
+     ],
+     "channel": 0
+    }
+   }
+  }
+ ]
+}

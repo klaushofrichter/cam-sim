@@ -1,0 +1,25 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetOsd",
+   "code": 0,
+   "value": {
+    "Osd": {
+     "bgcolor": 0,
+     "channel": 0,
+     "osdChannel": {
+      "enable": 1,
+      "name": "Cam",
+      "pos": "Lower Right"
+     },
+     "osdTime": {
+      "enable": 1,
+      "pos": "Top Center"
+     },
+     "watermark": 1
+    }
+   }
+  }
+ ]
+}

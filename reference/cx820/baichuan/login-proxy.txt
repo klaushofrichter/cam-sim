@@ -1,0 +1,265 @@
+# login-proxy.txt
+#
+# CX820, firmware v3.2.0.5316, measured 2026-10-20.
+# Login as proxy (the cam-proxy user; level admin on this camera), pushes, LinkType, logout.
+#
+# Format: seconds since the first connect; -> sent by the client, <- sent by the camera.
+# hdr[] = the raw header bytes; XML is the decrypted extension/body. Binary chunk payloads are not
+# included (lengths only). See README.md.
+
+#   Login as 'proxy' on a fresh TCP connection, wait 1.5 s for pushes, cmd 93 (LinkType), wait 1.5 s, then logout (cmd 2) and close. Push XML kept here.
+   0.000  TCP connect <camera>:9000 ok (3 ms)
+   0.001  -> cmd 1 (nonce request) hdr[20]=[f0 de bc 0a 01 00 00 00 00 00 00 00 fa 01 00 00 12 dc 14 65] class=1465 msgid=1 ch=250 len=0 payloadOffset=- enc=plain
+   0.005  <- cmd 1 hdr[20]=[f0 de bc 0a 01 00 00 00 52 01 00 00 fa 01 00 00 12 dd 14 66] class=1466 msgid=1 ch=250 enc-choice=12dd len=338 payloadOffset=- ext=0B(none) body=338B(bc)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <Encryption version="1.1">
+    <type>md5</type>
+    <nonce>REDACTED</nonce>
+    <authTypeList>
+    <authType>password</authType>
+    <authType>sigV1</authType>
+    <authType>sigV3</authType>
+    <authType>authLogin</authType>
+    <authType>getAccesskey</authType>
+    </authTypeList>
+    </Encryption>
+    </body>
+   0.009  -> cmd 1 (login) hdr[24]=[f0 de bc 0a 01 00 00 00 28 01 00 00 fa 02 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=2 ch=250 len=296 payloadOffset=0 enc=bc
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LoginUser version="1.1">
+    <userName>REDACTED-USER-HASH</userName>
+    <password>REDACTED</password>
+    <userVer>1</userVer>
+    </LoginUser>
+    <LoginNet version="1.1">
+    <type>LAN</type>
+    <udpPort>0</udpPort>
+    </LoginNet>
+    </body>
+   0.039  <- cmd 1 hdr[24]=[f0 de bc 0a 01 00 00 00 b1 0d 00 00 fa 02 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=2 ch=250 status=200 len=3505 payloadOffset=0 ext=0B(none) body=3505B(bc)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <DeviceInfo version="1.1">
+    <firmVersion>219836298756096</firmVersion>
+    <IOInputPortNum>0</IOInputPortNum>
+    <IOOutputPortNum>0</IOOutputPortNum>
+    <diskNum>1</diskNum>
+    <type>ipc</type>
+    <detailType></detailType>
+    <channelNum>1</channelNum>
+    <audioNum>1</audioNum>
+    <ipChannel>0</ipChannel>
+    <analogChnNum>1</analogChnNum>
+    <resolution>
+    <resolutionName>3840*2160</resolutionName>
+    <width>3840</width>
+    <height>2160</height>
+    </resolution>
+    <secretCode>REDACTED</secretCode>
+    <bootSecret>REDACTED</bootSecret>
+    <language>English</language>
+    <sdCard>1</sdCard>
+    <ptzMode>none</ptzMode>
+    <typeInfo>IPC</typeInfo>
+    <softVer>50463251</softVer>
+    <hardVer>0</hardVer>
+    <panelVer>0</panelVer>
+    <hdChannel1>0</hdChannel1>
+    <hdChannel2>0</hdChannel2>
+    <hdChannel3>0</hdChannel3>
+    <hdChannel4>0</hdChannel4>
+    <norm>NTSC</norm>
+    <osdFormat>MDY</osdFormat>
+    <B485>0</B485>
+    <supportAutoUpdate>0</supportAutoUpdate>
+    <userVer>1</userVer>
+    <FrameworkVer>1</FrameworkVer>
+    <authMode>0</authMode>
+    <sleep>0</sleep>
+    <feature>3</feature>
+    </DeviceInfo>
+    <StreamInfoList version="1.1">
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>3840</width>
+    <height>2160</height>
+    </resolution>
+    <videoEncType>1</videoEncType>
+    <defaultFramerate>25</defaultFramerate>
+    <defaultBitrate>6144</defaultBitrate>
+    <framerateTable>25,22,20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>2048,3072,4096,5120,6144,7168,8192</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>640</width>
+    <height>360</height>
+    </resolution>
+    <videoEncType>0</videoEncType>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>256</defaultBitrate>
+    <framerateTable>15,10,7,4</framerateTable>
+    <bitrateTable>64,128,160,192,256,384,512</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>2560</width>
+    <height>1440</height>
+    </resolution>
+    <videoEncType>0</videoEncType>
+    <defaultFramerate>25</defaultFramerate>
+    <defaultBitrate>6144</defaultBitrate>
+    <framerateTable>25,22,20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>2048,3072,4096,5120,6144,7168,8192</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>640</width>
+    <height>360</height>
+    </resolution>
+    <videoEncType>0</videoEncType>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>256</defaultBitrate>
+    <framerateTable>15,10,7,4</framerateTable>
+    <bitrateTable>64,128,160,192,256,384,512</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    <StreamInfo>
+    <channelBits>1</channelBits>
+    <encodeTable>
+    <type>mainStream</type>
+    <resolution>
+    <width>2304</width>
+    <height>1296</height>
+    </resolution>
+    <videoEncType>0</videoEncType>
+    <defaultFramerate>25</defaultFramerate>
+    <defaultBitrate>6144</defaultBitrate>
+    <framerateTable>25,22,20,18,16,15,12,10,8,6,4,2</framerateTable>
+    <bitrateTable>2048,3072,4096,5120,6144,7168,8192</bitrateTable>
+    <defaultGop>2</defaultGop>
+    </encodeTable>
+    <encodeTable>
+    <type>subStream</type>
+    <resolution>
+    <width>640</width>
+    <height>360</height>
+    </resolution>
+    <videoEncType>0</videoEncType>
+    <defaultFramerate>10</defaultFramerate>
+    <defaultBitrate>256</defaultBitrate>
+    <framerateTable>15,10,7,4</framerateTable>
+    <bitrateTable>64,128,160,192,256,384,512</bitrateTable>
+    <defaultGop>4</defaultGop>
+    </encodeTable>
+    </StreamInfo>
+    </StreamInfoList>
+    </body>
+#   login round trip 38 ms
+   0.378  <- cmd 78 hdr[24]=[f0 de bc 0a 4e 00 00 00 d3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=211 payloadOffset=0 ext=0B(none) body=211B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <VideoInput version="1.1">
+    <channelId>0</channelId>
+    <bright>128</bright>
+    <contrast>128</contrast>
+    <saturation>128</saturation>
+    <hue>128</hue>
+    </VideoInput>
+    </body>
+   0.387  <- cmd 79 hdr[24]=[f0 de bc 0a 4f 00 00 00 3b 01 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=315 payloadOffset=0 ext=0B(none) body=315B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <Serial version="1.1">
+    <channelId>0</channelId>
+    <baudRate>9600</baudRate>
+    <dataBit>CS8</dataBit>
+    <stopBit>1</stopBit>
+    <parity>none</parity>
+    <flowControl>none</flowControl>
+    <controlProtocol>PELCO_D</controlProtocol>
+    <controlAddress>1</controlAddress>
+    </Serial>
+    </body>
+   0.739  <- cmd 464 hdr[24]=[f0 de bc 0a d0 01 00 00 89 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=137 payloadOffset=0 ext=0B(none) body=137B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <NetInfo version="1.1">
+    <net_type>wire</net_type>
+    <signal>100</signal>
+    </NetInfo>
+    </body>
+   0.745  <- cmd 547 hdr[24]=[f0 de bc 0a 23 02 00 00 59 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=89 payloadOffset=0 ext=0B(none) body=89B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <SirenStatusList version="1.1" />
+    </body>
+   0.745  <- cmd 291 hdr[24]=[f0 de bc 0a 23 01 00 00 c3 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=195 payloadOffset=0 ext=0B(none) body=195B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <FloodlightStatusList version="1.1">
+    <FloodlightStatus>
+    <channel>0</channel>
+    <status>0</status>
+    </FloodlightStatus>
+    </FloodlightStatusList>
+    </body>
+   0.745  <- cmd 677 hdr[24]=[f0 de bc 0a a5 02 00 00 8c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=140 payloadOffset=0 ext=0B(none) body=140B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <ioStatus version="1.1">
+    <statusList>
+    <channel>0</channel>
+    </statusList>
+    </ioStatus>
+    </body>
+   0.745  <- cmd 600 hdr[24]=[f0 de bc 0a 58 02 00 00 5c 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=92 payloadOffset=0 ext=0B(none) body=92B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <yoloWorldEventList version="1.1" />
+    </body>
+   0.745  <- cmd 669 hdr[24]=[f0 de bc 0a 9d 02 00 00 a6 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=0 ch=0 status=200 len=166 payloadOffset=0 ext=0B(none) body=166B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <AiModelList version="1.1">
+    <AiModelItem>
+    <name>clip</name>
+    <version>1</version>
+    </AiModelItem>
+    </AiModelList>
+    </body>
+   1.542  -> cmd 93 (LinkType) hdr[24]=[f0 de bc 0a 5d 00 00 00 00 00 00 00 fa 03 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=3 ch=250 len=0 payloadOffset=0 enc=aes
+   1.544  <- cmd 93 hdr[24]=[f0 de bc 0a 5d 00 00 00 6d 00 00 00 fa 03 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=3 ch=250 status=200 len=109 payloadOffset=0 ext=0B(none) body=109B(aes)
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LinkType version="1.1">
+    <type>LAN</type>
+    </LinkType>
+    </body>
+   3.057  -> cmd 2 (logout) hdr[24]=[f0 de bc 0a 02 00 00 00 bc 00 00 00 fa 04 00 00 00 00 14 64 00 00 00 00] class=1464 msgid=4 ch=250 len=188 payloadOffset=0 enc=aes
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <body>
+    <LoginUser version="1.1">
+    <userName>proxy</userName>
+    <password>REDACTED</password>
+    <userVer>1</userVer>
+    </LoginUser>
+    </body>
+   3.060  <- cmd 2 hdr[24]=[f0 de bc 0a 02 00 00 00 00 00 00 00 fa 04 00 00 c8 00 00 00 00 00 00 00] class=0000 msgid=4 ch=250 status=200 len=0 payloadOffset=0 ext=0B(none) body=0B(none)
+   3.060  <- after logout: eof
+   3.061  TCP close
