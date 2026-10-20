@@ -7,7 +7,7 @@ import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
 import { Library } from '../media/library';
-import { devInfo, ENC, AI_TYPES } from '../profile/rlc1224a';
+import { AI_TYPES } from '../profile/rlc1224a';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import { createSessionSigner, readCookie, sessionCookieName, SESSION_MS } from './session';
@@ -248,9 +248,9 @@ export function createControlApp(engine: Engine): express.Express {
 
   api.get('/settings', (_req, res) => void res.json({
     settings: e.settings.running,
-    devInfo: devInfo(e.settings.name, e.serial, e.config.firmVer),
+    devInfo: e.profile.devInfo(e.settings.name, e.serial, e.config.firmVer),
     hddInfo: e.sd.hddInfo(),
-    enc: ENC,
+    enc: e.profile.enc,
     certificate: { source: e.certs.state.source, enable: e.certs.state.enable },
   }));
   // Whole-object writes through the camera's own validation.

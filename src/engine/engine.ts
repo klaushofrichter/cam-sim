@@ -18,6 +18,7 @@ import { ensureFixtures, defaultFixtureDir, FixtureMedia } from '../media/fixtur
 import { createLogger } from '../log';
 import { Certificates } from '../tls/certs';
 import { RequestLog } from './request-log';
+import { profileFor, type CameraProfile } from '../profile/profile';
 import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
@@ -55,6 +56,8 @@ export class Engine {
   readonly sd: SdCard;
   readonly events: Events;
   readonly rng: Rng;
+  // The camera model's fixed answers (CAMSIM_MODEL).
+  readonly profile: CameraProfile;
   serial: string;
   rebooting = false;
   // Power: 'off' after power-off, 'booting' during power-on, else 'on'.
@@ -83,11 +86,12 @@ export class Engine {
     readonly log: pino.Logger,
     public media: MediaSource,
   ) {
+    this.profile = profileFor(config.model);
     this.rng = createRng(config.seed);
     this.certs = new Certificates({ certFile: config.tlsCertFile, keyFile: config.tlsKeyFile, dataDir: config.dataDir });
     this.serial = this.newSerial();
     this.sessions = new Sessions(config.users, clock);
-    this.settings = new SettingsStore({ name: config.name, file: config.dataDir && join(config.dataDir, 'settings.json'), log });
+    this.settings = new SettingsStore({ name: config.name, file: config.dataDir && join(config.dataDir, 'settings.json'), log, profile: this.profile });
     this.mediaById.set('test-pattern', media);
     this.sd = new SdCard({
       dir: config.dataDir && join(config.dataDir, 'sd'),
@@ -97,6 +101,7 @@ export class Engine {
       log,
       fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
       currentVideo: () => this.videoId,
+      fileFlags: this.profile.fileFlags,
     });
     this.events = new Events({ clock, tz: config.tz, sd: this.sd, settings: this.settings, rng: this.rng });
     for (const f of config.faults) this.faults.set(f);
@@ -305,7 +310,7 @@ export class Engine {
     return {
       name: this.settings.name,
       serial: this.serial,
-      model: 'RLC-1224A',
+      model: this.profile.model,
       firmVer: this.config.firmVer,
       tz: this.config.tz,
       offline: this.offline(),
@@ -333,7 +338,8 @@ export class Engine {
 
 export async function createEngine(config: CamSimConfig, deps: { clock?: Clock; media?: MediaSource; log?: pino.Logger } = {}): Promise<Engine> {
   const log = deps.log ?? createLogger(config.logLevel);
-  const media = deps.media ?? new FixtureMedia(await ensureFixtures(config.fixtureDir ?? defaultFixtureDir(), log));
+  const profile = profileFor(config.model);
+  const media = deps.media ?? new FixtureMedia(await ensureFixtures(config.fixtureDir ?? defaultFixtureDir(profile), log, profile));
   const engine = new Engine(config, deps.clock ?? systemClock, log, media);
   await engine.certs.load();
   return engine;

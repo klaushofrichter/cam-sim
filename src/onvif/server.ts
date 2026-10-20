@@ -1,7 +1,6 @@
 import express, { type Request, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import type { Engine } from '../engine/engine';
-import { devInfo } from '../profile/rlc1224a';
 import { localParts } from '../engine/clock';
 import type { Trigger } from '../engine/types';
 import { envelope, fault, operation, field, durationMs, authenticate, esc, NS } from './soap';
@@ -107,7 +106,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
     const b = esc(base(req));
     switch (op) {
       case 'GetDeviceInformation': {
-        const d = devInfo(e.settings.name, e.serial, e.config.firmVer);
+        const d = e.profile.devInfo(e.settings.name, e.serial, e.config.firmVer);
         return send(res, `<tds:GetDeviceInformationResponse><tds:Manufacturer>Reolink</tds:Manufacturer><tds:Model>${esc(d.model)}</tds:Model><tds:FirmwareVersion>${esc(d.firmVer)}</tds:FirmwareVersion><tds:SerialNumber>${esc(d.serial)}</tds:SerialNumber><tds:HardwareId>${esc(d.hardVer)}</tds:HardwareId></tds:GetDeviceInformationResponse>`);
       }
       case 'GetCapabilities':

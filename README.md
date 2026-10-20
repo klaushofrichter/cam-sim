@@ -15,7 +15,8 @@
      stale; the badge and the releases page carry them. -->
 
 cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
-v3.2.0.6011_2607012059). It speaks the camera's HTTP API, reproduces its
+v3.2.0.6011_2607012059), or, with `CAMSIM_MODEL=CX820`, a **Reolink CX820**
+(see [Camera models](#camera-models)). It speaks the camera's HTTP API, reproduces its
 quirks, and can be made to fail in the ways the real device fails. It exists to
 test software written against the camera, such as
 [cams](https://github.com/klaushofrichter/cams) and
@@ -62,7 +63,7 @@ Without a library, pictures, live video and recordings are an ffmpeg
 ## Contents
 
 - [Quick start](#quick-start)
-- [Configuration](#configuration) · [Video library](#video-library)
+- [Configuration](#configuration) · [Camera models](#camera-models) · [Video library](#video-library)
 - [Simulated camera API](#simulated-camera-api)
 - [Control API](#control-api)
 - [Web UI](#web-ui)
@@ -126,6 +127,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
+| `CAMSIM_MODEL` | `RLC-1224A` | the camera model: `RLC-1224A` or `CX820` (see [Camera models](#camera-models)) |
 | `CAMSIM_NAME` | `Cam` | the factory camera name: `GetDevName`, `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (one value; `SetDevName` or `SetOsd` change it, it is stored and a settings reset brings this one back; drawn on live SD only while the [SD pipeline](#sd-pipeline) is on) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
@@ -133,7 +135,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday |
 | `CAMSIM_AUTO_EVENTS` | `off` | background events, e.g. `motion:6/h,person:1/h` |
 | `CAMSIM_FAULTS` | `[]` | faults switched on at start, as JSON, e.g. `[{"name":"downloads.refuse"}]` |
-| `CAMSIM_FIRMWARE` | `v3.2.0.6011_2607012059` | the firmware version reported |
+| `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820) | the firmware version reported |
 | `CAMSIM_SEED` | time | seed for serials and the reboot coin flip |
 | `CAMSIM_DATA_DIR` | `/data` in the image | persistent settings, SD card index and certificates; unset means in memory |
 | `CAMSIM_TLS_CERT_FILE` / `_KEY_FILE` | — | certificate at start; otherwise the one stored by `ImportCertificate`; otherwise a factory-style self-signed one (`CN=CERTIFICATE`) |
@@ -150,13 +152,50 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
 | `CAMSIM_LIBRARY_DIR` | — | a folder of videos to offer besides the test pattern (see [Video library](#video-library)) |
 | `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
-| `CAMSIM_MAIN_SIZE` | `4512x2512` | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
+| `CAMSIM_MAIN_SIZE` | the model's: `4512x2512` (RLC-1224A), `3840x2160` (CX820) | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
 | `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
 | `CAMSIM_PIPELINE_MAX_MIN` | `1440` | the longest [SD pipeline](#sd-pipeline) switch-on, in minutes (1–1440) |
 | `CAMSIM_FONT_DIR` | system fonts | a folder with `DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` for the SD pipeline (the image has DejaVu; on a Mac, Arial is used) |
 | `CAMSIM_LOG_LEVEL` | `info` | pino log level; logs never contain tokens, passwords or request URLs |
 
 `CAMSIM_MEDIA=video` from the first design is refused; use the library.
+
+### Camera models
+
+`CAMSIM_MODEL` picks the camera the simulator answers as (in process:
+`createCamSim({ model })`). Each model is a profile in `src/profile/`, made
+from read-only captures of a real camera in `reference/<model>/`.
+
+- **`RLC-1224A`** (the default; cam1): everything in this README unless noted.
+- **`CX820`** (cam4, measured 2026-10-20 on firmware v3.2.0.5316;
+  `reference/cx820/README.md` lists every difference and what is not
+  measured). What changes:
+  - `GetDevInfo`: model `CX820`, hardVer `IPC_NT18NA68MP`, itemNo `P335X`;
+    the firmware is the default `CAMSIM_FIRMWARE`.
+  - `GetEnc`: main H.265 3840×2160 at 25 fps (6144 kbps), sub H.264 640×360
+    at 10 fps (256 kbps), audio 0. The test pattern and converted videos
+    follow: sub 640×360, main at 25 fps, `CAMSIM_MAIN_SIZE` 3840x2160.
+  - `GetAbility` is the CX820's: on are `supportAllColors`, `supportIspHdr`,
+    `supportLightAutoBrightness`, `supportWLLightAlarm` and `videoClip`;
+    off or missing are the cross-line, intrusion, loitering, legacy and loss
+    detections, `supportYoloWorld`, `supportNewLightAlarm`, `ledControl` and
+    `ispDayNight`. The pan/tilt, zoom, focus, webhook and talk entries read the
+    same as on the RLC-1224A.
+  - Settings: motion and AI areas on a 120×67 grid; `GetIsp` without
+    `bd_night`, `binningMode` and `corridorMode`, day/night `Color`;
+    `GetWhiteLed` with `LightAlarm` instead of `NewLightAlarm`, mode 5, and
+    `initial` and `range` next to `value` even with `action: 0`.
+  - `GetUser` has no `CurUser`.
+  - `GetFtpV20` masks a 4-character user as `c**4` and a set password as 11
+    stars; a `SetFtpV20` that sends the stars back keeps the password.
+  - Recording file names carry the CX820's flags (`…_0_2B148080000000_…`
+    for a sub motion clip).
+  - Baichuan: the nonce reply also offers `sigV3`; the login reply has the
+    CX820's three stream sets; the eight pushes all come soon after the login
+    (on the RLC-1224A four of them wait for the client's first message or the
+    idle close), and FloodlightStatus has no brightness.
+  - ONVIF and the HTTP errors answer as on the RLC-1224A (captured, and the
+    same).
 
 ### Video library
 
