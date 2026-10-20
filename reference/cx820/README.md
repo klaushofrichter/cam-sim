@@ -34,7 +34,9 @@ ran on that host and were deleted afterwards.
 - The camera's address is `192.0.2.10` (`<camera>` in the Baichuan traces);
   another LAN host (the FTP server) is `192.0.2.20`; client addresses in
   `GetOnline` are `192.0.2.10`, as in the RLC-1224A files.
-- Serial `SIM000000000000`; the camera name `Cam` (DevInfo, OSD, DevName);
+- Serial `SIM000000000000`; on the CX820 the Baichuan login reply's
+  `firmVersion` is the same serial, so it is `100000000000000` (same length,
+  so the reply keeps its 3505 bytes); the camera name `Cam` (DevInfo, OSD, DevName);
   user names `admin`, except the masked FTP user `c**4`, which is the point of
   that file, and the Baichuan logout's plain `proxy`; the login token
   `REDACTED`.
@@ -100,7 +102,7 @@ initial states (no event during the session).
 Baichuan:
 
 - The nonce reply offers `sigV3` too (338 bytes, 311 on the RLC-1224A).
-- The login reply (3505 bytes, 5136): firmVersion `219836298756096`, softVer
+- The login reply (3505 bytes, 5136): firmVersion `100000000000000`, softVer
   `50463251`, resolution 3840×2160; three StreamInfo (3840×2160, 2560×1440,
   2304×1296 main, each with a 640×360 sub; the RLC-1224A has four); no
   `videoEncTypeList`; videoEncType 1 only for the 4K main (0 elsewhere); frame

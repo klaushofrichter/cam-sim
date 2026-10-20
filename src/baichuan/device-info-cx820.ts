@@ -5,7 +5,7 @@ export const CX820_LOGIN_REPLY_LINES: readonly string[] = [
   "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>",
   "<body>",
   "<DeviceInfo version=\"1.1\">",
-  "<firmVersion>219836298756096</firmVersion>",
+  "<firmVersion>100000000000000</firmVersion>",
   "<IOInputPortNum>0</IOInputPortNum>",
   "<IOOutputPortNum>0</IOOutputPortNum>",
   "<diskNum>1</diskNum>",
