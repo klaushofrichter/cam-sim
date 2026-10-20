@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
 import type { Engine } from '../engine/engine';
-import { FixtureMedia, composeMainFlv, ffmpeg, fixturePaths } from './fixtures';
+import { FixtureMedia, composeMainFlv, ffmpeg, fixturePaths, fixtureSpec } from './fixtures';
 
 const run = promisify(execFile);
 // Bump when the prepared files change, so caches are rebuilt.
@@ -215,7 +215,7 @@ export class Library {
     return s.paths.map((p) => {
       const st = statSync(p);
       return `${resolve(p)}:${st.size}:${st.mtimeMs}`;
-    }).join('|') + `|${c.mainSize}|${c.maxVideoS}`;
+    }).join('|') + `|${c.mainSize}|${c.maxVideoS}${fixtureSpec(this.engine.profile).suffix}`;
   }
 
   // One folder per source version and settings, so instances sharing the
@@ -237,6 +237,9 @@ export class Library {
     try {
       const out = fixturePaths(tmp);
       const [w, h] = this.engine.config.mainSize.split('x');
+      // The model's sub size and frame rates (profile media).
+      const m = this.engine.profile.media;
+      const [sw, sh] = m.sub.split('x');
       const limit = ['-t', String(this.engine.config.maxVideoS)];
       const silent = ['-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono'];
       let converted = true;
@@ -264,9 +267,9 @@ export class Library {
         const quiet = hasAudio ? [] : silent;
         const amap = hasAudio ? ['-map', '0:v:0', '-map', '0:a:0'] : ['-map', '0:v:0', '-map', '1:a:0', '-shortest'];
         const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
-        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=20`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',
+        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=${m.mainFps}`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',
           '-x265-params', 'keyint=40:min-keyint=40:bframes=0:log-level=error', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipMain], this.abort.signal);
-        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit('896', '512')},fps=10`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
+        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(sw, sh)},fps=${m.subFps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
           '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipSub], this.abort.signal);
       }
       // Live FLV: sub as ffmpeg writes it; main as the camera's codec id 12.

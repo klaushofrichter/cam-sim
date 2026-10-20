@@ -5,7 +5,6 @@
 import { open } from 'fs/promises';
 import type { Engine } from '../engine/engine';
 import { clipSpan, type Recording, type Stream, type TimeFields } from '../engine/sdcard';
-import { ENC } from '../profile/rlc1224a';
 import { CLS_CAMERA, encodeFrame } from './frame';
 import { aesEncrypt, encryptChunk } from './cipher';
 import { ENCRYPT_LEN, EXT_BINARY, EXT_CHUNK, fileInfoXml, type Moment } from './xml';
@@ -28,6 +27,8 @@ export interface BcFile {
   stream: Stream;
   start: Moment;
   end: Moment;
+  // The stream's size and frame rate for the info record (the model's GetEnc).
+  video: { width: number; height: number; fps: number };
 }
 
 const moment = (t: TimeFields): Moment => ({ year: t.year, month: t.mon, day: t.day, hour: t.hour, minute: t.min, second: t.sec });
@@ -63,7 +64,9 @@ export function resolveFile(e: Engine, id: string | undefined): BcFile | undefin
       e.log.warn({ id: found.rec.id, size, actual: mediaSize }, 'baichuan_size_mismatch');
     }
   }
-  return { path: media.clipPath(found.stream), size, mediaSize, stream: found.stream, ...timesOf(found.rec, found.stream) };
+  const enc = e.profile.enc[found.stream === 'main' ? 'mainStream' : 'subStream'];
+  const video = { width: enc.width, height: enc.height, fps: enc.frameRate };
+  return { path: media.clipPath(found.stream), size, mediaSize, stream: found.stream, video, ...timesOf(found.rec, found.stream) };
 }
 
 // cmd 13. Measured: without <name> it reports the <Id>'s size; with <name>
@@ -180,8 +183,7 @@ export class Transfer {
     const { file, msgId, key } = this.d;
     const fh = await open(file.path, 'r');
     try {
-      const enc = ENC[file.stream === 'main' ? 'mainStream' : 'subStream'];
-      const record = infoRecord({ width: enc.width, height: enc.height, fps: enc.frameRate, main: file.stream === 'main', start: file.start, end: file.end });
+      const record = infoRecord({ ...file.video, main: file.stream === 'main', start: file.start, end: file.end });
       if (!this.go()) return 'stopped';
       this.recordSent = true;
       await this.write(encodeFrame({ cmd: 8, msgId, status: 200, cls: CLS_CAMERA, ext: aesEncrypt(key, Buffer.from(EXT_BINARY)), body: record }));

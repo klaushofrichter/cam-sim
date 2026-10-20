@@ -1,9 +1,12 @@
 // The Reolink RLC-1224A on firmware v3.2.0.6011_2607012059, as measured on
 // the real camera on 2026-09-26 (reference/rlc-1224a/*.json). Values the
-// simulator reports as-is live here, so a second model would be a second
-// profile file.
+// simulator reports as-is live here; other models are their own profile files
+// (cx820.ts), selected in profile.ts. The default model.
 import ability from './ability.json';
 import { FIRMWARE_VERSION } from './version';
+import { LOGIN_REPLY_LINES } from '../baichuan/device-info';
+import { PUSHES, RLC_AUTH_TYPES } from '../baichuan/xml';
+import type { CameraProfile } from './profile';
 
 export const FIRMWARE = {
   model: 'RLC-1224A',
@@ -84,12 +87,12 @@ export interface Settings {
   Ntp: Obj;
 }
 
-const ALL = '1'.repeat(168);
+export const ALL = '1'.repeat(168);
 const NONE = '0'.repeat(168);
 const AREA = '1'.repeat(70 * 39);
 
 // Every schedule table key the firmware returns, in its order.
-function scheduleTable(on: string[]): Record<string, string> {
+export function scheduleTable(on: string[]): Record<string, string> {
   const keys = [
     'AI_CROSSLINE_0', 'AI_CROSSLINE_1', 'AI_CROSSLINE_2', 'AI_DOG_CAT',
     'AI_INTRUSION_0', 'AI_INTRUSION_1', 'AI_INTRUSION_2',
@@ -101,7 +104,7 @@ function scheduleTable(on: string[]): Record<string, string> {
   return Object.fromEntries(keys.map((k) => [k, on.includes(k) ? ALL : NONE]));
 }
 
-const SENS_SLOTS = [
+export const SENS_SLOTS = [
   [0, 0, 6, 0], [6, 0, 12, 0], [12, 0, 18, 0], [18, 0, 23, 59],
 ].map(([beginHour, beginMin, endHour, endMin], id) => ({ beginHour, beginMin, endHour, endMin, id }));
 
@@ -189,7 +192,12 @@ function overlay(target: Obj, patch: Obj): Obj {
 // a partial SetAiAlarm stay_time 3 -> 0), plus the values cams' mock camera
 // used for the other keys it modelled. Everything else: the zero value.
 export function resetDefaults(): Settings {
-  const z = zeroed(factorySettings('')) as Settings;
+  return resetDefaultsFor(factorySettings(''));
+}
+
+// The same rules over another model's factory settings (its key sets).
+export function resetDefaultsFor(factory: Settings): Settings {
+  const z = zeroed(factory) as Settings;
   overlay(z.Rec, { postRec: '1 Minute', saveDay: 30 });
   overlay(z.MdAlarm, { newSens: { sensDef: 25 } });
   for (const t of AI_TYPES) overlay(z.AiAlarm[t], { ai_type: t, sensitivity: 50, stay_time: 0 });
@@ -201,3 +209,28 @@ export function resetDefaults(): Settings {
   z.NetPort = { ...DEFAULT_NET_PORT };
   return z;
 }
+
+// GetFtpV20's user: first two characters, `**`, last two (measured on the Pi,
+// 2026-10-02: `camera` -> `ca**ra`). Names under 5 characters are left as
+// they are (the RLC-1224A's mask for them is not measured).
+export const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
+
+// Flags of a real clip without trigger bits.
+export const FILE_FLAGS = { sub: 0x55148000000000n, main: 0x7b288200000000n };
+
+export const RLC1224A: CameraProfile = {
+  model: 'RLC-1224A',
+  firmware: FIRMWARE,
+  devInfo,
+  enc: ENC,
+  ability: ABILITY,
+  extras: { IrLights: IR_LIGHTS_EXTRA },
+  getUserCurUser: true,
+  maskFtpUser,
+  whiteLedModes: [0, 1, 2, 3],
+  factorySettings,
+  resetDefaults,
+  fileFlags: FILE_FLAGS,
+  baichuan: { authTypes: RLC_AUTH_TYPES, loginReplyLines: LOGIN_REPLY_LINES, pushes: PUSHES },
+  media: { sub: '896x512', subFps: 10, mainFps: 20, mainSize: '4512x2512' },
+};

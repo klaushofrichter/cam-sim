@@ -1,0 +1,33 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetDevInfo",
+   "code": 0,
+   "value": {
+    "DevInfo": {
+     "B485": 0,
+     "IOInputNum": 0,
+     "IOOutputNum": 0,
+     "audioNum": 1,
+     "buildDay": "build 2509028854",
+     "cfgVer": "v3.2.0.0",
+     "channelNum": 1,
+     "detail": "IPC_NT18NA68MPS40T2C0E1W0110000",
+     "diskNum": 1,
+     "exactType": "IPC",
+     "firmVer": "v3.2.0.5316_2509028854",
+     "frameworkVer": 1,
+     "hardVer": "IPC_NT18NA68MP",
+     "itemNo": "P335X",
+     "model": "CX820",
+     "name": "Cam",
+     "pakSuffix": "pak,paks",
+     "serial": "SIM000000000000",
+     "type": "IPC",
+     "wifi": 0
+    }
+   }
+  }
+ ]
+}

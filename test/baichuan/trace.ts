@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-// Reads reference/rlc-1224a/baichuan/*.txt: one message per line
+// Reads reference/rlc-1224a/baichuan/*.txt (or another model's folder): one message per line
 // ("-> cmd 8 (download) hdr[24]=[f0 de …]"), then its decrypted XML indented
 // by four spaces. Lines in parentheses are placeholders and are skipped.
 export const TRACE_DIR = join(__dirname, '..', '..', 'reference', 'rlc-1224a', 'baichuan');
@@ -16,7 +16,7 @@ export interface TraceMessage {
 
 const LINE = /^\s+[\d.]+\s+(->|<-) cmd (\d+)(?: \(([^)]*)\))? hdr\[(\d+)\]=\[([0-9a-f ]+)\]/;
 
-export function readTrace(file: string): TraceMessage[] {
+export function readTrace(file: string, dir = TRACE_DIR): TraceMessage[] {
   const out: TraceMessage[] = [];
   let cur: TraceMessage | undefined;
   let xml: string[] = [];
@@ -25,7 +25,7 @@ export function readTrace(file: string): TraceMessage[] {
     cur = undefined;
     xml = [];
   };
-  for (const raw of readFileSync(join(TRACE_DIR, file), 'utf8').split('\n')) {
+  for (const raw of readFileSync(join(dir, file), 'utf8').split('\n')) {
     const m = LINE.exec(raw);
     if (m) {
       flush();

@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import { FIRMWARE_VERSION } from './profile/version';
+import { MODELS, profileFor, type Model } from './profile/profile';
 import type { FaultSpec } from './engine/faults';
 import { TRIGGERS, type Trigger } from './engine/types';
 
@@ -10,6 +10,8 @@ export interface User {
 }
 
 export interface CamSimConfig {
+  // CAMSIM_MODEL: the camera model the simulator answers as (src/profile/).
+  model: Model;
   name: string;
   users: User[];
   controlToken?: string;
@@ -35,7 +37,7 @@ export interface CamSimConfig {
   // Baichuan idle timeouts (ms); tests shorten them.
   baichuan: { idleMs: number; firstMessageMs: number };
   logLevel: string;
-  // Main-stream size of converted library videos (the camera's 4512x2512).
+  // Main-stream size of converted library videos (the model's, e.g. 4512x2512).
   mainSize: string;
   // Library sources are cut to this many seconds (a loop, not a movie).
   maxVideoS: number;
@@ -70,8 +72,8 @@ function maxVideoS(v: string | undefined): number {
   return n;
 }
 
-function mainSize(v: string | undefined): string {
-  if (!v) return '4512x2512';
+function mainSize(v: string | undefined, def: string): string {
+  if (!v) return def;
   const m = /^(\d{2,5})x(\d{2,5})$/.exec(v);
   if (!m || Number(m[1]) % 2 || Number(m[2]) % 2) throw new ConfigError('CAMSIM_MAIN_SIZE must look like 4512x2512 (even numbers)');
   return v;
@@ -164,7 +166,11 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     throw new ConfigError('CAMSIM_NAME must be at most 31 characters, without / \\ or control characters');
   }
 
+  const model = oneOf('CAMSIM_MODEL', MODELS, 'RLC-1224A');
+  const profile = profileFor(model);
+
   return {
+    model,
     name,
     ftp,
     users,
@@ -180,7 +186,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     seedClips: oneOf('CAMSIM_SEED_CLIPS', ['none', 'demo'] as const, 'none'),
     faults,
     autoEvents,
-    firmVer: env.CAMSIM_FIRMWARE || FIRMWARE_VERSION,
+    firmVer: env.CAMSIM_FIRMWARE || profile.firmware.firmVer,
     seed: int('CAMSIM_SEED', Date.now() % 2 ** 31),
     tlsCertFile: env.CAMSIM_TLS_CERT_FILE || undefined,
     tlsKeyFile: env.CAMSIM_TLS_KEY_FILE || undefined,
@@ -196,7 +202,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     },
     baichuan: { idleMs: BAICHUAN_IDLE_MS, firstMessageMs: BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
-    mainSize: mainSize(env.CAMSIM_MAIN_SIZE),
+    mainSize: mainSize(env.CAMSIM_MAIN_SIZE, profile.media.mainSize),
     maxVideoS: maxVideoS(env.CAMSIM_MAX_VIDEO_S),
     libraryDir: env.CAMSIM_LIBRARY_DIR || undefined,
     video: env.CAMSIM_VIDEO || undefined,

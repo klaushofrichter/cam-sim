@@ -5,7 +5,7 @@ import { isSetCommand } from '../engine/settings';
 import { timeValue } from '../engine/clock';
 import { validPair } from '../tls/certs';
 import { testFtp } from '../ftp/uploader';
-import { devInfo, NAME_MAX, ENC, ABILITY, IR_LIGHTS_EXTRA, AI_TYPES, type AiType } from '../profile/rlc1224a';
+import { NAME_MAX, AI_TYPES, type AiType } from '../profile/rlc1224a';
 import { sleep } from '../util/sleep';
 
 // Error details as the firmware words them (measured where noted).
@@ -45,10 +45,6 @@ export interface Ctx {
 // connection itself (like the firmware sometimes does).
 type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
 
-// First two characters, `**`, last two. Names under 5 characters are left
-// as they are (the camera's mask for them is not measured).
-const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
-
 const getter = (key: string, pick: (e: Engine, p: any) => unknown): Handler => (c) => ok(c.cmd, { [key]: pick(c.engine, c.param) });
 
 const HANDLERS: Record<string, Handler> = {
@@ -57,7 +53,10 @@ const HANDLERS: Record<string, Handler> = {
     return ok(c.cmd, { rspCode: 200 });
   },
   GetOnline: (c) => ok(c.cmd, { User: c.engine.sessions.online() }),
-  GetUser: (c) => ok(c.cmd, { CurUser: { User: c.session.user.name }, User: c.engine.sessions.users() }),
+  // The CX820 answers without CurUser (measured 2026-10-20).
+  GetUser: (c) => ok(c.cmd, c.engine.profile.getUserCurUser
+    ? { CurUser: { User: c.session.user.name }, User: c.engine.sessions.users() }
+    : { User: c.engine.sessions.users() }),
   AddUser: (c) => {
     const u = c.param?.User ?? {};
     const r = c.engine.sessions.addUser({ name: u.userName, password: u.password, level: u.level });
@@ -74,7 +73,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   GetDevInfo: (c) => {
     c.engine.counters.devInfoCalls++;
-    return ok(c.cmd, { DevInfo: devInfo(c.engine.settings.name, c.engine.serial, c.engine.config.firmVer) });
+    return ok(c.cmd, { DevInfo: c.engine.profile.devInfo(c.engine.settings.name, c.engine.serial, c.engine.config.firmVer) });
   },
   // The camera's name, one value with GetDevInfo.name and the OSD text
   // (measured 2026-10-03). action 1 adds the initial value and the range the
@@ -90,22 +89,29 @@ const HANDLERS: Record<string, Handler> = {
   },
   GetTime: (c) => ok(c.cmd, timeValue(c.engine.clock, c.engine.config.tz)),
   GetHddInfo: getter('HddInfo', (e) => e.sd.hddInfo()),
-  GetEnc: getter('Enc', () => ENC),
+  GetEnc: getter('Enc', (e) => e.profile.enc),
   GetNetPort: getter('NetPort', (e) => e.settings.get('NetPort')),
   GetNtp: getter('Ntp', (e) => e.settings.get('Ntp')),
-  GetAbility: (c) => ok(c.cmd, ABILITY),
+  GetAbility: (c) => ok(c.cmd, c.engine.profile.ability),
   GetRecV20: getter('Rec', (e) => e.settings.get('Rec')),
   GetMdAlarm: getter('MdAlarm', (e) => e.settings.get('MdAlarm')),
   GetAiAlarm: getter('AiAlarm', (e, p) => e.settings.get('AiAlarm', (AI_TYPES as readonly string[]).includes(p?.ai_type) ? (p.ai_type as AiType) : 'people')),
   GetIsp: getter('Isp', (e) => e.settings.get('Isp')),
-  GetIrLights: (c) => ok(c.cmd, { IrLights: c.engine.settings.get('IrLights') }, IR_LIGHTS_EXTRA),
-  GetWhiteLed: getter('WhiteLed', (e) => e.settings.get('WhiteLed')),
+  GetIrLights: (c) => ok(c.cmd, { IrLights: c.engine.settings.get('IrLights') }, c.engine.profile.extras.IrLights),
+  // The CX820 adds initial and range (measured); the RLC-1224A does not.
+  GetWhiteLed: (c) => ok(c.cmd, { WhiteLed: c.engine.settings.get('WhiteLed') }, c.engine.profile.extras.WhiteLed),
   GetOsd: getter('Osd', (e) => e.settings.get('Osd')),
-  // The real camera masks the FTP user in its answer (measured on the Pi,
-  // 2026-10-02: `camera` -> `ca**ra`). Set and TestFtp keep the full name.
+  // The real camera masks the FTP user in its answer (the model's mask:
+  // `camera` -> `ca**ra`, on the CX820 `cam4` -> `c**4`), and the CX820 the
+  // password too. Set and TestFtp keep the full values.
   GetFtpV20: getter('Ftp', (e) => {
     const ftp = e.settings.get('Ftp');
-    return { ...ftp, userName: maskFtpUser(String(ftp.userName ?? '')) };
+    const mask = e.profile.ftpPasswordMask;
+    return {
+      ...ftp,
+      ...(mask !== undefined && ftp.password ? { password: mask } : {}),
+      userName: e.profile.maskFtpUser(String(ftp.userName ?? '')),
+    };
   }),
   GetMdState: (c) => ok(c.cmd, c.engine.events.mdState()),
   GetAiState: (c) => ok(c.cmd, c.engine.events.aiState()),

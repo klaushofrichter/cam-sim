@@ -79,6 +79,14 @@ describe('ONVIF device service', () => {
     expect(services.text).toContain('http://www.onvif.org/ver10/events/wsdl');
   });
 
+  it('GetDeviceInformation names the selected model (CAMSIM_MODEL=CX820)', async () => {
+    const { app } = await setup({ CAMSIM_MODEL: 'CX820' });
+    const info = await soap(app, '/onvif/device_service', '<GetDeviceInformation xmlns="http://www.onvif.org/ver10/device/wsdl"/>');
+    expect(info.text).toMatch(/<tds:Model>CX820<\/tds:Model>/);
+    expect(info.text).toContain('<tds:FirmwareVersion>v3.2.0.5316_2509028854</tds:FirmwareVersion>');
+    expect(info.text).toContain('<tds:HardwareId>IPC_NT18NA68MP</tds:HardwareId>');
+  });
+
   it('answers an unknown operation with a SOAP fault', async () => {
     const { app } = await setup();
     const res = await soap(app, '/onvif/device_service', '<SetHostname xmlns="http://www.onvif.org/ver10/device/wsdl"><Name>x</Name></SetHostname>');

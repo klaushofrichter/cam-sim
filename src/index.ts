@@ -14,7 +14,7 @@ import { BaichuanServer, type BaichuanOptions } from './baichuan/server';
 import { createOnvifApp, type OnvifApp } from './onvif/server';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { FIRMWARE_VERSION } from './profile/version';
+import { profileFor, type Model } from './profile/profile';
 import { closeServer, followCertificate, listen } from './util/net';
 import type { CamSimConfig, User } from './config';
 import { BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS } from './config';
@@ -24,12 +24,14 @@ import type { SeedClip, Trigger } from './engine/sdcard';
 import type pino from 'pino';
 
 export { DEMO_CLIPS } from './engine/sdcard';
+export { MODELS } from './profile/profile';
 // For test runners: build the fixtures once before workers start (globalSetup).
 export { ensureFixtures, defaultFixtureDir } from './media/fixtures';
-export type { FaultSpec, SeedClip, Trigger, User, Engine, CamSimConfig };
+export type { FaultSpec, SeedClip, Trigger, User, Engine, CamSimConfig, Model };
 
 export interface CamSimOptions {
   users: User[];
+  model?: Model; // the camera model (default RLC-1224A)
   name?: string;
   controlToken?: string;
   controlTls?: 'auto' | 'on' | 'off';
@@ -78,7 +80,9 @@ export interface CamSim {
 }
 
 export function configFromOptions(o: CamSimOptions): CamSimConfig {
+  const profile = profileFor(o.model);
   return {
+    model: profile.model,
     name: o.name ?? 'Cam',
     users: o.users,
     controlToken: o.controlToken,
@@ -93,7 +97,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     seedClips: o.seedClips === 'demo' ? 'demo' : 'none',
     faults: o.faults ?? [],
     autoEvents: o.autoEvents ?? [],
-    firmVer: o.firmVer ?? FIRMWARE_VERSION,
+    firmVer: o.firmVer ?? profile.firmware.firmVer,
     seed: o.seed ?? Date.now() % 2 ** 31,
     tlsCertFile: o.tlsCertFile,
     tlsKeyFile: o.tlsKeyFile,
@@ -102,7 +106,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000, baichuan: 0 },
     baichuan: { idleMs: o.baichuan?.idleMs ?? BAICHUAN_IDLE_MS, firstMessageMs: o.baichuan?.firstMessageMs ?? BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: o.logLevel ?? 'silent',
-    mainSize: o.mainSize ?? '4512x2512',
+    mainSize: o.mainSize ?? profile.media.mainSize,
     maxVideoS: o.maxVideoS ?? 60,
     libraryDir: o.libraryDir,
     video: o.video,

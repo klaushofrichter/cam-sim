@@ -1,0 +1,21 @@
+{
+ "contentType": "text/html",
+ "reply": [
+  {
+   "cmd": "GetHddInfo",
+   "code": 0,
+   "value": {
+    "HddInfo": [
+     {
+      "capacity": 60897,
+      "format": 1,
+      "mount": 1,
+      "number": 0,
+      "size": 60888,
+      "storageType": 2
+     }
+    ]
+   }
+  }
+ ]
+}
