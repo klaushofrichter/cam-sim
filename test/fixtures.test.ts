@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { ensureFixtures, FixtureMedia } from '../src/media/fixtures';
+import { ensureFixtures, defaultFixtureDir, FixtureMedia } from '../src/media/fixtures';
+import { profileFor } from '../src/profile/profile';
 import { readFlv } from '../src/media/flv';
 import { createLogger } from '../src/log';
 
@@ -123,4 +124,21 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
     expect(m.clipPath('main')).toBe(paths.clipMain);
     expect(m.durationMs('sub')).toBeGreaterThan(5000);
   });
+});
+
+describe.skipIf(!hasFfmpeg)('fixtures per model', () => {
+  const probe = (file: string) => execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'csv=p=0', file]).toString().trim();
+
+  it('the CX820 test pattern: sub 640x360 at 10 fps, main at 25 fps, in its own folder', async () => {
+    const cx = profileFor('CX820');
+    expect(defaultFixtureDir(cx)).toBe(`${defaultFixtureDir()}-cx820`);
+    const p = await ensureFixtures(defaultFixtureDir(cx), createLogger('silent'), cx);
+    expect(probe(p.clipSub)).toBe('640,360,10/1');
+    expect(probe(p.clipMain)).toBe('1280,720,25/1');
+    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 3, model: 'cx820' });
+    // The default model's fixtures stay as they were.
+    const d = await ensureFixtures(defaultFixtureDir(), createLogger('silent'));
+    expect(probe(d.clipSub)).toBe('896,512,10/1');
+    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 3 });
+  }, 120_000);
 });
