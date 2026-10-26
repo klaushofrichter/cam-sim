@@ -223,7 +223,7 @@ export function createControlApp(engine: Engine): express.Express {
   api.get('/recordings', (req, res) => {
     const date = String(req.query.date ?? '');
     if (!DATE.test(date)) return bad(res, 'date must be YYYY-MM-DD');
-    res.json(e.sd.all().filter((r) => r.date === date));
+    res.json(e.sd.onDate(date));
   });
   api.get('/recordings/days', (req, res) => {
     const year = Number(req.query.year), mon = Number(req.query.mon);

@@ -148,8 +148,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   CheckDownload: (c) => {
     const name = String(c.param?.filename ?? '');
-    const known = c.engine.sd.all().some((r) => [r.files.sub.name, r.files.main.name].some((n) => n === name || n.endsWith(`/${name}`)));
-    return known ? ok(c.cmd, { downloadTask: c.engine.activeDownloads.size }) : fail(c.cmd, -4);
+    return c.engine.sd.knows(name) ? ok(c.cmd, { downloadTask: c.engine.activeDownloads.size }) : fail(c.cmd, -4);
   },
   TestFtp: async (c) => {
     const r = await testFtp(c.engine, c.param?.Ftp);

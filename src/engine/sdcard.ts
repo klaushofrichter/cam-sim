@@ -158,6 +158,17 @@ export class SdCard {
     return this.recs.map((r) => this.withFiles(r));
   }
 
+  // The recordings of one camera-local day (YYYY-MM-DD).
+  onDate(date: string): Recording[] {
+    return this.recs.filter((r) => r.date === date).map((r) => this.withFiles(r));
+  }
+
+  // The first recording that starts at `date` (YYYY-MM-DD) `start` (HHMMSS).
+  atStart(date: string, start: string): Recording | undefined {
+    const r = this.recs.find((x) => x.date === date && x.start === start);
+    return r && this.withFiles(r);
+  }
+
   byId(id: string): Recording | undefined {
     const r = this.recs.find((x) => x.id === id);
     return r && this.withFiles(r);
@@ -200,8 +211,9 @@ export class SdCard {
     const date = dayKey(from);
     const lo = `${p2(from.hour ?? 0)}${p2(from.min ?? 0)}${p2(from.sec ?? 0)}`;
     const hi = `${p2(to.hour ?? 23)}${p2(to.min ?? 59)}${p2(to.sec ?? 59)}`;
-    return this.all()
+    return this.recs
       .filter((r) => r.date === date && r.start >= lo && r.start <= hi)
+      .map((r) => this.withFiles(r))
       .map((r) => {
         const span = clipSpan(r, stream);
         return {
@@ -236,13 +248,24 @@ export class SdCard {
     return { year, mon, table: Array.from({ length: days }, (_, i) => (have.has(i + 1) ? '1' : '0')).join('') };
   }
 
+  // The recordings a file name can belong to, before their names are built:
+  // every name of a recording holds its `YYYYMMDD_HHMMSS_` (date and start).
+  private named(name: string): Recording[] {
+    return this.recs.filter((r) => name.includes(`${r.date.replaceAll('-', '')}_${r.start}_`)).map((r) => this.withFiles(r));
+  }
+
   // Exact match on a current file name only; anything else is unknown.
   byName(name: string): { rec: Recording; stream: Stream } | undefined {
-    for (const rec of this.all()) {
+    for (const rec of this.named(name)) {
       if (rec.files.sub.name === name) return { rec, stream: 'sub' };
       if (rec.files.main.name === name) return { rec, stream: 'main' };
     }
     return undefined;
+  }
+
+  // CheckDownload's match: a current file name, full or its base name.
+  knows(name: string): boolean {
+    return this.named(name).some((r) => [r.files.sub.name, r.files.main.name].some((n) => n === name || n.endsWith(`/${name}`)));
   }
 
   // The current sizes are looked up once, and only for records made before
