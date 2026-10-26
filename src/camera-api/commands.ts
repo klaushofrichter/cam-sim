@@ -5,8 +5,9 @@ import { isSetCommand } from '../engine/settings';
 import { timeValue } from '../engine/clock';
 import { validPair } from '../tls/certs';
 import { testFtp } from '../ftp/uploader';
-import { NAME_MAX, AI_TYPES, type AiType } from '../profile/rlc1224a';
+import { NAME_MAX, AI_TYPES } from '../profile/rlc1224a';
 import { sleep } from '../util/sleep';
+import { isOneOf } from '../util/one-of';
 
 // Error details as the firmware words them (measured where noted).
 const DETAIL: Record<number, string> = {
@@ -95,7 +96,7 @@ const HANDLERS: Record<string, Handler> = {
   GetAbility: (c) => ok(c.cmd, c.engine.profile.ability),
   GetRecV20: getter('Rec', (e) => e.settings.get('Rec')),
   GetMdAlarm: getter('MdAlarm', (e) => e.settings.get('MdAlarm')),
-  GetAiAlarm: getter('AiAlarm', (e, p) => e.settings.get('AiAlarm', (AI_TYPES as readonly string[]).includes(p?.ai_type) ? (p.ai_type as AiType) : 'people')),
+  GetAiAlarm: getter('AiAlarm', (e, p) => e.settings.get('AiAlarm', isOneOf(AI_TYPES, p?.ai_type) ? p.ai_type : 'people')),
   GetIsp: getter('Isp', (e) => e.settings.get('Isp')),
   GetIrLights: (c) => ok(c.cmd, { IrLights: c.engine.settings.get('IrLights') }, c.engine.profile.extras.IrLights),
   // The CX820 adds initial and range (measured); the RLC-1224A does not.
@@ -148,8 +149,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   CheckDownload: (c) => {
     const name = String(c.param?.filename ?? '');
-    const known = c.engine.sd.all().some((r) => [r.files.sub.name, r.files.main.name].some((n) => n === name || n.endsWith(`/${name}`)));
-    return known ? ok(c.cmd, { downloadTask: c.engine.activeDownloads.size }) : fail(c.cmd, -4);
+    return c.engine.sd.knows(name) ? ok(c.cmd, { downloadTask: c.engine.activeDownloads.size }) : fail(c.cmd, -4);
   },
   TestFtp: async (c) => {
     const r = await testFtp(c.engine, c.param?.Ftp);

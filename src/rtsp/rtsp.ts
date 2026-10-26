@@ -9,6 +9,7 @@ import type { Engine } from '../engine/engine';
 import { safeEqual as same } from '../util/safe-equal';
 import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
+import { listen as listenOn } from '../util/net';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
 const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
@@ -70,7 +71,7 @@ export class RtspService {
   };
   private readonly onChange = () => {
     const e = this.engine;
-    if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.reset')) this.dropReaders();
+    if (!e.serving('rtsp') || e.faults.active('rtsp.reset')) this.dropReaders();
   };
 
   constructor(private readonly engine: Engine, private readonly opts: { port: number; host?: string; mediamtx: string | undefined }) {}
@@ -122,9 +123,8 @@ export class RtspService {
       }
       res.end();
     });
-    await new Promise<void>((r, j) => this.auth!.once('error', j).listen(0, '127.0.0.1', () => r()));
+    const authPort = await listenOn(this.auth, 0, '127.0.0.1');
     this.check();
-    const authPort = (this.auth.address() as AddressInfo).port;
 
     this.dir = mkdtempSync(join(tmpdir(), 'camsim-rtsp-'));
     const conf = join(this.dir, 'mediamtx.yml');
@@ -193,10 +193,7 @@ export class RtspService {
     }
     await sleep(300);
     this.check();
-    e.bus.on('state', this.onState);
-    e.bus.on('fault', this.onChange);
-    e.bus.on('settings', this.onChange);
-    e.bus.on('video', this.onVideo);
+    for (const [topic, h] of this.subscriptions()) e.bus.on(topic, h);
     this.up = true;
     e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
   }
@@ -221,7 +218,7 @@ export class RtspService {
     }
     if (a.action !== 'read') return false;
     if (!Object.values(RTSP_PATHS).includes(a.path as never)) return false;
-    if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) return false;
+    if (!e.serving('rtsp') || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) return false;
     const u = e.config.users.find((x) => x.name === a.user);
     return !!u && same(a.password ?? '', u.password);
   }
@@ -276,12 +273,14 @@ export class RtspService {
     this.publishers.clear();
   }
 
+  // The bus topics it follows while up, in the order its handlers run.
+  private subscriptions(): Array<[string, (...args: any[]) => void]> {
+    return [['state', this.onState], ['fault', this.onChange], ['settings', this.onChange], ['video', this.onVideo]];
+  }
+
   private async teardown(): Promise<void> {
     this.up = false;
-    this.engine.bus.off('state', this.onState);
-    this.engine.bus.off('fault', this.onChange);
-    this.engine.bus.off('settings', this.onChange);
-    this.engine.bus.off('video', this.onVideo);
+    for (const [topic, h] of this.subscriptions()) this.engine.bus.off(topic, h);
     this.stopPublishers();
     const m = this.mtx;
     if (m && !this.mtxExited && m.exitCode === null && m.signalCode === null) {

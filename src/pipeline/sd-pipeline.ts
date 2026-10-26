@@ -67,16 +67,23 @@ export class SdPipeline implements LiveSubSource {
       this.writeName(running);
       const restart = this.videoChanged || this.chainOf(running) !== this.vf;
       this.videoChanged = false;
-      if (restart) this.restart();
+      if (restart) this.restartNow();
     }, 500);
     this.debounce.unref?.();
   };
 
   constructor(private readonly engine: Engine, private readonly opts: { fonts: Fonts | null; rtspUrl?: () => string | undefined; onProcess?: (up: boolean) => void; ffmpeg?: string }) {
     engine.liveSub = this;
-    for (const t of ['pipeline', 'state', 'fault', 'video'] as const) engine.bus.on(t, this.onSwitch);
-    engine.bus.on('settings', this.onChange);
-    engine.bus.on('video', this.onVideo);
+    for (const [topic, h] of this.subscriptions()) engine.bus.on(topic, h);
+  }
+
+  // The bus topics it follows, in the order its handlers run.
+  private subscriptions(): Array<[string, (...args: any[]) => void]> {
+    return [
+      ...(['pipeline', 'state', 'fault', 'video'] as const).map((t): [string, () => void] => [t, this.onSwitch]),
+      ['settings', this.onChange],
+      ['video', this.onVideo],
+    ];
   }
 
   active(): boolean { return !!this.proc && this.ready; }
@@ -243,14 +250,10 @@ export class SdPipeline implements LiveSubSource {
     });
   }
 
-  private restart(): void {
-    if (!this.proc) return;
-    void this.kill(); // the exit handler's follow() starts it again
-  }
-
   // A restart now (RTSP cuts its readers): readers reconnect to the new one.
   restartNow(): void {
-    this.restart();
+    if (!this.proc) return;
+    void this.kill(); // the exit handler's follow() starts it again
   }
 
   async stop(): Promise<void> {
@@ -258,9 +261,7 @@ export class SdPipeline implements LiveSubSource {
     clearTimeout(this.debounce);
     clearTimeout(this.restartTimer);
     if (this.startSoon) clearImmediate(this.startSoon);
-    for (const t of ['pipeline', 'state', 'fault', 'video'] as const) this.engine.bus.off(t, this.onSwitch);
-    this.engine.bus.off('settings', this.onChange);
-    this.engine.bus.off('video', this.onVideo);
+    for (const [topic, h] of this.subscriptions()) this.engine.bus.off(topic, h);
     await this.kill();
     clearInterval(this.clockTimer);
     if (this.engine.liveSub === this) this.engine.liveSub = undefined;

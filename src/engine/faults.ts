@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { isOneOf } from '../util/one-of';
 
 // Faults a test switches on through the control API (never the camera API).
 // Each is on until cleared, or for the next `count` matching requests.
@@ -37,7 +38,7 @@ export class Faults extends EventEmitter {
 
   set(spec: FaultSpec): void {
     const name = spec?.name;
-    if (!(FAULT_NAMES as readonly string[]).includes(name)) throw new FaultError(`unknown fault: ${String(name)}`);
+    if (!isOneOf(FAULT_NAMES, name)) throw new FaultError(`unknown fault: ${String(name)}`);
     if (spec.count !== undefined && !(Number.isInteger(spec.count) && spec.count > 0)) throw new FaultError('count must be a positive integer');
     if (name === 'downloads.dropFirst' && spec.count === undefined) throw new FaultError('downloads.dropFirst needs a count');
     if (NEEDS_MS.includes(name) && !(Number.isInteger(spec.ms) && (spec.ms as number) >= 0)) throw new FaultError(`${name} needs ms`);

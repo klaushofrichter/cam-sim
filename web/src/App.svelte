@@ -69,7 +69,7 @@
   $effect(() => {
     if ($loggedIn) {
       void loadState();
-      connectFeed(() => void loadState());
+      connectFeed(loadState);
     } else {
       disconnectFeed();
     }

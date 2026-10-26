@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { MODELS, profileFor, type Model } from './profile/profile';
 import type { FaultSpec } from './engine/faults';
 import { TRIGGERS, type Trigger } from './engine/types';
+import { isOneOf } from './util/one-of';
 
 export interface User {
   name: string;
@@ -65,8 +66,21 @@ export const BAICHUAN_SESSION_LIMIT = 12;
 // a new connection is reset at once.
 export const BAICHUAN_OVER_LIMIT_HELD_MAX = 20;
 
+// Defaults shared by the CLI (loadConfig) and in-process (configFromOptions)
+// simulators, so the two can't drift apart.
+export const CONFIG_DEFAULTS = {
+  name: 'Cam',
+  tz: 'America/Chicago',
+  sdMb: 4096,
+  speed: 'fast',
+  controlTls: 'auto',
+  maxVideoS: 60,
+  pipelineMaxMin: 1440,
+  ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000, baichuan: 9000 },
+} as const;
+
 function maxVideoS(v: string | undefined): number {
-  if (!v) return 60;
+  if (!v) return CONFIG_DEFAULTS.maxVideoS;
   const n = Number(v);
   if (!Number.isInteger(n) || n < 1 || n > 600) throw new ConfigError('CAMSIM_MAX_VIDEO_S must be a whole number of seconds from 1 to 600');
   return n;
@@ -96,8 +110,8 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
   const oneOf = <T extends string>(key: string, allowed: readonly T[], def: T): T => {
     const v = env[key];
     if (v === undefined || v === '') return def;
-    if (!(allowed as readonly string[]).includes(v)) throw new ConfigError(`${key} must be one of ${allowed.join(', ')}`);
-    return v as T;
+    if (!isOneOf(allowed, v)) throw new ConfigError(`${key} must be one of ${allowed.join(', ')}`);
+    return v;
   };
   const int = (key: string, def: number, min = 0, max = Number.MAX_SAFE_INTEGER): number => {
     const v = env[key];
@@ -136,10 +150,10 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
   if (auto && auto !== 'off') {
     for (const part of auto.split(',')) {
       const m = /^\s*(\w+):(\d+(?:\.\d+)?)\/h\s*$/.exec(part);
-      if (!m || !(TRIGGERS as readonly string[]).includes(m[1])) {
+      if (!m || !isOneOf(TRIGGERS, m[1])) {
         throw new ConfigError('CAMSIM_AUTO_EVENTS must look like motion:6/h,person:1/h');
       }
-      autoEvents.push({ type: m[1] as Trigger, perHour: Number(m[2]) });
+      autoEvents.push({ type: m[1], perHour: Number(m[2]) });
     }
   }
 
@@ -161,7 +175,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
 
   // The name becomes part of uploaded file names (<Name>_00_…): no path
   // separators, dot segments or control characters.
-  const name = env.CAMSIM_NAME || 'Cam';
+  const name = env.CAMSIM_NAME || CONFIG_DEFAULTS.name;
   if (/[\/\\]|^\.\.?$|\p{C}/u.test(name) || name.length > 31) {
     throw new ConfigError('CAMSIM_NAME must be at most 31 characters, without / \\ or control characters');
   }
@@ -176,13 +190,13 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     users,
     controlToken: secret('CAMSIM_CONTROL_TOKEN'),
     webUi: env.CAMSIM_WEB_UI === 'true',
-    controlTls: oneOf('CAMSIM_CONTROL_TLS', ['auto', 'on', 'off'] as const, 'auto'),
+    controlTls: oneOf('CAMSIM_CONTROL_TLS', ['auto', 'on', 'off'] as const, CONFIG_DEFAULTS.controlTls),
     media: oneOf('CAMSIM_MEDIA', ['fixture', 'video'] as const, 'fixture'),
     dataDir: env.CAMSIM_DATA_DIR || undefined,
     fixtureDir: env.CAMSIM_FIXTURE_DIR || undefined,
-    tz: env.CAMSIM_TZ || 'America/Chicago',
-    sdMb: int('CAMSIM_SD_MB', 4096, 1),
-    speed: oneOf('CAMSIM_SPEED', ['fast', 'real'] as const, 'fast'),
+    tz: env.CAMSIM_TZ || CONFIG_DEFAULTS.tz,
+    sdMb: int('CAMSIM_SD_MB', CONFIG_DEFAULTS.sdMb, 1),
+    speed: oneOf('CAMSIM_SPEED', ['fast', 'real'] as const, CONFIG_DEFAULTS.speed),
     seedClips: oneOf('CAMSIM_SEED_CLIPS', ['none', 'demo'] as const, 'none'),
     faults,
     autoEvents,
@@ -191,14 +205,14 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     tlsCertFile: env.CAMSIM_TLS_CERT_FILE || undefined,
     tlsKeyFile: env.CAMSIM_TLS_KEY_FILE || undefined,
     ports: {
-      https: port('CAMSIM_HTTPS_PORT', 8443),
-      http: port('CAMSIM_HTTP_PORT', 8080),
-      control: port('CAMSIM_CONTROL_PORT', 9443),
-      rtsp: port('CAMSIM_RTSP_PORT', 8554),
-      onvif: port('CAMSIM_ONVIF_PORT', 8000),
+      https: port('CAMSIM_HTTPS_PORT', CONFIG_DEFAULTS.ports.https),
+      http: port('CAMSIM_HTTP_PORT', CONFIG_DEFAULTS.ports.http),
+      control: port('CAMSIM_CONTROL_PORT', CONFIG_DEFAULTS.ports.control),
+      rtsp: port('CAMSIM_RTSP_PORT', CONFIG_DEFAULTS.ports.rtsp),
+      onvif: port('CAMSIM_ONVIF_PORT', CONFIG_DEFAULTS.ports.onvif),
       // Only when set: several CLI simulators on one host (cams' e2e) must not
       // all bind 9000. The image sets 9000.
-      baichuan: env.CAMSIM_BAICHUAN_PORT === undefined ? null : port('CAMSIM_BAICHUAN_PORT', 9000),
+      baichuan: env.CAMSIM_BAICHUAN_PORT === undefined ? null : port('CAMSIM_BAICHUAN_PORT', CONFIG_DEFAULTS.ports.baichuan),
     },
     baichuan: { idleMs: BAICHUAN_IDLE_MS, firstMessageMs: BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: env.CAMSIM_LOG_LEVEL || 'info',
@@ -206,7 +220,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     maxVideoS: maxVideoS(env.CAMSIM_MAX_VIDEO_S),
     libraryDir: env.CAMSIM_LIBRARY_DIR || undefined,
     video: env.CAMSIM_VIDEO || undefined,
-    pipelineMaxMin: int('CAMSIM_PIPELINE_MAX_MIN', 1440, 1, 1440),
+    pipelineMaxMin: int('CAMSIM_PIPELINE_MAX_MIN', CONFIG_DEFAULTS.pipelineMaxMin, 1, 1440),
     fontDir: env.CAMSIM_FONT_DIR || undefined,
   };
 }

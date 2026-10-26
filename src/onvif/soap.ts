@@ -20,6 +20,9 @@ const XMLNS = Object.entries({ 'SOAP-ENV': NS.env, tt: NS.tt, tds: NS.tds, tev: 
   .map(([p, u]) => `xmlns:${p}="${u}"`)
   .join(' ');
 
+// ONVIF's UTC time: ISO 8601 to the second.
+export const utc = (at: Date | number = new Date()): string => new Date(at).toISOString().replace(/\.\d+Z$/, 'Z');
+
 export const esc = (s: string) => s.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]!);
 
 export function envelope(body: string): string {

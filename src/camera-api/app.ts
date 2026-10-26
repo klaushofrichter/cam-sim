@@ -32,12 +32,9 @@ export function createCameraApp(engine: Engine, opts: { port: 'http' | 'https' }
     });
     next();
   });
-  // A camera that is down or rebooting drops connections, it doesn't answer.
-  app.use((req, _res, next) => (e.offline() ? req.socket.destroy() : next()));
-  app.use((req, _res, next) => {
-    const enabled = opts.port === 'http' ? e.settings.running.NetPort.httpEnable : e.settings.running.NetPort.httpsEnable;
-    return enabled === 1 ? next() : req.socket.destroy();
-  });
+  // A camera that is down or rebooting drops connections, it doesn't answer;
+  // so does a port switched off (SetNetPort).
+  app.use((req, _res, next) => (e.serving(opts.port) ? next() : req.socket.destroy()));
   app.use(async (_req, _res, next) => {
     const ms = e.faults.active('latencyMs')?.ms;
     if (ms) await sleep(ms);

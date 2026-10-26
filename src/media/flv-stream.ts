@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { FlvTag } from './flv';
+import { parseTagAt, type FlvTag } from './flv';
 
 // AVC/HEVC or AAC sequence header (packet type 0).
 export const isConfigTag = (t: FlvTag) => (t.type === 9 || t.type === 8) && t.bytes[12] === 0;
@@ -23,17 +23,9 @@ export class FlvStreamParser extends EventEmitter {
       this.headerDone = true;
     }
     let at = 0;
-    while (at + 11 <= this.buf.length) {
-      const size = this.buf.readUIntBE(at + 1, 3);
-      const end = at + 11 + size + 4;
-      if (end > this.buf.length) break;
-      const bytes = Buffer.from(this.buf.subarray(at, end));
-      const type = bytes[0] as FlvTag['type'];
-      const ms = bytes.readUIntBE(4, 3) + bytes[7] * 0x1000000;
-      const first = bytes[11];
-      const codecId = type === 9 ? first & 0x0f : type === 8 ? first >> 4 : undefined;
-      this.emit('tag', { type, ms, codecId, bytes } satisfies FlvTag);
-      at = end;
+    for (let t; (t = parseTagAt(this.buf, at)); at = t.end) {
+      // A copy: the buffer's memory is kept for the next chunk.
+      this.emit('tag', { ...t.tag, bytes: Buffer.from(t.tag.bytes) } satisfies FlvTag);
     }
     this.buf = this.buf.subarray(at);
   }
