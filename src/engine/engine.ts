@@ -207,9 +207,7 @@ export class Engine {
   async reboot(opts: { ms?: number; dropsConnection?: boolean } = {}): Promise<void> {
     this.counters.reboots++;
     this.rebooting = true;
-    this.dropFlv();
-    this.dropDownloads();
-    this.baichuan?.dropAll();
+    this.dropConnections();
     this.bus.emit('state', { rebooting: true });
     await this.boot(opts.ms);
     this.rebooting = false;
@@ -233,9 +231,7 @@ export class Engine {
     this.power = 'off';
     this.events.stop();
     this.sessions.revokeAll();
-    this.dropFlv();
-    this.dropDownloads();
-    this.baichuan?.dropAll();
+    this.dropConnections();
     this.bus.emit('state', { power: 'off' });
     return true;
   }
@@ -250,6 +246,14 @@ export class Engine {
     if (this.config.autoEvents.length) this.events.startAuto(this.config.autoEvents);
     this.bus.emit('state', { power: 'on' });
     return true;
+  }
+
+  // Reboot and power-off: live streams, HTTP downloads and every Baichuan
+  // connection (its transfers through dropDownloads first, so they count).
+  private dropConnections(): void {
+    this.dropFlv();
+    this.dropDownloads();
+    this.baichuan?.dropAll();
   }
 
   dropFlv(): void {
