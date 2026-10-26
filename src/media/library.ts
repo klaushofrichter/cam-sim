@@ -4,13 +4,12 @@ import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
 import type { Engine } from '../engine/engine';
-import { FixtureMedia, composeMainFlv, ffmpeg, fixturePaths, fixtureSpec } from './fixtures';
+import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpec, writeMainFlv } from './fixtures';
 
 const run = promisify(execFile);
 // Bump when the prepared files change, so caches are rebuilt.
 const LIBRARY_VERSION = 3;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
-const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
 
 export interface VideoEntry {
   id: string;
@@ -87,9 +86,8 @@ export class Library {
   private readMeta(dir: string): { id: string; key: string; converted: boolean; durationS: number } | undefined {
     try {
       const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
-      const p = fixturePaths(dir);
       if (meta.version !== LIBRARY_VERSION || typeof meta.id !== 'string') return undefined;
-      if (![p.snapshot, p.subFlv, p.mainFlv, p.clipSub, p.clipMain].every((f) => existsSync(f))) return undefined;
+      if (!fixtureFilesExist(dir)) return undefined;
       return meta;
     } catch {
       return undefined;
@@ -279,9 +277,7 @@ export class Library {
       await ffmpeg(['-i', out.clipMain, '-map', '0:v:0', '-c', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-f', 'hevc', h265], this.abort.signal);
       await ffmpeg(['-i', out.clipMain, '-map', '0:a:0', '-c', 'copy', '-f', 'adts', aac], this.abort.signal);
       const info = await probe(out.clipMain);
-      writeFileSync(out.mainFlv, composeMainFlv(readFileSync(h265), readFileSync(aac), Math.round(info.fps) || 20));
-      rmSync(h265);
-      rmSync(aac);
+      writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);
       await ffmpeg(['-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
       writeFileSync(join(tmp, 'manifest.json'), JSON.stringify({ version: 'library' }));
       const meta = { version: LIBRARY_VERSION, id: s.id, key, converted, durationS: Math.round(info.duration * 10) / 10 };
