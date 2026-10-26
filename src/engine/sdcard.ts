@@ -103,6 +103,8 @@ export function clipSpan(r: Pick<Recording, 'date' | 'start' | 'end' | 'mainEnd'
   return { start: timeObj(r.date, r.start), end: timeObj(end < r.start ? stepBackDate(r.date, -1) : r.date, end) };
 }
 
+type NewRecording = { date: string; start: string; triggers: Trigger[]; dst: boolean; end?: string; mainEnd?: string; picture?: string };
+
 // `sizes` is kept per recording (the clip sizes when it was made), so names
 // don't change when the selected video changes.
 type Stored = Omit<Recording, 'files'> & { sizes?: Record<Stream, number> };
@@ -174,7 +176,15 @@ export class SdCard {
     return r && this.withFiles(r);
   }
 
-  add(rec: { date: string; start: string; triggers: Trigger[]; dst: boolean; end?: string; mainEnd?: string; picture?: string }): Recording {
+  add(rec: NewRecording): Recording {
+    const r = this.insert(rec);
+    this.sort();
+    this.persist();
+    return this.withFiles(r);
+  }
+
+  // Adds without sorting or persisting (seed does both once at the end).
+  private insert(rec: NewRecording): Stored {
     const r: Stored = {
       id: `r${++this.seq}-${rec.date}-${rec.start}`,
       date: rec.date, start: rec.start, end: rec.end ?? null, mainEnd: rec.mainEnd ?? rec.end ?? null,
@@ -184,9 +194,12 @@ export class SdCard {
       ...(rec.picture ? { picture: rec.picture } : {}),
     };
     this.recs.push(r);
+    return r;
+  }
+
+  // By start; a stable sort, so equal starts keep the order they were added.
+  private sort(): void {
     this.recs.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-    this.persist();
-    return this.withFiles(r);
   }
 
   finish(id: string, end: string, mainEnd: string): void {
@@ -310,8 +323,11 @@ export class SdCard {
     const today = localParts(this.opts.clock, this.opts.tz).date;
     for (const c of clips) {
       const date = stepBackDate(today, c.daysAgo);
-      this.add({ date, start: c.start, end: c.end, mainEnd: c.mainEnd ?? c.end, triggers: c.triggers, dst: isDstOn(this.opts.tz, date) });
+      this.insert({ date, start: c.start, end: c.end, mainEnd: c.mainEnd ?? c.end, triggers: c.triggers, dst: isDstOn(this.opts.tz, date) });
     }
+    if (!clips.length) return;
+    this.sort();
+    this.persist();
   }
 
   clear(): void {
