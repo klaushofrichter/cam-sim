@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { createHash, timingSafeEqual } from 'crypto';
 import type { Engine } from '../engine/engine';
 import { FAULT_NAMES, ACTION_NAMES, FaultError, type ActionName, type FaultName } from '../engine/faults';
-import { DATE, HMS, TRIGGERS, type Trigger } from '../engine/types';
+import { DATE, HMS, TRIGGERS } from '../engine/types';
 import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
@@ -12,6 +12,7 @@ import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import { createSessionSigner, readCookie, sessionCookieName, SESSION_MS } from './session';
 import { rateLimit } from 'express-rate-limit';
+import { isOneOf } from '../util/one-of';
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
 
@@ -102,10 +103,10 @@ export function createControlApp(engine: Engine): express.Express {
 
   api.post('/events', (req, res) => {
     const { type, durationS } = req.body ?? {};
-    if (!(TRIGGERS as readonly string[]).includes(type)) return bad(res, `type must be one of ${TRIGGERS.join(', ')}`);
+    if (!isOneOf(TRIGGERS, type)) return bad(res, `type must be one of ${TRIGGERS.join(', ')}`);
     if (!Number.isInteger(durationS) || durationS < 1 || durationS > 3600) return bad(res, 'durationS must be an integer from 1 to 3600');
     if (e.power !== 'on') return void res.status(409).json({ error: 'powered_off' });
-    const { recording } = e.events.trigger(type as Trigger, durationS);
+    const { recording } = e.events.trigger(type, durationS);
     res.status(201).json({ event: e.events.recent(1)[0], recording });
   });
   api.get('/events', (req, res) => void res.json(e.events.recent(Math.min(500, Number(req.query.limit) || 50))));
@@ -117,7 +118,7 @@ export function createControlApp(engine: Engine): express.Express {
     else if (Array.isArray(clips) && clips.length <= 1000 && clips.every((c: any) =>
       Number.isInteger(c?.daysAgo) && c.daysAgo >= 0 && c.daysAgo <= 365 && HMS.test(c.start) && HMS.test(c.end) &&
       (c.mainEnd === undefined || HMS.test(c.mainEnd)) &&
-      Array.isArray(c.triggers) && c.triggers.length > 0 && c.triggers.every((t: string) => (TRIGGERS as readonly string[]).includes(t)))) {
+      Array.isArray(c.triggers) && c.triggers.length > 0 && c.triggers.every((t: string) => isOneOf(TRIGGERS, t)))) {
       list = clips.map((c: any) => ({ daysAgo: c.daysAgo, start: c.start, end: c.end, mainEnd: c.mainEnd, triggers: c.triggers }));
     } else return bad(res, "clips must be 'demo' or a list of {daysAgo, start, end, triggers, mainEnd?}");
     e.sd.seed(list);
@@ -139,8 +140,8 @@ export function createControlApp(engine: Engine): express.Express {
     res.json(e.faults.active(req.params.name as FaultName));
   });
   api.delete('/faults/:name', (req, res) => {
-    if (!(FAULT_NAMES as readonly string[]).includes(req.params.name)) return bad(res, 'unknown fault');
-    e.faults.clear(req.params.name as FaultName);
+    if (!isOneOf(FAULT_NAMES, req.params.name)) return bad(res, 'unknown fault');
+    e.faults.clear(req.params.name);
     res.status(204).end();
   });
   api.delete('/faults', (_req, res) => {
@@ -223,7 +224,7 @@ export function createControlApp(engine: Engine): express.Express {
   api.get('/recordings', (req, res) => {
     const date = String(req.query.date ?? '');
     if (!DATE.test(date)) return bad(res, 'date must be YYYY-MM-DD');
-    res.json(e.sd.all().filter((r) => r.date === date));
+    res.json(e.sd.onDate(date));
   });
   api.get('/recordings/days', (req, res) => {
     const year = Number(req.query.year), mon = Number(req.query.mon);
@@ -264,7 +265,7 @@ export function createControlApp(engine: Engine): express.Express {
   };
   api.put('/settings/AiAlarm/:type', (req, res) => {
     const type = req.params.type;
-    if (!(AI_TYPES as readonly string[]).includes(type)) return void res.status(404).json({ error: 'not_found' });
+    if (!isOneOf(AI_TYPES, type)) return void res.status(404).json({ error: 'not_found' });
     writeSetting(res, 'SetAiAlarm', 'AiAlarm', { ...(req.body ?? {}), ai_type: type });
   });
   api.put('/settings/:key', (req, res) => {

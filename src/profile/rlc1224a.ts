@@ -7,6 +7,7 @@ import { FIRMWARE_VERSION } from './version';
 import { LOGIN_REPLY_LINES } from '../baichuan/device-info';
 import { PUSHES, RLC_AUTH_TYPES } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
+import { deepMerge } from '../util/json-file';
 
 export const FIRMWARE = {
   model: 'RLC-1224A',
@@ -17,19 +18,24 @@ export const FIRMWARE = {
   detail: 'IPC_NT18NA612MPS18T2C0E1W011000',
 } as const;
 
-export function devInfo(name: string, serial: string, firmVer: string) {
+// GetDevInfo for a model's firmware record and item number (other models
+// reuse it: cx820.ts).
+type FirmwareRecord = { model: string; hardVer: string; buildDay: string; cfgVer: string; detail: string };
+export const devInfoFor = (f: FirmwareRecord, itemNo: string) => (name: string, serial: string, firmVer: string) => {
   return {
     B485: 0, IOInputNum: 0, IOOutputNum: 0, audioNum: 1,
-    buildDay: FIRMWARE.buildDay, cfgVer: FIRMWARE.cfgVer, channelNum: 1, detail: FIRMWARE.detail,
-    diskNum: 1, exactType: 'IPC', firmVer, frameworkVer: 1, hardVer: FIRMWARE.hardVer, itemNo: '',
-    model: FIRMWARE.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
+    buildDay: f.buildDay, cfgVer: f.cfgVer, channelNum: 1, detail: f.detail,
+    diskNum: 1, exactType: 'IPC', firmVer, frameworkVer: 1, hardVer: f.hardVer, itemNo,
+    model: f.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
     // The one field a real camera never sends: clients such as cams label the
     // camera as simulated (Klaus, 2026-09-28). Everything else stays identical.
     // With the build's version (the container's APP_VERSION), so cams can
     // show which cam-sim it is (cams issue #69).
     simulator: `cam-sim ${process.env.APP_VERSION || 'dev'}`,
   };
-}
+};
+
+export const devInfo = devInfoFor(FIRMWARE, '');
 
 export const ENC = {
   audio: 1,
@@ -178,15 +184,6 @@ function zeroed(o: unknown): unknown {
   return o;
 }
 
-function overlay(target: Obj, patch: Obj): Obj {
-  for (const [k, v] of Object.entries(patch)) {
-    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-    if (v && typeof v === 'object' && !Array.isArray(v) && target[k] && typeof target[k] === 'object') overlay(target[k], v);
-    else target[k] = v;
-  }
-  return target;
-}
-
 // What a partial Set leaves in the keys it omits. Measured 2026-09-26 (a
 // partial SetIsp turned rotation 0 -> 1, a partial SetOsd watermark 1 -> 0,
 // a partial SetAiAlarm stay_time 3 -> 0), plus the values cams' mock camera
@@ -198,12 +195,12 @@ export function resetDefaults(): Settings {
 // The same rules over another model's factory settings (its key sets).
 export function resetDefaultsFor(factory: Settings): Settings {
   const z = zeroed(factory) as Settings;
-  overlay(z.Rec, { postRec: '1 Minute', saveDay: 30 });
-  overlay(z.MdAlarm, { newSens: { sensDef: 25 } });
-  for (const t of AI_TYPES) overlay(z.AiAlarm[t], { ai_type: t, sensitivity: 50, stay_time: 0 });
-  overlay(z.Isp, { dayNight: 'Auto', antiFlicker: 'Off', rotation: 1, mirroring: 1 });
-  overlay(z.IrLights, { state: 'Auto' });
-  overlay(z.Osd, { osdChannel: { pos: 'Upper Left' }, osdTime: { pos: 'Upper Left' } });
+  deepMerge(z.Rec, { postRec: '1 Minute', saveDay: 30 });
+  deepMerge(z.MdAlarm, { newSens: { sensDef: 25 } });
+  for (const t of AI_TYPES) deepMerge(z.AiAlarm[t], { ai_type: t, sensitivity: 50, stay_time: 0 });
+  deepMerge(z.Isp, { dayNight: 'Auto', antiFlicker: 'Off', rotation: 1, mirroring: 1 });
+  deepMerge(z.IrLights, { state: 'Auto' });
+  deepMerge(z.Osd, { osdChannel: { pos: 'Upper Left' }, osdTime: { pos: 'Upper Left' } });
   // Not measured, and zero values would switch every port off after a
   // reboot, leaving no way back in: keep the factory ports.
   z.NetPort = { ...DEFAULT_NET_PORT };

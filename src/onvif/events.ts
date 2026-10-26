@@ -1,6 +1,6 @@
 import type { Engine } from '../engine/engine';
 import type { Trigger } from '../engine/types';
-import { esc } from './soap';
+import { esc, utc } from './soap';
 
 // The RLC-1224A's ONVIF event topics and message shapes (captured from the
 // real camera on 2026-09-27: GetEventProperties and the Initialized messages
@@ -36,7 +36,6 @@ const FOR_TRIGGER: Record<Trigger, string[]> = {
 
 export const topicsFor = (t: Trigger) => FOR_TRIGGER[t] ?? [];
 
-const utc = (d = new Date()) => d.toISOString().replace(/\.\d+Z$/, 'Z');
 
 export function notification(topicName: string, state: boolean, op: 'Initialized' | 'Changed', at = new Date()): string {
   const t = TOPICS.find((x) => x.topic === topicName)!;

@@ -76,7 +76,7 @@ export function resolveFile(e: Engine, id: string | undefined): BcFile | undefin
 export function fileInfoReply(e: Engine, id: string | undefined, name: string | undefined): { status: number; xml?: string } {
   if (name !== undefined) {
     const m = /^\d{2}(\d{4})(\d{2})(\d{2})(\d{6})$/.exec(name);
-    const rec = m ? e.sd.all().find((r) => r.date === `${m[1]}-${m[2]}-${m[3]}` && r.start === m[4]) : undefined;
+    const rec = m ? e.sd.atStart(`${m[1]}-${m[2]}-${m[3]}`, m[4]) : undefined;
     if (!rec) return { status: 400 };
     return { status: 200, xml: fileInfoXml({ name, size: rec.files.main.size, ...timesOf(rec, 'main') }) };
   }

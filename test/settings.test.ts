@@ -32,6 +32,23 @@ describe('SettingsStore', () => {
     expect(s.running.Isp.dayNight).toBe('Color');
   });
 
+  it('a partial Set resets from the factory defaults, never from an earlier Set', () => {
+    const s = make();
+    s.set('SetIsp', { Isp: { channel: 0, dayNight: 'Color', antiFlicker: '50HZ' } }, ok);
+    s.set('SetIsp', { Isp: { channel: 0, dayNight: 'Black&White' } }, ok);
+    expect(s.saved.Isp.antiFlicker).toBe('Off');
+    expect(s.saved.Isp.rotation).toBe(1);
+    s.set('SetAiAlarm', { AiAlarm: { ai_type: 'people', sensitivity: 20, stay_time: 3 } }, ok);
+    s.set('SetAiAlarm', { AiAlarm: { ai_type: 'people', sensitivity: 30 } }, ok);
+    s.set('SetAiAlarm', { AiAlarm: { ai_type: 'vehicle', sensitivity: 40 } }, ok);
+    expect(s.saved.AiAlarm.people).toMatchObject({ ai_type: 'people', sensitivity: 30, stay_time: 0 });
+    expect(s.saved.AiAlarm.vehicle).toMatchObject({ ai_type: 'vehicle', sensitivity: 40, stay_time: 0 });
+    // A later change to the saved object doesn't reach the next reset.
+    s.saved.Isp.mirroring = 0;
+    s.set('SetIsp', { Isp: { channel: 0 } }, ok);
+    expect(s.saved.Isp.mirroring).toBe(1);
+  });
+
   it('strictPartial shows the reset at once', () => {
     const s = make();
     s.set('SetOsd', { Osd: { channel: 0, osdTime: { enable: 0, pos: 'Top Center' } } }, { strictPartial: true });

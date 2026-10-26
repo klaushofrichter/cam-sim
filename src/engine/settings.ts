@@ -2,6 +2,7 @@ import type pino from 'pino';
 import { nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
 import { profileFor, type CameraProfile } from '../profile/profile';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
+import { isOneOf } from '../util/one-of';
 
 // Settings keys added after files were first written (2026-10-05: Ntp).
 const ADDED_LATER: Array<keyof Settings> = ['Ntp'];
@@ -55,7 +56,7 @@ function validate(profile: CameraProfile, cmd: string, p: any): number | null {
   }
   if (cmd === 'SetAiAlarm') {
     const a = p?.AiAlarm ?? {};
-    if (!(AI_TYPES as readonly string[]).includes(a.ai_type)) return -67;
+    if (!isOneOf(AI_TYPES, a.ai_type)) return -67;
     if (a.sensitivity !== undefined && !int(a.sensitivity, 0, 100)) return -56;
   }
   if (cmd === 'SetIsp' && p?.Isp?.dayNight !== undefined && !['Auto', 'Color', 'Black&White'].includes(p.Isp.dayNight)) return -67;
@@ -91,6 +92,9 @@ export class SettingsStore {
   private readonly file?: string;
   private lightTimer?: ReturnType<typeof setTimeout>;
   private readonly profile: CameraProfile;
+  // The profile's partial-Set defaults never change: built once, cloned per
+  // use (deepMerge writes into its target).
+  private defaults?: Settings;
 
   constructor(opts: { name: string; file?: string; log: pino.Logger; profile?: CameraProfile }) {
     this.factoryName = opts.name;
@@ -128,15 +132,16 @@ export class SettingsStore {
     // from clients that write the whole object: keep the stored password.
     const mask = this.profile.ftpPasswordMask;
     if (key === 'Ftp' && mask !== undefined && sent.password === mask) sent = { ...sent, password: this.running.Ftp.password };
-    const defaults = this.profile.resetDefaults();
+    this.defaults ??= this.profile.resetDefaults();
+    const defaults = this.defaults;
     const lightWas = this.running.WhiteLed.state;
     if (key === 'AiAlarm') {
       const t = sent.ai_type as AiType;
-      this.saved.AiAlarm[t] = deepMerge(defaults.AiAlarm[t], sent);
+      this.saved.AiAlarm[t] = deepMerge(clone(defaults.AiAlarm[t]), sent);
       this.running.AiAlarm[t] = opts.strictPartial ? clone(this.saved.AiAlarm[t]) : deepMerge(this.running.AiAlarm[t], sent);
     } else {
       const name = this.name;
-      this.saved[key] = deepMerge(defaults[key] as Record<string, any>, sent) as any;
+      this.saved[key] = deepMerge(clone(defaults[key]) as Record<string, any>, sent) as any;
       this.running[key] = (opts.strictPartial ? clone(this.saved[key]) : deepMerge(this.running[key] as Record<string, any>, sent)) as any;
       // The OSD name is the camera's name (one value with GetDevName and
       // GetDevInfo.name): a SetOsd without one leaves it as it is. Not

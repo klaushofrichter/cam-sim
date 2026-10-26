@@ -3,6 +3,8 @@ import type pino from 'pino';
 import { localParts, isDstOn, p2, type Clock } from './clock';
 import { DATE, HMS, TRIGGERS, type Trigger } from './types';
 import { readJson, writeJsonAtomic } from '../util/json-file';
+import { FILE_FLAGS } from '../profile/rlc1224a';
+import { isOneOf } from '../util/one-of';
 
 export type { Trigger } from './types';
 export type Stream = 'sub' | 'main';
@@ -45,17 +47,16 @@ export const DEMO_CLIPS: SeedClip[] = [
 const ROOT = '/mnt/sda/Mp4Record';
 // Trigger bit positions (reolink_aio layout, name versions 9 and 10): bit 55 − pos.
 const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20, motion: 24 };
-// Flags of a real clip without trigger bits: the model's (profile fileFlags),
-// the RLC-1224A's by default.
-const BASE_FLAGS: Record<Stream, bigint> = { sub: 0x55148000000000n, main: 0x7b288200000000n };
 
-export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = BASE_FLAGS): string {
+// `base`: the flags of a real clip without trigger bits, the model's (profile
+// fileFlags), the RLC-1224A's by default.
+export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = FILE_FLAGS): string {
   let v = base[stream];
   for (const t of triggers) v |= 1n << BigInt(55 - TRIGGER_POS[t]);
   return v.toString(16).toUpperCase().padStart(14, '0');
 }
 
-export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = BASE_FLAGS): string {
+export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = FILE_FLAGS): string {
   const ymd = date.replaceAll('-', '');
   const base = `Rec${stream === 'sub' ? 'S' : 'M'}0A_${dst ? 'DST' : ''}${ymd}_${start}_${end}_0_${flagsHex(stream, triggers, flags)}_${size.toString(16).toUpperCase()}.mp4`;
   return `${ROOT}/${date}/${base}`;
@@ -71,7 +72,7 @@ function validRecord(r: any): boolean {
   return !!r && typeof r === 'object' && typeof r.id === 'string' && DATE.test(r.date) && HMS.test(r.start) &&
     (r.end === null || HMS.test(r.end)) && (r.mainEnd === null || HMS.test(r.mainEnd)) && typeof r.dst === 'boolean' &&
     (r.video === undefined || (typeof r.video === 'string' && r.video.length <= 64)) &&
-    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => (TRIGGERS as readonly string[]).includes(String(t)));
+    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => isOneOf(TRIGGERS, String(t)));
 }
 // A recording that was still open when the simulator stopped gets the
 // default post-record length.
@@ -102,6 +103,8 @@ export function clipSpan(r: Pick<Recording, 'date' | 'start' | 'end' | 'mainEnd'
   const end = streamEnd(r, stream) ?? r.start;
   return { start: timeObj(r.date, r.start), end: timeObj(end < r.start ? stepBackDate(r.date, -1) : r.date, end) };
 }
+
+type NewRecording = { date: string; start: string; triggers: Trigger[]; dst: boolean; end?: string; mainEnd?: string; picture?: string };
 
 // `sizes` is kept per recording (the clip sizes when it was made), so names
 // don't change when the selected video changes.
@@ -158,12 +161,31 @@ export class SdCard {
     return this.recs.map((r) => this.withFiles(r));
   }
 
+  // The recordings of one camera-local day (YYYY-MM-DD).
+  onDate(date: string): Recording[] {
+    return this.recs.filter((r) => r.date === date).map((r) => this.withFiles(r));
+  }
+
+  // The first recording that starts at `date` (YYYY-MM-DD) `start` (HHMMSS).
+  atStart(date: string, start: string): Recording | undefined {
+    const r = this.recs.find((x) => x.date === date && x.start === start);
+    return r && this.withFiles(r);
+  }
+
   byId(id: string): Recording | undefined {
     const r = this.recs.find((x) => x.id === id);
     return r && this.withFiles(r);
   }
 
-  add(rec: { date: string; start: string; triggers: Trigger[]; dst: boolean; end?: string; mainEnd?: string; picture?: string }): Recording {
+  add(rec: NewRecording): Recording {
+    const r = this.insert(rec);
+    this.sort();
+    this.persist();
+    return this.withFiles(r);
+  }
+
+  // Adds without sorting or persisting (seed does both once at the end).
+  private insert(rec: NewRecording): Stored {
     const r: Stored = {
       id: `r${++this.seq}-${rec.date}-${rec.start}`,
       date: rec.date, start: rec.start, end: rec.end ?? null, mainEnd: rec.mainEnd ?? rec.end ?? null,
@@ -173,9 +195,12 @@ export class SdCard {
       ...(rec.picture ? { picture: rec.picture } : {}),
     };
     this.recs.push(r);
+    return r;
+  }
+
+  // By start; a stable sort, so equal starts keep the order they were added.
+  private sort(): void {
     this.recs.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-    this.persist();
-    return this.withFiles(r);
   }
 
   finish(id: string, end: string, mainEnd: string): void {
@@ -200,8 +225,9 @@ export class SdCard {
     const date = dayKey(from);
     const lo = `${p2(from.hour ?? 0)}${p2(from.min ?? 0)}${p2(from.sec ?? 0)}`;
     const hi = `${p2(to.hour ?? 23)}${p2(to.min ?? 59)}${p2(to.sec ?? 59)}`;
-    return this.all()
+    return this.recs
       .filter((r) => r.date === date && r.start >= lo && r.start <= hi)
+      .map((r) => this.withFiles(r))
       .map((r) => {
         const span = clipSpan(r, stream);
         return {
@@ -236,13 +262,24 @@ export class SdCard {
     return { year, mon, table: Array.from({ length: days }, (_, i) => (have.has(i + 1) ? '1' : '0')).join('') };
   }
 
+  // The recordings a file name can belong to, before their names are built:
+  // every name of a recording holds its `YYYYMMDD_HHMMSS_` (date and start).
+  private named(name: string): Recording[] {
+    return this.recs.filter((r) => name.includes(`${r.date.replaceAll('-', '')}_${r.start}_`)).map((r) => this.withFiles(r));
+  }
+
   // Exact match on a current file name only; anything else is unknown.
   byName(name: string): { rec: Recording; stream: Stream } | undefined {
-    for (const rec of this.all()) {
+    for (const rec of this.named(name)) {
       if (rec.files.sub.name === name) return { rec, stream: 'sub' };
       if (rec.files.main.name === name) return { rec, stream: 'main' };
     }
     return undefined;
+  }
+
+  // CheckDownload's match: a current file name, full or its base name.
+  knows(name: string): boolean {
+    return this.named(name).some((r) => [r.files.sub.name, r.files.main.name].some((n) => n === name || n.endsWith(`/${name}`)));
   }
 
   // The current sizes are looked up once, and only for records made before
@@ -287,8 +324,11 @@ export class SdCard {
     const today = localParts(this.opts.clock, this.opts.tz).date;
     for (const c of clips) {
       const date = stepBackDate(today, c.daysAgo);
-      this.add({ date, start: c.start, end: c.end, mainEnd: c.mainEnd ?? c.end, triggers: c.triggers, dst: isDstOn(this.opts.tz, date) });
+      this.insert({ date, start: c.start, end: c.end, mainEnd: c.mainEnd ?? c.end, triggers: c.triggers, dst: isDstOn(this.opts.tz, date) });
     }
+    if (!clips.length) return;
+    this.sort();
+    this.persist();
   }
 
   clear(): void {

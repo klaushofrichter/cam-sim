@@ -61,10 +61,13 @@ function manifest(spec: FixtureSpec): Record<string, unknown> {
   return spec.suffix ? { version: FIXTURE_VERSION, model: spec.suffix.slice(1) } : { version: FIXTURE_VERSION };
 }
 
+// The five served files are all there (fixtures and library copies alike).
+export const fixtureFilesExist = (dir: string): boolean => Object.values(FILES).every((f) => existsSync(join(dir, f)));
+
 function complete(dir: string, spec: FixtureSpec): boolean {
   try {
     const m = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
-    return m.version === FIXTURE_VERSION && m.model === manifest(spec).model && Object.values(FILES).every((f) => existsSync(join(dir, f)));
+    return m.version === FIXTURE_VERSION && m.model === manifest(spec).model && fixtureFilesExist(dir);
   } catch {
     return false;
   }
@@ -76,7 +79,7 @@ const sub = (s: FixtureSpec) => `testsrc2=size=${s.sub}:rate=${s.subFps}`;
 // camera's real sizes.
 const main = (s: FixtureSpec) => `testsrc2=size=1280x720:rate=${s.mainFps}`;
 const TONE = 'sine=frequency=440:sample_rate=16000';
-const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
+export const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
 // Fast presets: fixtures build in seconds even on small CI runners.
 const X264 = ['-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p'];
 const X265 = ['-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p'];
@@ -129,6 +132,13 @@ export function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
   return Buffer.concat([w.header(true, true), ...tags.map((t) => t.buf)]);
 }
 
+// main.flv from an H.265 elementary stream and ADTS AAC, which are then removed.
+export function writeMainFlv(out: string, h265: string, aac: string, fps: number): void {
+  writeFileSync(out, composeMainFlv(readFileSync(h265), readFileSync(aac), fps));
+  rmSync(h265);
+  rmSync(aac);
+}
+
 async function generate(dir: string, spec: FixtureSpec): Promise<void> {
   const p = fixturePaths(dir);
   const SUB = sub(spec);
@@ -142,9 +152,7 @@ async function generate(dir: string, spec: FixtureSpec): Promise<void> {
   await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-t', '6', ...X265,
     '-x265-params', 'keyint=40:min-keyint=40:bframes=0:aud=1:repeat-headers=1:log-level=error', '-f', 'hevc', h265]);
   await ffmpeg(['-f', 'lavfi', '-i', TONE, '-t', '6', '-c:a', 'aac', '-f', 'adts', aac]);
-  writeFileSync(p.mainFlv, composeMainFlv(readFileSync(h265), readFileSync(aac), spec.mainFps));
-  rmSync(h265);
-  rmSync(aac);
+  writeMainFlv(p.mainFlv, h265, aac, spec.mainFps);
   await ffmpeg(['-f', 'lavfi', '-i', SUB, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
     ...X264, '-g', '40', '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipSub]);
   await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,

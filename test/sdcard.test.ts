@@ -86,6 +86,40 @@ describe('SdCard', () => {
     expect(sd.byName(name.replace('/mnt/sda/Mp4Record/2026-09-26/', ''))).toBeUndefined();
   });
 
+  it('among many recordings, each lookup finds its own: same start on another day, same day at another start', () => {
+    const sd = make();
+    const a = sd.add({ date: '2026-09-26', start: '065221', end: '065241', triggers: ['motion'], dst: true });
+    const b = sd.add({ date: '2026-09-25', start: '065221', end: '065231', triggers: ['person'], dst: true });
+    const c = sd.add({ date: '2026-09-26', start: '070000', end: '070030', triggers: ['vehicle'], dst: true });
+    for (const r of [a, b, c]) {
+      expect(sd.byName(r.files.sub.name)).toEqual({ rec: sd.byId(r.id), stream: 'sub' });
+      expect(sd.byName(r.files.main.name)).toEqual({ rec: sd.byId(r.id), stream: 'main' });
+    }
+    const day = { year: 2026, mon: 9, day: 26 };
+    expect(sd.search('main', day, day).map((f) => f.name)).toEqual([a.files.main.name, c.files.main.name]);
+    expect(sd.search('sub', { ...day, hour: 6, min: 55 }, { ...day, hour: 7 }).map((f) => f.name)).toEqual([c.files.sub.name]);
+    expect(sd.search('sub', { year: 2026, mon: 9, day: 24 }, { year: 2026, mon: 9, day: 24 })).toEqual([]);
+    expect(sd.byName(a.files.sub.name.replace('_065221_', '_065222_'))).toBeUndefined();
+  });
+
+  it('seeds in one pass: same ids, order and stored index as adding one by one', () => {
+    const clips = [
+      { daysAgo: 0, start: '120000', end: '120010', triggers: ['motion' as const] },
+      { daysAgo: 1, start: '090000', end: '090010', triggers: ['person' as const] },
+      { daysAgo: 0, start: '080000', end: '080010', triggers: ['pet' as const] },
+      { daysAgo: 0, start: '080000', end: '080020', triggers: ['vehicle' as const] },
+    ];
+    const seeded = make({ dir });
+    seeded.seed(clips);
+    const ids = seeded.all().map((r) => r.id);
+    expect(ids).toEqual(['r2-2026-09-25-090000', 'r3-2026-09-26-080000', 'r4-2026-09-26-080000', 'r1-2026-09-26-120000']);
+    expect(make({ dir }).all()).toEqual(seeded.all());
+    const one = make();
+    one.add({ date: '2026-09-26', start: '000000', end: '000001', triggers: ['motion'], dst: true });
+    one.seed(clips);
+    expect(one.all().map((r) => r.id)).toEqual(['r3-2026-09-25-090000', 'r1-2026-09-26-000000', 'r4-2026-09-26-080000', 'r5-2026-09-26-080000', 'r2-2026-09-26-120000']);
+  });
+
   it('reports free space as HddInfo size', () => {
     const sd = make({ capacityMb: 100 });
     sd.add({ date: '2026-09-26', start: '065221', triggers: ['motion'], dst: true });

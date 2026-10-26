@@ -170,6 +170,12 @@ describe('camera API: Download', () => {
     const { app, t, files } = await served();
     expect((await post(app, 'CheckDownload', { filename: files[0].name }, t)).reply.value).toEqual({ downloadTask: 0 });
     expect((await post(app, 'CheckDownload', { filename: 'x' }, t)).reply).toEqual({ cmd: 'CheckDownload', code: 1, error: { detail: 'param error', rspCode: -4 } });
+    // The base name, a main file, and names that only look close.
+    const base = files[1].name.slice(files[1].name.lastIndexOf('/') + 1);
+    expect((await post(app, 'CheckDownload', { filename: base }, t)).reply.value).toEqual({ downloadTask: 0 });
+    expect((await post(app, 'CheckDownload', { filename: files[2].name.replace('RecS', 'RecM').replace(/_[0-9A-F]+_[0-9A-F]+\.mp4$/, '') }, t)).reply.error?.rspCode).toBe(-4);
+    expect((await post(app, 'CheckDownload', { filename: base.slice(1) }, t)).reply.error?.rspCode).toBe(-4);
+    expect((await post(app, 'CheckDownload', { filename: '' }, t)).reply.error?.rspCode).toBe(-4);
   });
 
   it('downloads.refuse and downloads.dropFirst reset and count', async () => {

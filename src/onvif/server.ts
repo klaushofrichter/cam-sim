@@ -3,7 +3,7 @@ import { rateLimit } from 'express-rate-limit';
 import type { Engine } from '../engine/engine';
 import { localParts } from '../engine/clock';
 import type { Trigger } from '../engine/types';
-import { envelope, fault, operation, field, durationMs, authenticate, esc, NS } from './soap';
+import { envelope, fault, operation, field, durationMs, authenticate, esc, NS, utc } from './soap';
 import { TOPICS, topicsFor, notification, currentState, EVENT_PROPERTIES } from './events';
 
 const MAX_SUBSCRIPTIONS = 16;
@@ -13,7 +13,6 @@ const MAX_TTL_MS = 24 * 3600_000;
 const MAX_QUEUE = 1000;
 // A host header fit to go into an address: name or IPv4, or [IPv6], with a port.
 const HOST = /^(?:[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])(?::\d{1,5})?$/;
-const utc = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
 
 interface Subscription {
   expiresAt: number;
@@ -76,7 +75,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
   };
 
   // A camera that is off, offline or has ONVIF switched off drops the connection.
-  app.use((req, _res, next) => (e.offline() || e.settings.running.NetPort.onvifEnable !== 1 ? req.socket.destroy() : next()));
+  app.use((req, _res, next) => (e.serving('onvif') ? next() : req.socket.destroy()));
   // Generous for a gateway that long-polls; stops a flood of sign-in attempts.
   app.use(rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: false, legacyHeaders: false }));
   app.use(express.text({ type: () => true, limit: '16kb' }));
@@ -170,7 +169,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
         }
         // Powered off, rebooting or ONVIF switched off while waiting: the
         // camera drops the connection.
-        if (e.offline() || e.settings.running.NetPort.onvifEnable !== 1) return void req.socket.destroy();
+        if (!e.serving('onvif')) return void req.socket.destroy();
         if (!subs.has(idx)) return sendFault(res, 'ter:InvalidArgVal', 'Unknown or expired subscription');
         const msgs = s.queue.splice(0, limit);
         return send(res, `<tev:PullMessagesResponse><tev:CurrentTime>${utc(Date.now())}</tev:CurrentTime><tev:TerminationTime>${utc(s.expiresAt)}</tev:TerminationTime>${msgs.join('')}</tev:PullMessagesResponse>`);
