@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `scripts/sync-secrets.sh` no longer creates `cam2-camera-credentials`: the `cam2-cert-push` CronJob that used it is gone. cam2's certificate comes from the cluster cam-proxy's site CA (`cam2.cluster.internal`), and `cam2.skylar.technology` is retired (README updated).
+
 ## v2026.10.25.1
 
 ## v2026.10.20.1

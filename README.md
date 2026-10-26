@@ -1017,15 +1017,16 @@ run in Chrome.
 
 ## cam2 in the cluster
 
-`cam2.skylar.technology` is a permanent simulator in the k3s cluster: namespace
+`cam2` is a permanent simulator in the k3s cluster: namespace
 `cam-sim`, Deployment and Service `cam2`, PVC `cam2-data`. kube-setup owns the
 manifests.
 
 - **How clients reach it:**
-  - cams uses `cam2.cam-sim.svc.cluster.local:443`, with the TLS name
-    `cam2.skylar.technology`;
-  - the web UI and control API are at https://cam2.skylar.technology/ on the
-    LAN only (Traefik; 403 from outside; the ACME challenge path stays open);
+  - cam-proxy and cams use the Service's pinned ClusterIP
+    `10.43.61.52:443`, with the TLS name `cam2.cluster.internal`;
+  - it has no public name since 2026-10-26 (cameras get no public DNS names):
+    the web UI and control API are reached by port-forward
+    (`scripts/cam-ui.sh`);
   - ONVIF `192.168.1.103:8000` and RTSP `192.168.1.103:554` are open to the
     LAN (Service `cam2-gateway`), in plain text like the camera, for
     cam-proxy;
@@ -1043,15 +1044,19 @@ manifests.
   files into its `/library/`, scale it back to 0, and restart cam2 (the
   library is read at start). Convert large sources on a bigger machine first
   (see [Video library](#video-library)).
-- **Certificate:** a Let's Encrypt certificate, pushed daily at 04:27 by the
-  `cam2-cert-push` CronJob, with the same script as cam1.
+- **Certificate:** issued and renewed by the cluster cam-proxy's site CA
+  (`cam2.cluster.internal`, since 2026-10-26; before, a Let's Encrypt
+  certificate for `cam2.skylar.technology` pushed by the `cam2-cert-push`
+  CronJob).
+- **FTP source:** cam2 uploads from its pod address (10.42.x), not the
+  Service address, so the cluster cam-proxy sets `ftp.sourceSubnet`
+  `10.42.0.0/16`.
 - **Settings:**
   - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
   - background motion, person, vehicle and pet events;
   - `CAMSIM_CONTROL_TLS=on`, `CAMSIM_WEB_UI=true`.
-- **Control API and web UI:** on the LAN at https://cam2.skylar.technology/
-  (sign in with `CAMSIM_CONTROL_TOKEN`). From elsewhere,
-  `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in
+- **Control API and web UI:** by port-forward only (sign in with
+  `CAMSIM_CONTROL_TOKEN`): `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in
   the cluster, where it port-forwards the control port to
   `https://127.0.0.1:9443/`. It copies the token to the clipboard and opens
   the web UI.
@@ -1073,8 +1078,9 @@ see `.env.example`. `scripts/sync-secrets.sh`:
 - sets the GitHub Actions secrets `CAMSIM_CONTROL_TOKEN`, `CAMSIM_USERS` and
   `KUBE_SETUP_DEPLOY_TOKEN` (from `GITHUB_KUBE_SETUP_PAT`; GitHub refuses
   `GITHUB_*` names);
-- applies the Kubernetes Secrets `cam-sim-secrets` (the `CAMSIM_*` values)
-  and `cam2-camera-credentials` (the admin user, for `cam2-cert-push`).
+- applies the Kubernetes Secret `cam-sim-secrets` (the `CAMSIM_*` values).
+  (`cam2-camera-credentials` went with `cam2-cert-push` on 2026-10-26: cam2's
+  certificate comes from the cluster proxy's site CA.)
 
 It prints key names only, and `--dry-run` shows what it would do. Options:
 `--only github|kube`, `--rotate KEY` or `--rotate CAMSIM_USERS:<user>` (a new
