@@ -180,6 +180,12 @@ export class Engine {
     return this.down() || this.certRestarting;
   }
 
+  // A protocol's port answers: the camera is online and the port is enabled
+  // (SetNetPort).
+  serving(port: 'http' | 'https' | 'rtmp' | 'rtsp' | 'onvif'): boolean {
+    return !this.offline() && this.settings.running.NetPort[`${port}Enable`] === 1;
+  }
+
   // CertificateClear and a successful ImportCertificate restart the camera's
   // web server: sessions end, and clients must log in again.
   private async certRestart(): Promise<void> {

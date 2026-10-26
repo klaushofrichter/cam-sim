@@ -71,7 +71,7 @@ export class RtspService {
   };
   private readonly onChange = () => {
     const e = this.engine;
-    if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.reset')) this.dropReaders();
+    if (!e.serving('rtsp') || e.faults.active('rtsp.reset')) this.dropReaders();
   };
 
   constructor(private readonly engine: Engine, private readonly opts: { port: number; host?: string; mediamtx: string | undefined }) {}
@@ -221,7 +221,7 @@ export class RtspService {
     }
     if (a.action !== 'read') return false;
     if (!Object.values(RTSP_PATHS).includes(a.path as never)) return false;
-    if (e.offline() || e.settings.running.NetPort.rtspEnable !== 1 || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) return false;
+    if (!e.serving('rtsp') || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) return false;
     const u = e.config.users.find((x) => x.name === a.user);
     return !!u && same(a.password ?? '', u.password);
   }
