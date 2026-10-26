@@ -3,6 +3,7 @@ import type pino from 'pino';
 import { localParts, isDstOn, p2, type Clock } from './clock';
 import { DATE, HMS, TRIGGERS, type Trigger } from './types';
 import { readJson, writeJsonAtomic } from '../util/json-file';
+import { FILE_FLAGS } from '../profile/rlc1224a';
 
 export type { Trigger } from './types';
 export type Stream = 'sub' | 'main';
@@ -45,17 +46,16 @@ export const DEMO_CLIPS: SeedClip[] = [
 const ROOT = '/mnt/sda/Mp4Record';
 // Trigger bit positions (reolink_aio layout, name versions 9 and 10): bit 55 − pos.
 const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20, motion: 24 };
-// Flags of a real clip without trigger bits: the model's (profile fileFlags),
-// the RLC-1224A's by default.
-const BASE_FLAGS: Record<Stream, bigint> = { sub: 0x55148000000000n, main: 0x7b288200000000n };
 
-export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = BASE_FLAGS): string {
+// `base`: the flags of a real clip without trigger bits, the model's (profile
+// fileFlags), the RLC-1224A's by default.
+export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = FILE_FLAGS): string {
   let v = base[stream];
   for (const t of triggers) v |= 1n << BigInt(55 - TRIGGER_POS[t]);
   return v.toString(16).toUpperCase().padStart(14, '0');
 }
 
-export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = BASE_FLAGS): string {
+export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = FILE_FLAGS): string {
   const ymd = date.replaceAll('-', '');
   const base = `Rec${stream === 'sub' ? 'S' : 'M'}0A_${dst ? 'DST' : ''}${ymd}_${start}_${end}_0_${flagsHex(stream, triggers, flags)}_${size.toString(16).toUpperCase()}.mp4`;
   return `${ROOT}/${date}/${base}`;
