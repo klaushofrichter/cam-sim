@@ -4,6 +4,7 @@ import { localParts, isDstOn, p2, type Clock } from './clock';
 import { DATE, HMS, TRIGGERS, type Trigger } from './types';
 import { readJson, writeJsonAtomic } from '../util/json-file';
 import { FILE_FLAGS } from '../profile/rlc1224a';
+import { isOneOf } from '../util/one-of';
 
 export type { Trigger } from './types';
 export type Stream = 'sub' | 'main';
@@ -71,7 +72,7 @@ function validRecord(r: any): boolean {
   return !!r && typeof r === 'object' && typeof r.id === 'string' && DATE.test(r.date) && HMS.test(r.start) &&
     (r.end === null || HMS.test(r.end)) && (r.mainEnd === null || HMS.test(r.mainEnd)) && typeof r.dst === 'boolean' &&
     (r.video === undefined || (typeof r.video === 'string' && r.video.length <= 64)) &&
-    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => (TRIGGERS as readonly string[]).includes(String(t)));
+    Array.isArray(r.triggers) && r.triggers.length > 0 && r.triggers.every((t: unknown) => isOneOf(TRIGGERS, String(t)));
 }
 // A recording that was still open when the simulator stopped gets the
 // default post-record length.

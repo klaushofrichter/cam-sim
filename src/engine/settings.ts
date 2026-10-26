@@ -2,6 +2,7 @@ import type pino from 'pino';
 import { nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
 import { profileFor, type CameraProfile } from '../profile/profile';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
+import { isOneOf } from '../util/one-of';
 
 // Settings keys added after files were first written (2026-10-05: Ntp).
 const ADDED_LATER: Array<keyof Settings> = ['Ntp'];
@@ -55,7 +56,7 @@ function validate(profile: CameraProfile, cmd: string, p: any): number | null {
   }
   if (cmd === 'SetAiAlarm') {
     const a = p?.AiAlarm ?? {};
-    if (!(AI_TYPES as readonly string[]).includes(a.ai_type)) return -67;
+    if (!isOneOf(AI_TYPES, a.ai_type)) return -67;
     if (a.sensitivity !== undefined && !int(a.sensitivity, 0, 100)) return -56;
   }
   if (cmd === 'SetIsp' && p?.Isp?.dayNight !== undefined && !['Auto', 'Color', 'Black&White'].includes(p.Isp.dayNight)) return -67;

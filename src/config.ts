@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { MODELS, profileFor, type Model } from './profile/profile';
 import type { FaultSpec } from './engine/faults';
 import { TRIGGERS, type Trigger } from './engine/types';
+import { isOneOf } from './util/one-of';
 
 export interface User {
   name: string;
@@ -96,8 +97,8 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
   const oneOf = <T extends string>(key: string, allowed: readonly T[], def: T): T => {
     const v = env[key];
     if (v === undefined || v === '') return def;
-    if (!(allowed as readonly string[]).includes(v)) throw new ConfigError(`${key} must be one of ${allowed.join(', ')}`);
-    return v as T;
+    if (!isOneOf(allowed, v)) throw new ConfigError(`${key} must be one of ${allowed.join(', ')}`);
+    return v;
   };
   const int = (key: string, def: number, min = 0, max = Number.MAX_SAFE_INTEGER): number => {
     const v = env[key];
@@ -136,10 +137,10 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
   if (auto && auto !== 'off') {
     for (const part of auto.split(',')) {
       const m = /^\s*(\w+):(\d+(?:\.\d+)?)\/h\s*$/.exec(part);
-      if (!m || !(TRIGGERS as readonly string[]).includes(m[1])) {
+      if (!m || !isOneOf(TRIGGERS, m[1])) {
         throw new ConfigError('CAMSIM_AUTO_EVENTS must look like motion:6/h,person:1/h');
       }
-      autoEvents.push({ type: m[1] as Trigger, perHour: Number(m[2]) });
+      autoEvents.push({ type: m[1], perHour: Number(m[2]) });
     }
   }
 
