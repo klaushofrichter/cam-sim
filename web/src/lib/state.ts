@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { coalesced } from './coalesce';
 
 // The simulator's /sim/api/state, kept current by the SSE feed.
 export interface SimState {
@@ -35,17 +36,17 @@ export const simState = writable<SimState | null>(null);
 export const feed = writable<Array<{ kind: 'request' | 'event' | 'fault' | 'state' | 'video' | 'pipeline'; at: string; data: unknown }>>([]);
 
 let source: EventSource | null = null;
-let refresh: (() => void) | null = null;
+let reloadSoon: () => void = () => {};
 
-export function connectFeed(reload: () => void): void {
-  refresh = reload;
+export function connectFeed(reload: () => Promise<unknown>): void {
+  reloadSoon = coalesced(reload);
   if (source) return;
   source = new EventSource('/sim/api/stream', { withCredentials: true });
   const push = (kind: 'request' | 'event' | 'fault' | 'state' | 'video' | 'pipeline') => (ev: MessageEvent) => {
     const data = JSON.parse(ev.data);
     if (kind === 'state' && data && typeof data === 'object' && 'serial' in data) simState.set(data as SimState);
     feed.update((list) => [{ kind, at: new Date().toISOString(), data }, ...list].slice(0, 200));
-    if (kind !== 'request') refresh?.();
+    if (kind !== 'request') reloadSoon();
   };
   for (const k of ['request', 'event', 'fault', 'state', 'video', 'pipeline'] as const) source.addEventListener(k, push(k));
 }
