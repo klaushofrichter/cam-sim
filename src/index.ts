@@ -17,7 +17,7 @@ import { tmpdir } from 'os';
 import { profileFor, type Model } from './profile/profile';
 import { closeServer, followCertificate, listen } from './util/net';
 import type { CamSimConfig, User } from './config';
-import { BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS } from './config';
+import { BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS, CONFIG_DEFAULTS } from './config';
 import type { Clock } from './engine/clock';
 import type { FaultSpec } from './engine/faults';
 import type { SeedClip, Trigger } from './engine/sdcard';
@@ -83,17 +83,17 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
   const profile = profileFor(o.model);
   return {
     model: profile.model,
-    name: o.name ?? 'Cam',
+    name: o.name ?? CONFIG_DEFAULTS.name,
     users: o.users,
     controlToken: o.controlToken,
     webUi: false,
-    controlTls: o.controlTls ?? 'auto',
+    controlTls: o.controlTls ?? CONFIG_DEFAULTS.controlTls,
     media: 'fixture',
     dataDir: o.dataDir,
     fixtureDir: o.fixtureDir,
-    tz: o.tz ?? 'America/Chicago',
-    sdMb: o.sdMb ?? 4096,
-    speed: o.speed ?? 'fast',
+    tz: o.tz ?? CONFIG_DEFAULTS.tz,
+    sdMb: o.sdMb ?? CONFIG_DEFAULTS.sdMb,
+    speed: o.speed ?? CONFIG_DEFAULTS.speed,
     seedClips: o.seedClips === 'demo' ? 'demo' : 'none',
     faults: o.faults ?? [],
     autoEvents: o.autoEvents ?? [],
@@ -103,14 +103,14 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     tlsKeyFile: o.tlsKeyFile,
     // In process the Baichuan port defaults to a free one: callers that don't
     // name it (cams' and cam-proxy's tests, in parallel) never collide on 9000.
-    ports: { https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000, baichuan: 0 },
+    ports: { ...CONFIG_DEFAULTS.ports, baichuan: 0 },
     baichuan: { idleMs: o.baichuan?.idleMs ?? BAICHUAN_IDLE_MS, firstMessageMs: o.baichuan?.firstMessageMs ?? BAICHUAN_FIRST_MESSAGE_MS },
     logLevel: o.logLevel ?? 'silent',
     mainSize: o.mainSize ?? profile.media.mainSize,
-    maxVideoS: o.maxVideoS ?? 60,
+    maxVideoS: o.maxVideoS ?? CONFIG_DEFAULTS.maxVideoS,
     libraryDir: o.libraryDir,
     video: o.video,
-    pipelineMaxMin: o.pipelineMaxMin ?? 1440,
+    pipelineMaxMin: o.pipelineMaxMin ?? CONFIG_DEFAULTS.pipelineMaxMin,
     fontDir: o.fontDir,
   };
 }

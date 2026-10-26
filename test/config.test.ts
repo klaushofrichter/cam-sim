@@ -137,3 +137,16 @@ describe('loadConfig: SD pipeline', () => {
     expect(loadConfig({ ...base, CAMSIM_FONT_DIR: '/fonts' }).fontDir).toBe('/fonts');
   });
 });
+
+describe('defaults: CLI and in process', () => {
+  it('match, apart from the in-process Baichuan port (a free one), log level and web UI', async () => {
+    const { configFromOptions } = await import('../src/index');
+    const cli = loadConfig({ CAMSIM_USERS: 'u:admin:p', CAMSIM_BAICHUAN_PORT: '' });
+    const lib = configFromOptions({ users: cli.users });
+    const pick = ({ seed: _s, logLevel: _l, webUi: _w, ports, ...rest }: any) => ({ ...rest, ports: { ...ports, baichuan: undefined } });
+    expect(pick(lib)).toEqual(pick(cli));
+    expect(cli).toMatchObject({ name: 'Cam', tz: 'America/Chicago', sdMb: 4096, speed: 'fast', controlTls: 'auto', maxVideoS: 60, pipelineMaxMin: 1440 });
+    expect(cli.ports).toEqual({ https: 8443, http: 8080, control: 9443, rtsp: 8554, onvif: 8000, baichuan: 9000 });
+    expect(lib.ports.baichuan).toBe(0);
+  });
+});
