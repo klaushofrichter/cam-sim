@@ -152,6 +152,20 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
     res.write(shifted(t, offset));
   };
   const floor = (due: number) => Math.max(due, lastMs + 1);
+  // A new source, or the loop again after the pipeline: from its start, at
+  // `due` or after the last tag sent.
+  const restartLoop = (due: number) => {
+    base = floor(due);
+    pass = 0;
+    next = 0;
+  };
+  // A viewer that stops reading is dropped, like a camera does, rather than
+  // buffering without bound.
+  const overBacklog = (): boolean => {
+    if (res.writableLength <= e.limits.flvBufferBytes) return false;
+    res.destroy();
+    return true;
+  };
   // The SD pipeline (spec 2026-09-29): while it runs, sub comes from it.
   // Tags arriving between pumps wait in `queue`; each live part (a start or
   // a restart of the pipeline) begins with its config tags, then a keyframe.
@@ -190,14 +204,12 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
         // group: the loop keeps that lead and goes on at once, instead of
         // pausing until the clock catches up.
         began -= Math.max(0, lastMs + 1 - due);
-        base = floor(due);
-        pass = 0;
-        next = 0;
+        restartLoop(due);
       }
       if (live) {
         for (const t of live.queue.splice(0)) {
           send(t, base - (live.firstMs ?? t.ms));
-          if (res.writableLength > e.limits.flvBufferBytes) return void res.destroy();
+          if (overBacklog()) return;
         }
         return;
       }
@@ -211,9 +223,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
         res.destroy();
         return;
       }
-      base = floor(due);
-      pass = 0;
-      next = 0;
+      restartLoop(due);
     }
     for (;;) {
       const list = pass === 0 ? src.tags : src.loopTags;
@@ -228,12 +238,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main',
       if (at > due) break;
       send(t, base + pass * src.loopMs);
       next++;
-      // A viewer that stops reading is dropped, like a camera does, rather
-      // than buffering without bound.
-      if (res.writableLength > e.limits.flvBufferBytes) {
-        res.destroy();
-        return;
-      }
+      if (overBacklog()) return;
     }
   };
   const timer = setInterval(pump, 20);
