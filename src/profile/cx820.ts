@@ -6,7 +6,7 @@
 import ability from './cx820-ability.json';
 import {
   AI_TYPES, DEFAULT_NET_PORT, DEFAULT_NTP, IR_LIGHTS_EXTRA, factorySettings as rlcFactory, maskFtpUser as rlcMaskFtpUser,
-  resetDefaultsFor, type AiType, type Settings,
+  devInfoFor, resetDefaultsFor, type AiType, type Settings,
 } from './rlc1224a';
 import { CX820_LOGIN_REPLY_LINES } from '../baichuan/device-info-cx820';
 import { RLC_AUTH_TYPES, afterLogin } from '../baichuan/xml';
@@ -22,17 +22,7 @@ export const CX820_FIRMWARE = {
 } as const;
 
 // GetDevInfo: the RLC-1224A's keys, with an itemNo.
-function devInfo(name: string, serial: string, firmVer: string) {
-  const f = CX820_FIRMWARE;
-  return {
-    B485: 0, IOInputNum: 0, IOOutputNum: 0, audioNum: 1,
-    buildDay: f.buildDay, cfgVer: f.cfgVer, channelNum: 1, detail: f.detail,
-    diskNum: 1, exactType: 'IPC', firmVer, frameworkVer: 1, hardVer: f.hardVer, itemNo: 'P335X',
-    model: f.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
-    // As in rlc1224a.ts: the one field a real camera never sends.
-    simulator: `cam-sim ${process.env.APP_VERSION || 'dev'}`,
-  };
-}
+const devInfo = devInfoFor(CX820_FIRMWARE, 'P335X');
 
 // GetEnc: 4K H.265 main at 25 fps, 640x360 H.264 sub, audio off.
 const ENC = {

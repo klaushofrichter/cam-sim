@@ -18,19 +18,24 @@ export const FIRMWARE = {
   detail: 'IPC_NT18NA612MPS18T2C0E1W011000',
 } as const;
 
-export function devInfo(name: string, serial: string, firmVer: string) {
+// GetDevInfo for a model's firmware record and item number (other models
+// reuse it: cx820.ts).
+type FirmwareRecord = { model: string; hardVer: string; buildDay: string; cfgVer: string; detail: string };
+export const devInfoFor = (f: FirmwareRecord, itemNo: string) => (name: string, serial: string, firmVer: string) => {
   return {
     B485: 0, IOInputNum: 0, IOOutputNum: 0, audioNum: 1,
-    buildDay: FIRMWARE.buildDay, cfgVer: FIRMWARE.cfgVer, channelNum: 1, detail: FIRMWARE.detail,
-    diskNum: 1, exactType: 'IPC', firmVer, frameworkVer: 1, hardVer: FIRMWARE.hardVer, itemNo: '',
-    model: FIRMWARE.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
+    buildDay: f.buildDay, cfgVer: f.cfgVer, channelNum: 1, detail: f.detail,
+    diskNum: 1, exactType: 'IPC', firmVer, frameworkVer: 1, hardVer: f.hardVer, itemNo,
+    model: f.model, name, pakSuffix: 'pak,paks', serial, type: 'IPC', wifi: 0,
     // The one field a real camera never sends: clients such as cams label the
     // camera as simulated (Klaus, 2026-09-28). Everything else stays identical.
     // With the build's version (the container's APP_VERSION), so cams can
     // show which cam-sim it is (cams issue #69).
     simulator: `cam-sim ${process.env.APP_VERSION || 'dev'}`,
   };
-}
+};
+
+export const devInfo = devInfoFor(FIRMWARE, '');
 
 export const ENC = {
   audio: 1,
