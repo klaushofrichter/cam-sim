@@ -7,9 +7,7 @@
 #
 # Synced:  GitHub  CAMSIM_CONTROL_TOKEN, CAMSIM_USERS, and GITHUB_KUBE_SETUP_PAT as KUBE_SETUP_DEPLOY_TOKEN
 #                  (GitHub refuses secret names starting with GITHUB_)
-#          Kube    CAMSIM_CONTROL_TOKEN, CAMSIM_USERS (Secret $KUBE_SECRET in $KUBE_NAMESPACE), and the
-#                  admin user's credentials as username/password (Secret $KUBE_CAMERA_SECRET, for the
-#                  certificate push CronJob, like cam1-camera-credentials)
+#          Kube    CAMSIM_CONTROL_TOKEN, CAMSIM_USERS (Secret $KUBE_SECRET in $KUBE_NAMESPACE)
 # Never synced: REOLINK_PASSWORD, CAMSIM_GITHUB_PAT (used as GH_TOKEN for gh unless --gh-login).
 set -euo pipefail
 umask 077
@@ -92,7 +90,6 @@ if [ "$changed" = 1 ] && [ "$DRY" = 0 ]; then put CAMSIM_USERS "$users"; fi
 REPO=$(get GITHUB_REPO); REPO=${REPO:-klaushofrichter/cam-sim}
 NS=$(get KUBE_NAMESPACE); NS=${NS:-cam-sim}
 SECRET=$(get KUBE_SECRET); SECRET=${SECRET:-cam-sim-secrets}
-CAMERA_SECRET=$(get KUBE_CAMERA_SECRET); CAMERA_SECRET=${CAMERA_SECRET:-cam2-camera-credentials}
 CONTEXT=$(get KUBE_CONTEXT)
 
 # 3. GitHub Actions secrets, values on stdin.
@@ -121,20 +118,5 @@ if [ "$ONLY" != github ]; then
     printf 'CAMSIM_CONTROL_TOKEN=%s\nCAMSIM_USERS=%s\n' "$token" "$users" > "$tmp"
     kubectl --context "$CONTEXT" -n "$NS" create secret generic "$SECRET" --from-env-file="$tmp" --dry-run=client -o yaml \
       | kubectl --context "$CONTEXT" apply -f - >/dev/null
-  fi
-  admin_pw=""
-  IFS=';' read -r -a entries <<< "$users"
-  for e in "${entries[@]}"; do
-    [ "${e%%:*}" = admin ] && admin_pw=${e#*:*:}
-  done
-  if [ -n "$admin_pw" ]; then
-    say "apply kubernetes secret $CAMERA_SECRET in $NS (context $CONTEXT): username, password"
-    if [ "$DRY" = 0 ]; then
-      ctmp=$(mktemp)
-      trap 'rm -f "$tmp" "$ctmp"' EXIT
-      printf 'username=admin\npassword=%s\n' "$admin_pw" > "$ctmp"
-      kubectl --context "$CONTEXT" -n "$NS" create secret generic "$CAMERA_SECRET" --from-env-file="$ctmp" --dry-run=client -o yaml \
-        | kubectl --context "$CONTEXT" apply -f - >/dev/null
-    fi
   fi
 fi
