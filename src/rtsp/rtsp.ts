@@ -9,6 +9,7 @@ import type { Engine } from '../engine/engine';
 import { safeEqual as same } from '../util/safe-equal';
 import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
+import { listen as listenOn } from '../util/net';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
 const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
@@ -122,9 +123,8 @@ export class RtspService {
       }
       res.end();
     });
-    await new Promise<void>((r, j) => this.auth!.once('error', j).listen(0, '127.0.0.1', () => r()));
+    const authPort = await listenOn(this.auth, 0, '127.0.0.1');
     this.check();
-    const authPort = (this.auth.address() as AddressInfo).port;
 
     this.dir = mkdtempSync(join(tmpdir(), 'camsim-rtsp-'));
     const conf = join(this.dir, 'mediamtx.yml');

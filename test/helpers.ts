@@ -1,5 +1,4 @@
 import http from 'http';
-import type { AddressInfo } from 'net';
 import request from 'supertest';
 import { createEngine, type Engine } from '../src/engine/engine';
 import { createCameraApp } from '../src/camera-api/app';
@@ -7,6 +6,7 @@ import { loadConfig, type CamSimConfig } from '../src/config';
 import { createLogger } from '../src/log';
 import type { Clock } from '../src/engine/clock';
 import type pino from 'pino';
+import { closeServer, listen as listenOn } from '../src/util/net';
 
 export const USERS = 'admin:admin:admin-pw;cams:admin:cams-pw';
 
@@ -46,16 +46,8 @@ export async function login(app: Parameters<typeof request>[0], user = 'cams', p
 // A real listening server, for streaming and connection-reset checks.
 export async function listen(app: http.RequestListener): Promise<{ url: string; port: number; close(): Promise<void> }> {
   const server = http.createServer(app);
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-  const port = (server.address() as AddressInfo).port;
-  return {
-    url: `http://127.0.0.1:${port}`,
-    port,
-    close: () => new Promise<void>((r) => {
-      server.closeAllConnections();
-      server.close(() => r());
-    }),
-  };
+  const port = await listenOn(server, 0, '127.0.0.1');
+  return { url: `http://127.0.0.1:${port}`, port, close: () => closeServer(server) };
 }
 
 // GET that resolves with status/headers/first bytes, or 'reset' when the
