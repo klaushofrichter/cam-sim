@@ -193,10 +193,7 @@ export class RtspService {
     }
     await sleep(300);
     this.check();
-    e.bus.on('state', this.onState);
-    e.bus.on('fault', this.onChange);
-    e.bus.on('settings', this.onChange);
-    e.bus.on('video', this.onVideo);
+    for (const [topic, h] of this.subscriptions()) e.bus.on(topic, h);
     this.up = true;
     e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
   }
@@ -276,12 +273,14 @@ export class RtspService {
     this.publishers.clear();
   }
 
+  // The bus topics it follows while up, in the order its handlers run.
+  private subscriptions(): Array<[string, (...args: any[]) => void]> {
+    return [['state', this.onState], ['fault', this.onChange], ['settings', this.onChange], ['video', this.onVideo]];
+  }
+
   private async teardown(): Promise<void> {
     this.up = false;
-    this.engine.bus.off('state', this.onState);
-    this.engine.bus.off('fault', this.onChange);
-    this.engine.bus.off('settings', this.onChange);
-    this.engine.bus.off('video', this.onVideo);
+    for (const [topic, h] of this.subscriptions()) this.engine.bus.off(topic, h);
     this.stopPublishers();
     const m = this.mtx;
     if (m && !this.mtxExited && m.exitCode === null && m.signalCode === null) {

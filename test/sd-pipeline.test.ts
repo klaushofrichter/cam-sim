@@ -119,6 +119,16 @@ describe('SdPipeline', () => {
   }, 30_000);
 
   // Final review I5: the RTSP publisher password never reaches the state.
+  it('stop() removes every bus listener it added', async () => {
+    const e = await makeEngine();
+    const topics = ['pipeline', 'state', 'fault', 'video', 'settings'];
+    const before = topics.map((t) => e.bus.listenerCount(t));
+    const p = new SdPipeline(e, { fonts: null });
+    expect(topics.map((t) => e.bus.listenerCount(t))).toEqual(before.map((n, i) => n + (topics[i] === 'video' ? 2 : 1)));
+    await p.stop();
+    expect(topics.map((t) => e.bus.listenerCount(t))).toEqual(before);
+  });
+
   it('scrubs paths and the RTSP URL (with its password) from an error line', () => {
     const url = 'rtsp://camsim-publisher:0123abcd@127.0.0.1:8554/h264Preview_01_sub';
     const msg = scrubError(`[out#0/tee @ 0x1] ${url}: Connection refused; also /tmp/x/clock.txt`, url);
