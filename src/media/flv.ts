@@ -10,20 +10,24 @@ export interface FlvTag {
   bytes: Buffer; // tag header, body and trailing PreviousTagSize
 }
 
+// The whole tag at `at` (its bytes a view into `buf`), or undefined while
+// `buf` ends before it does.
+export function parseTagAt(buf: Buffer, at: number): { tag: FlvTag; end: number } | undefined {
+  if (at + 11 > buf.length) return undefined;
+  const size = buf.readUIntBE(at + 1, 3);
+  const end = at + 11 + size + 4;
+  if (end > buf.length) return undefined;
+  const type = buf[at] as FlvTag['type'];
+  const ms = buf.readUIntBE(at + 4, 3) + buf[at + 7] * 0x1000000;
+  const first = buf[at + 11];
+  const codecId = type === 9 ? first & 0x0f : type === 8 ? first >> 4 : undefined;
+  return { tag: { type, ms, codecId, bytes: buf.subarray(at, end) }, end };
+}
+
 export function readFlv(buf: Buffer): { header: Buffer; tags: FlvTag[] } {
   const headerEnd = buf.readUInt32BE(5) + 4; // header, then PreviousTagSize0
   const tags: FlvTag[] = [];
-  for (let at = headerEnd; at + 11 <= buf.length; ) {
-    const size = buf.readUIntBE(at + 1, 3);
-    const end = at + 11 + size + 4;
-    if (end > buf.length) break;
-    const type = buf[at] as FlvTag['type'];
-    const ms = buf.readUIntBE(at + 4, 3) + buf[at + 7] * 0x1000000;
-    const first = buf[at + 11];
-    const codecId = type === 9 ? first & 0x0f : type === 8 ? first >> 4 : undefined;
-    tags.push({ type, ms, codecId, bytes: buf.subarray(at, end) });
-    at = end;
-  }
+  for (let at = headerEnd, t; (t = parseTagAt(buf, at)); at = t.end) tags.push(t.tag);
   return { header: buf.subarray(0, headerEnd), tags };
 }
 
