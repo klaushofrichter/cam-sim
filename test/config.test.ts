@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { configFromOptions } from '../src/index';
 import { loadConfig, ConfigError, BAICHUAN_FIRST_MESSAGE_MS, BAICHUAN_IDLE_MS, BAICHUAN_SESSION_LIMIT } from '../src/config';
 
 const base = { CAMSIM_USERS: 'admin:admin:pw1;cams:admin:pw2' };
@@ -139,8 +140,7 @@ describe('loadConfig: SD pipeline', () => {
 });
 
 describe('defaults: CLI and in process', () => {
-  it('match, apart from the in-process Baichuan port (a free one), log level and web UI', async () => {
-    const { configFromOptions } = await import('../src/index');
+  it('match, apart from the in-process Baichuan port (a free one), log level and web UI', () => {
     const cli = loadConfig({ CAMSIM_USERS: 'u:admin:p', CAMSIM_BAICHUAN_PORT: '' });
     const lib = configFromOptions({ users: cli.users });
     const pick = ({ seed: _s, logLevel: _l, webUi: _w, ports, ...rest }: any) => ({ ...rest, ports: { ...ports, baichuan: undefined } });
