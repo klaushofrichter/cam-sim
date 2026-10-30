@@ -978,11 +978,28 @@ ctl -X POST $C/pipeline -d '{"minutes":15}'
 ctl -X DELETE $C/pipeline
 ```
 
+### PTZ state
+
+`GET /sim/api/ptz` (PTZ models: `E1-Outdoor-Pro`) answers the virtual
+position, the running move and the saved presets:
+
+```json
+{"pan":180,"tilt":25,"zoom":7,"focus":49,"moving":null,"presets":[]}
+```
+
+`pan` and `tilt` are the simulator's degrees (0.1 steps), `zoom` and `focus`
+the camera's steps; `moving` is `{op,speed,since}` (an ISO time) while a
+`PtzCtrl` move runs, and `presets` lists the enabled slots
+(`{id,name,pan,tilt,zoom}`, by id). A model without PTZ answers 404
+`{"error":"no_ptz"}`. In process, `sim.engine.ptz?.view()` gives the same
+object (type `PtzView`, exported from the package). See
+[PTZ](#ptz-pantilt-models) for the commands.
+
 ### Reset, request log, live feed
 
-- `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true}`
-  answers 204 (`video` goes back to the test pattern). An empty body resets
-  all five.
+- `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true,"ptz":true}`
+  answers 204 (`video` goes back to the test pattern, `ptz` to the start
+  position with every preset slot empty). An empty body resets all six.
 - `GET /sim/api/requests?limit=100` lists recent camera API requests: time,
   port, method, path **without the query**, command, status and duration.
   Tokens and passwords never appear. Baichuan messages show as port `baichuan`, method `BC`, the cmd number, the status and the body lengths (`len`, `replyLen`), never a body.

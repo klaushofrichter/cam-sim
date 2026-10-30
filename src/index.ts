@@ -28,6 +28,7 @@ export { MODELS } from './profile/profile';
 // For test runners: build the fixtures once before workers start (globalSetup).
 export { ensureFixtures, defaultFixtureDir } from './media/fixtures';
 export type { FaultSpec, SeedClip, Trigger, User, Engine, CamSimConfig, Model };
+export type { PtzView } from './engine/ptz';
 
 export interface CamSimOptions {
   users: User[];
