@@ -377,6 +377,52 @@ post Logout
 Not supported, as on this firmware: `GetFtp` and `TestFtpV20` (`-9`). For now,
 `CheckFirmware` (its reply isn't captured yet) also answers `-9`.
 
+### PTZ (pan/tilt models)
+
+Only on a model whose `GetAbility` grants `ptzCtrl` (`E1-Outdoor-Pro`). The
+RLC-1224A and CX820 answer every command below as unknown (`-9`), as before.
+The simulator keeps a virtual pan, tilt, zoom and focus and 64 preset slots
+per camera; the [control API](#ptz-state) shows them, and snapshots and live
+SD draw `PAN x TILT y ZOOM z`.
+
+| Command | `param` | Reply |
+|---|---|---|
+| `PtzCtrl` | `{channel:0,op,speed?,id?}` | `{rspCode:200}`; ops `Left` `Right` `Up` `Down` `LeftUp` `LeftDown` `RightUp` `RightDown` `Stop` `ZoomInc` `ZoomDec` `FocusInc` `FocusDec` `ToPos` (with `id`) |
+| `StartZoomFocus` | `{ZoomFocus:{channel:0,op:"ZoomPos"\|"FocusPos",pos}}` | `{rspCode:200}`: zoom (0–27) or focus (0–97) at once |
+| `GetZoomFocus` | `{channel:0}` | `initial`, `range` and `{ZoomFocus:{channel:0,focus:{pos},zoom:{pos}}}`; `initial` follows the position, as on the camera |
+| `GetPtzPreset` | `{channel:0}` | `initial`, `range` (says ids 1–64) and `{PtzPreset:[{channel,enable,id,imgName,name}]}`, 64 slots, ids 0–63, empty ones named `pos<id+1>` |
+| `SetPtzPreset` | `{PtzPreset:{channel:0,enable,id,name}}` | `{rspCode:200}`; `enable:1` saves the current pan, tilt and zoom, `enable:0` empties the slot |
+| `GetPtzGuard`, `GetPtzCheckState`, `GetAutoFocus`, `GetPtzPatrol` | `{channel:0}` | the E1's captured answers (`initial`, `range`, `value`) |
+| `GetPtzCurPos`, `GetPtzTraceSection` | | `-1` "not exist" |
+| `GetPtzTattern`, `GetPtzSerial` | | `-12` "get config failed" |
+
+Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
+- speed 1–64, and may be left out; 0 or above 64 → `-4` "param error"; an
+  unknown op → `-4`;
+- zoom 0–27 and focus 0–97, at the start 7 and 49; speed 32 `ZoomInc` for
+  1.5 s takes the zoom 7 → 26;
+- preset ids 0–63 (64 → `-4`); a name longer than 31 characters is stored as
+  `pos<id+1>`; `ToPos` to an empty slot answers 200 and nothing moves;
+- `ToPos` restores the zoom of the slot, not its focus.
+
+The simulator's own choices (not measured):
+- pan 0–355 and tilt 0–50 degrees, starting at 180 and 25 (the camera reports
+  no pan/tilt position);
+- per speed unit, pan and tilt move 1.5°/s, zoom and focus 0.4 steps/s;
+  `Up` raises the tilt; diagonals move both axes at full rate;
+- a move lasts until `Stop`, another op, `ToPos` or `StartZoomFocus`, and
+  stops at the limits; `ToPos` and `StartZoomFocus` apply at once;
+- omitted speed is 32; a speed that isn't an integer → `-4`; `Stop` ignores
+  speed;
+- a preset stores pan, tilt and zoom, not focus; `enable:0` resets the name to
+  `pos<id+1>`; `enable:1` without a name keeps the slot's name;
+- the PTZ Gets answer `initial` and `range` for any `action`;
+- reboot, power-off and power-on stop a move and keep the presets;
+  `POST /sim/api/reset` and factory reset clear both.
+
+`SetPtzPreset` counts in `setCalls` and takes the `settings.fail` and
+`settings.ignore` faults like the settings Sets.
+
 ### Settings: always write the whole object
 
 A `Set` answers `code 0, rspCode 200` for a partial object, and an immediate
@@ -865,8 +911,8 @@ matching requests.
 | `flv.reset` | | every `/flv` connection resets, even with a valid token |
 | `flv.delayMs` | `ms` | delay the `/flv` response |
 | `search.delayMs` | `ms` | make Search slower (widens the `-54` window) |
-| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error |
-| `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing |
+| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`) |
+| `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing (also `SetPtzPreset`) |
 | `settings.strictPartial` | | a partial Set's resets show at once, not after a reboot |
 | `offline` | | every camera connection is destroyed, Baichuan included (the camera stays powered) |
 | `latencyMs` | `ms` | delay every camera request |

@@ -19,6 +19,7 @@ import { createLogger } from '../log';
 import { Certificates } from '../tls/certs';
 import { RequestLog } from './request-log';
 import { profileFor, type CameraProfile } from '../profile/profile';
+import { Ptz, ptzEnabled } from './ptz';
 import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
@@ -58,6 +59,8 @@ export class Engine {
   readonly rng: Rng;
   // The camera model's fixed answers (CAMSIM_MODEL).
   readonly profile: CameraProfile;
+  // The virtual pan/tilt/zoom state of a PTZ model; null for fixed models.
+  readonly ptz: Ptz | null;
   serial: string;
   rebooting = false;
   // Power: 'off' after power-off, 'booting' during power-on, else 'on'.
@@ -87,6 +90,8 @@ export class Engine {
     public media: MediaSource,
   ) {
     this.profile = profileFor(config.model);
+    if (ptzEnabled(this.profile.ability) && !this.profile.ptz) throw new Error(`profile ${this.profile.model} permits PTZ but has no ptz spec`);
+    this.ptz = ptzEnabled(this.profile.ability) ? new Ptz(this.profile.ptz!, clock) : null;
     this.rng = createRng(config.seed);
     this.certs = new Certificates({ certFile: config.tlsCertFile, keyFile: config.tlsKeyFile, dataDir: config.dataDir });
     this.serial = this.newSerial();
@@ -221,8 +226,10 @@ export class Engine {
   }
 
   // Start-up after a reboot or power-on: offline for `ms`, then a new serial,
-  // no sessions, and the saved settings take effect.
+  // no sessions, and the saved settings take effect. A PTZ move stops; the
+  // presets stay (not measured).
   private async boot(msOpt?: number): Promise<void> {
+    this.ptz?.stop();
     const ms = Math.min(Math.max(0, Number(msOpt ?? this.timings.rebootMs) || 0), 600_000);
     await sleep(ms);
     this.serial = this.newSerial();
@@ -235,6 +242,7 @@ export class Engine {
   powerOff(): boolean {
     if (this.power !== 'on' || this.rebooting) return false;
     this.power = 'off';
+    this.ptz?.stop();
     this.events.stop();
     this.sessions.revokeAll();
     this.dropConnections();
@@ -279,8 +287,9 @@ export class Engine {
   }
 
   // Back to a known state between tests. Every part defaults to on.
-  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean; video?: boolean } = {}): void {
+  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean; video?: boolean; ptz?: boolean } = {}): void {
     const all = Object.values(what).every((v) => v === undefined);
+    if (all || what.ptz) this.ptz?.reset();
     if (all || what.faults) this.faults.clearAll();
     if (all || what.settings) this.settings.resetFactory();
     if (all || what.recordings) this.sd.clear();
