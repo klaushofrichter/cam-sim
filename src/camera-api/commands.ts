@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import type { Engine } from '../engine/engine';
 import type { SessionInfo } from '../engine/sessions';
 import { isSetCommand } from '../engine/settings';
-import { timeValue } from '../engine/clock';
+import { TIME_INITIAL, TIME_RANGE } from '../engine/camera-time';
 import { validPair } from '../tls/certs';
 import { testFtp } from '../ftp/uploader';
 import { NAME_MAX, AI_TYPES } from '../profile/rlc1224a';
@@ -92,7 +92,21 @@ const HANDLERS: Record<string, Handler> = {
       range: { DevName: { name: { maxLen: NAME_MAX, minLen: 0 } } },
     });
   },
-  GetTime: (c) => ok(c.cmd, timeValue(c.engine.clock, c.engine.config.tz)),
+  // action 1 adds the factory values and the ranges (measured on the E1).
+  GetTime: (c) => ok(c.cmd, c.engine.time.value(), c.action === 1 ? { initial: TIME_INITIAL, range: TIME_RANGE } : {}),
+  // Whole Time and Dst objects (measured 2026-10-30): the camera's clock is
+  // set to the given date and time, zone and DST rule stored; a value out of
+  // range is -4 "param error" and nothing changes. Like a settings Set for
+  // the settings faults and setCalls.
+  SetTime: (c) => {
+    const e = c.engine;
+    e.counters.noteSet(c.cmd);
+    const failing = e.faults.consume('settings.fail', c.cmd);
+    if (failing) return fail(c.cmd, failing.rspCode ?? -67);
+    if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
+    const r = e.time.set(c.param);
+    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
+  },
   GetHddInfo: getter('HddInfo', (e) => e.sd.hddInfo()),
   GetEnc: getter('Enc', (e) => e.profile.enc),
   GetNetPort: getter('NetPort', (e) => e.settings.get('NetPort')),

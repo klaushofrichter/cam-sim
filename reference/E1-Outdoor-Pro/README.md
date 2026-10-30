@@ -25,6 +25,12 @@ the source of `src/profile/E1-Outdoor-Pro.ts`.
 - `ptz-zoom-overlap.json`: a zoom while a zoom runs, measured 2026-10-30,
   as `{cmd, param, res}` in order (no round trip times). Written down from
   that measurement's results; see Measured PTZ.
+- `time-exchanges.json`: the time measurement, 2026-10-30, in order: an
+  array of `{cmd, action, param, res, ms}`. `GetTime` with action 1 and 0,
+  a `SetTime` that writes back what `GetTime` returned (200), one with
+  `timeZone` 999999 (`-4` "param error"), and a `GetTime` showing nothing
+  changed. The same Time and Dst objects as the RLC-1224A and CX820
+  `GetTime.json`. Only time values, nothing redacted.
 
 Not kept (not modelled, and several carry redactions): Wifi, LocalLink,
 RtspUrl, Email, Ftp, Push, Channelstatus, Certificate and the other Gets of
