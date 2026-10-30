@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `CAMSIM_MODEL=e1-outdoor-pro` makes cam-sim answer as the Reolink E1 Outdoor Pro, a pan/tilt/zoom camera. It keeps a virtual pan/tilt/zoom/focus state and 64 preset slots, draws the position on the picture, and lets tests read it over the control API. cam-proxy (plan B) and cams can then be built and tested against it.
+**Goal:** `CAMSIM_MODEL=E1-Outdoor-Pro` makes cam-sim answer as the Reolink E1 Outdoor Pro, a pan/tilt/zoom camera. It keeps a virtual pan/tilt/zoom/focus state and 64 preset slots, draws the position on the picture, and lets tests read it over the control API. cam-proxy (plan B) and cams can then be built and tested against it.
 
 **Architecture:**
 - A new pure module `src/engine/ptz.ts` (class `Ptz`) holds the virtual state. It advances moves lazily from the engine's `Clock`, so a `fixedClock` makes every test deterministic.
 - The engine owns one `Ptz` per simulator, and only when the profile's ability has `ptzCtrl.permit > 0`. Otherwise `engine.ptz` is `null`.
 - The PTZ command handlers live in `src/camera-api/ptz-commands.ts`. `runCommand()` consults them only when `engine.ptz` is set. The fixed models (RLC-1224A, CX820) never reach them and answer exactly as today.
-- The profile `src/profile/e1-outdoor-pro.ts` is built from the sanitized captures in `reference/e1-outdoor-pro/`.
+- The profile `src/profile/E1-Outdoor-Pro.ts` is built from the sanitized captures in `reference/E1-Outdoor-Pro/`.
 - Picture: an extra centered `drawtext` in the SD pipeline's filter chain, plus a one-frame ffmpeg overlay on snapshots for PTZ profiles.
 
 **Tech Stack:** Node, TypeScript (strict), Express 5, Vitest, supertest, ffmpeg (already required). No new dependency.
@@ -17,7 +17,7 @@
 
 ## Global Constraints
 
-- Model id is exactly `e1-outdoor-pro`. The existing ids `RLC-1224A` (default) and `CX820` are unchanged; matching stays case-sensitive (`oneOf`).
+- Model id is exactly `E1-Outdoor-Pro`. The existing ids `RLC-1224A` (default) and `CX820` are unchanged; matching stays case-sensitive (`oneOf`).
 - RLC-1224A and CX820 answer byte for byte as today: PTZ commands give `{cmd:'Unknown',code:1,error:{detail:'not support',rspCode:-9}}`, Snap returns the fixture JPEG, and the SD filter chain is unchanged.
 - The repo is public. `reference/` and `src/profile/` hold no real serial (use `SIM000000000000`), MAC, UID, token, password, or real camera name (use `Cam`). The only IP addresses allowed are `192.0.2.0/24`.
 - Measured values (spec §3), copied verbatim:
@@ -27,7 +27,7 @@
   - `ToPos` to an empty slot → 200 with no move.
   - `GetPtzCurPos` → `{code:1,error:{detail:"not exist",rspCode:-1}}`.
 - The ops are `Left Right Up Down LeftUp LeftDown RightUp RightDown Stop ZoomInc ZoomDec FocusInc FocusDec ToPos`.
-- Behave like the real camera. Anything this plan decides without a measurement carries a `(not measured)` comment in the code and a line in `reference/e1-outdoor-pro/README.md`.
+- Behave like the real camera. Anything this plan decides without a measurement carries a `(not measured)` comment in the code and a line in `reference/E1-Outdoor-Pro/README.md`.
 - Faults are a contract: a change to what a fault covers updates the README fault table and CHANGELOG together.
 - User-visible changes go under `## Unreleased` in CHANGELOG.md. Never put a version in the sources.
 - Each task ends green on `npm test` and `npm run lint:types`. Commit messages end with the two attribution lines from the session.
@@ -45,11 +45,11 @@
 ### Task 1: Reference captures for the E1 Outdoor Pro
 
 **Files:**
-- Create: `reference/e1-outdoor-pro/*.json` and `reference/e1-outdoor-pro/README.md`
+- Create: `reference/E1-Outdoor-Pro/*.json` and `reference/E1-Outdoor-Pro/README.md`
 - Test: `test/reference-privacy.test.ts`
 
 **Interfaces:**
-- Produces: `reference/e1-outdoor-pro/<Cmd>.json`, each holding **one reply entry** `{cmd, code, [initial], [range], value|error}`. This differs from the `{contentType, reply:[…]}` files of cx820, because the probe did not keep the HTTP content type; the README says so. Also `reference/e1-outdoor-pro/ptz-exchanges.json` (renamed from `_measured-ptz-exchanges.json`), an array of `{cmd, param, res, ms}`. Tasks 3 and 5 read these files.
+- Produces: `reference/E1-Outdoor-Pro/<Cmd>.json`, each holding **one reply entry** `{cmd, code, [initial], [range], value|error}`. This differs from the `{contentType, reply:[…]}` files of cx820, because the probe did not keep the HTTP content type; the README says so. Also `reference/E1-Outdoor-Pro/ptz-exchanges.json` (renamed from `_measured-ptz-exchanges.json`), an array of `{cmd, param, res, ms}`. Tasks 3 and 5 read these files.
 
 - [ ] **Step 1: Write the failing test** `test/reference-privacy.test.ts`. It walks every file under `reference/` (all models, the Baichuan and ONVIF text too) and asserts:
 
@@ -61,7 +61,7 @@ expect(text).not.toMatch(/Backyard/);                                           
 // every "serial" value is SIM000000000000 or <redacted>
 ```
 
-It also asserts that `reference/e1-outdoor-pro/` exists and holds the files listed in Step 3.
+It also asserts that `reference/E1-Outdoor-Pro/` exists and holds the files listed in Step 3.
 
 - [ ] **Step 2: Run** `npx vitest run test/reference-privacy.test.ts`. Expected: FAIL (no e1 folder). The existing folders must pass the pattern checks; if one doesn't, fix the regex for that false positive, not the data.
 
@@ -89,7 +89,7 @@ Write `README.md` in the shape of `reference/cx820/README.md`:
 
 - [ ] **Step 4: Run** `npx vitest run test/reference-privacy.test.ts`. Expected: PASS.
 
-- [ ] **Step 5: Commit** with `git add reference/e1-outdoor-pro test/reference-privacy.test.ts` and the message `test: E1 Outdoor Pro reference captures and a privacy check`.
+- [ ] **Step 5: Commit** with `git add reference/E1-Outdoor-Pro test/reference-privacy.test.ts` and the message `test: E1 Outdoor Pro reference captures and a privacy check`.
 
 ---
 
@@ -179,31 +179,31 @@ it('ptzEnabled: permit 7 → true; permit 0 or missing → false', ...)
 
 ---
 
-### Task 3: The `e1-outdoor-pro` profile
+### Task 3: The `E1-Outdoor-Pro` profile
 
 **Files:**
-- Create: `src/profile/e1-outdoor-pro.ts`, `src/profile/e1-ability.json` (the `value` of `reference/e1-outdoor-pro/GetAbility.json`), `src/profile/e1-ptz.json` (the PTZ Get answers without `cmd`/`code`, with `imgName` `""`)
+- Create: `src/profile/E1-Outdoor-Pro.ts`, `src/profile/e1-ability.json` (the `value` of `reference/E1-Outdoor-Pro/GetAbility.json`), `src/profile/e1-ptz.json` (the PTZ Get answers without `cmd`/`code`, with `imgName` `""`)
 - Modify: `src/profile/profile.ts` (`MODELS`, `PROFILES`, `CameraProfile.ptz?`, `extras.IrLights`)
 - Modify: `src/profile/rlc1224a.ts:24` (`devInfoFor` takes overrides)
 - Modify: `README.md` (Configuration table rows for `CAMSIM_MODEL`, `CAMSIM_FIRMWARE`, `CAMSIM_MAIN_SIZE`; a third entry under "Camera models"), `CHANGELOG.md` (Unreleased), `llms.txt` if it lists models
 - Test: `test/profile-e1.test.ts`; update the `MODELS` assertion in `test/profile-cx820.test.ts:38`
 
 **Interfaces:**
-- Consumes: `PtzSpec` from Task 2; `reference/e1-outdoor-pro/*.json` from Task 1.
+- Consumes: `PtzSpec` from Task 2; `reference/E1-Outdoor-Pro/*.json` from Task 1.
 - Produces:
-  - `MODELS = ['RLC-1224A', 'CX820', 'e1-outdoor-pro'] as const`.
+  - `MODELS = ['RLC-1224A', 'CX820', 'E1-Outdoor-Pro'] as const`.
   - `CameraProfile.ptz?: PtzSpec`: set exactly when `ptzEnabled(profile.ability)`.
-  - `E1_OUTDOOR_PRO: CameraProfile` exported from `src/profile/e1-outdoor-pro.ts`.
+  - `E1_OUTDOOR_PRO: CameraProfile` exported from `src/profile/E1-Outdoor-Pro.ts`.
   - `devInfoFor(f, itemNo, over?: { exactType?: string; wifi?: number })`.
-  - How another repo selects the model: `CAMSIM_MODEL=e1-outdoor-pro` (CLI or container), or `createCamSim({ users, model: 'e1-outdoor-pro' })` in process (`Model` and `MODELS` are already exported from the package root).
+  - How another repo selects the model: `CAMSIM_MODEL=E1-Outdoor-Pro` (CLI or container), or `createCamSim({ users, model: 'E1-Outdoor-Pro' })` in process (`Model` and `MODELS` are already exported from the package root).
 
-- [ ] **Step 1: Write the failing tests** in `test/profile-e1.test.ts`. They compare against `reference/e1-outdoor-pro/` and use a `shape()` like profile-cx820's:
+- [ ] **Step 1: Write the failing tests** in `test/profile-e1.test.ts`. They compare against `reference/E1-Outdoor-Pro/` and use a `shape()` like profile-cx820's:
 
 ```ts
-expect(MODELS).toEqual(['RLC-1224A', 'CX820', 'e1-outdoor-pro']);
-expect(loadConfig({ ...base, CAMSIM_MODEL: 'e1-outdoor-pro' })).toMatchObject({ model: 'e1-outdoor-pro', firmVer: 'v3.1.0.5714_2511271366', mainSize: '3840x2160' });
+expect(MODELS).toEqual(['RLC-1224A', 'CX820', 'E1-Outdoor-Pro']);
+expect(loadConfig({ ...base, CAMSIM_MODEL: 'E1-Outdoor-Pro' })).toMatchObject({ model: 'E1-Outdoor-Pro', firmVer: 'v3.1.0.5714_2511271366', mainSize: '3840x2160' });
 expect(() => loadConfig({ ...base, CAMSIM_MODEL: 'E1-OUTDOOR-PRO' })).toThrow(ConfigError);
-expect(configFromOptions({ users: [], model: 'e1-outdoor-pro' }).model).toBe('e1-outdoor-pro');
+expect(configFromOptions({ users: [], model: 'E1-Outdoor-Pro' }).model).toBe('E1-Outdoor-Pro');
 // DevInfo minus `simulator` equals the reference (serial SIM000000000000, name Cam): model 'E1 Outdoor Pro', exactType 'WIFI_SOLO_IPC', wifi 1, itemNo 'E560'
 expect(E1.enc).toEqual(ref('GetEnc').Enc);
 expect(E1.ability).toEqual(ref('GetAbility'));
@@ -212,7 +212,7 @@ expect(E1.media).toEqual({ sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3
 // factory Isp, WhiteLed and Osd (name aside) have the captures' key sets; MdAlarm scope 60 x 33
 expect(E1.ptz).toMatchObject({ zoom: [0, 27], focus: [0, 97], slots: 64, nameMax: 31, speed: [1, 64], start: { zoom: 7, focus: 49 } });
 for (const m of MODELS) expect(!!profileFor(m).ptz).toBe(ptzEnabled(profileFor(m).ability));
-expect(fixtureSpec(E1).suffix).toBe('-e1-outdoor-pro');
+expect(fixtureSpec(E1).suffix).toBe('-E1-Outdoor-Pro');
 ```
 
 - [ ] **Step 2: Run** `npx vitest run test/profile-e1.test.ts test/profile-cx820.test.ts`. Expected: FAIL.
@@ -231,7 +231,7 @@ Everything else comes from the CX820 profile, `(not measured)`: the AiAlarm grid
 
 - [ ] **Step 4: Run** `npm test` (the global setup builds the new fixture folder) and `npm run lint:types`. Expected: PASS.
 
-- [ ] **Step 5: Update the docs.** In the README, add an `e1-outdoor-pro` entry under "Camera models" with the differences from Task 1's README and a pointer to "PTZ" (Task 4), and the model in the three Configuration rows. In the CHANGELOG, add an Unreleased entry: a third camera model, `CAMSIM_MODEL=e1-outdoor-pro` (in process `createCamSim({ model: 'e1-outdoor-pro' })`), from captures of the real E1 (firmware v3.1.0.5714); the default stays RLC-1224A, unchanged. Later tasks add to this entry.
+- [ ] **Step 5: Update the docs.** In the README, add an `E1-Outdoor-Pro` entry under "Camera models" with the differences from Task 1's README and a pointer to "PTZ" (Task 4), and the model in the three Configuration rows. In the CHANGELOG, add an Unreleased entry: a third camera model, `CAMSIM_MODEL=E1-Outdoor-Pro` (in process `createCamSim({ model: 'E1-Outdoor-Pro' })`), from captures of the real E1 (firmware v3.1.0.5714); the default stays RLC-1224A, unchanged. Later tasks add to this entry.
 
 - [ ] **Step 6: Commit** with `git add src/profile test/profile-e1.test.ts test/profile-cx820.test.ts README.md CHANGELOG.md` (plus `llms.txt` if changed) and the message `feat: E1 Outdoor Pro camera profile`.
 
@@ -254,7 +254,7 @@ Everything else comes from the CX820 profile, `(not measured)`: the AiAlarm grid
   - `PTZ_HANDLERS: Record<string, Handler>` in `ptz-commands.ts`, for `PtzCtrl`, `StartZoomFocus`, `GetZoomFocus`, `GetPtzPreset`, `SetPtzPreset`, `GetPtzGuard`, `GetPtzCheckState`, `GetAutoFocus`, `GetPtzPatrol`, plus one refusal handler per `profile.ptz.refusals` key.
   - `runCommand` dispatches to `PTZ_HANDLERS` first, but only when `c.engine.ptz` is set.
 
-- [ ] **Step 1: Write the failing tests** in `test/conformance/ptz-api.test.ts`, using `makeCamera({ CAMSIM_MODEL: 'e1-outdoor-pro' }, { clock })`, `login`, and `post`:
+- [ ] **Step 1: Write the failing tests** in `test/conformance/ptz-api.test.ts`, using `makeCamera({ CAMSIM_MODEL: 'E1-Outdoor-Pro' }, { clock })`, `login`, and `post`:
 
 ```ts
 it('PtzCtrl Left 32, 2 s, Stop → {rspCode:200}; GET state pan 84', ...)          // via engine.ptz.view()
@@ -293,7 +293,7 @@ it('two E1 engines move independently (review focus 5)', ...)
 - Test: `test/conformance/ptz-reference.test.ts`
 
 **Interfaces:**
-- Consumes: `reference/e1-outdoor-pro/ptz-exchanges.json` and the PTZ `Get*.json` files (Task 1); the E1 camera from Task 4.
+- Consumes: `reference/E1-Outdoor-Pro/ptz-exchanges.json` and the PTZ `Get*.json` files (Task 1); the E1 camera from Task 4.
 
 - [ ] **Step 1: Write the test.**
   - **Replay `ptz-exchanges.json` in order** against one E1 sim with a `fixedClock`. Before the `Stop` that follows `ZoomInc`, advance 1500 ms; advance 100 ms between the other pairs. For each exchange:
@@ -385,7 +385,7 @@ it('an E1 pipeline writes the PTZ text next to the clock each tick', ...)   // r
 
 - [ ] **Step 4: Run** `npm test` and `npm run lint:types`. Expected: PASS.
 
-- [ ] **Step 5: Check by hand.** Run `CAMSIM_MODEL=e1-outdoor-pro npm run dev` and open the web UI's snapshot. It shows `PAN 180 TILT 25 ZOOM 7` in the middle. Don't commit the picture.
+- [ ] **Step 5: Check by hand.** Run `CAMSIM_MODEL=E1-Outdoor-Pro npm run dev` and open the web UI's snapshot. It shows `PAN 180 TILT 25 ZOOM 7` in the middle. Don't commit the picture.
 
 - [ ] **Step 6: Update the docs.** In the README: "PTZ models draw `PAN x TILT y ZOOM z` on snapshots and, while the SD pipeline is on, on live SD". In the CHANGELOG, extend the entry.
 
@@ -396,4 +396,4 @@ it('an E1 pipeline writes the PTZ text next to the clock each tick', ...)   // r
 ## After the plan
 
 - Run `npm run test:e2e` once: the web UI is untouched, but the model name shows in the top bar.
-- Open the PR to `main`. The release follows the usual flow. cam-proxy plan B needs that release, plus a cam-sim tarball bump in cam-proxy's `package.json`, before its integration tests can use `model: 'e1-outdoor-pro'`.
+- Open the PR to `main`. The release follows the usual flow. cam-proxy plan B needs that release, plus a cam-sim tarball bump in cam-proxy's `package.json`, before its integration tests can use `model: 'E1-Outdoor-Pro'`.
