@@ -5,6 +5,7 @@ import type pino from 'pino';
 import type { Response } from 'express';
 import type { CamSimConfig } from '../config';
 import { systemClock, type Clock } from './clock';
+import { CameraTime } from './camera-time';
 import { createRng, type Rng } from './rng';
 import { Sessions } from './sessions';
 import { SettingsStore } from './settings';
@@ -57,6 +58,8 @@ export class Engine {
   readonly requests = new RequestLog();
   readonly sessions: Sessions;
   readonly settings: SettingsStore;
+  // The camera's clock and zone (GetTime, SetTime).
+  readonly time: CameraTime;
   readonly sd: SdCard;
   readonly events: Events;
   readonly rng: Rng;
@@ -106,6 +109,7 @@ export class Engine {
     this.certs = new Certificates({ certFile: config.tlsCertFile, keyFile: config.tlsKeyFile, dataDir: config.dataDir });
     this.serial = this.newSerial();
     this.sessions = new Sessions(config.users, clock);
+    this.time = new CameraTime(clock, config.tz);
     this.settings = new SettingsStore({ name: config.name, file: config.dataDir && join(config.dataDir, 'settings.json'), log, profile: this.profile });
     this.mediaById.set('test-pattern', media);
     this.sd = new SdCard({
@@ -325,7 +329,10 @@ export class Engine {
     const all = Object.values(what).every((v) => v === undefined);
     if (all || what.ptz) this.ptz?.reset();
     if (all || what.faults) this.faults.clearAll();
-    if (all || what.settings) this.settings.resetFactory();
+    if (all || what.settings) {
+      this.settings.resetFactory();
+      this.time.reset();
+    }
     if (all || what.recordings) this.sd.clear();
     if (all || what.counters) this.counters.reset();
     if ((all || what.video) && this.videoId !== 'test-pattern') this.setMedia(this.mediaFor({ video: 'test-pattern' }), 'test-pattern');
