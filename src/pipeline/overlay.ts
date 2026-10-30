@@ -49,7 +49,22 @@ function place(pos: string, slot: number, belowWatermark: boolean): string {
   return `x=${x}:y=${y}`;
 }
 
-export function filterChain(s: OverlaySettings, files: { clock: string; name: string }, fonts: { regular: string; bold: string }): string {
+// The PTZ position a pan/tilt model draws in the middle of the picture (the
+// simulator's, so tests can see where the camera points): only [A-Z0-9 .-].
+export function ptzText(p: { pan: number; tilt: number; zoom: number }): string {
+  return `PAN ${Math.round(p.pan)} TILT ${Math.round(p.tilt)} ZOOM ${Math.round(p.zoom)}`;
+}
+
+// The PTZ text's style: centered, so it never meets the six OSD positions.
+export const PTZ_TEXT_STYLE = 'fontsize=20:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=(h-text_h)/2';
+
+// drawtext for the PTZ text from a file (live SD) or a literal (snapshots).
+export function ptzDrawtext(font: string, src: { file: string } | { text: string }): string {
+  const what = 'file' in src ? `textfile=${q(src.file)}:reload=1` : `text='${src.text.replace(/[^A-Z0-9 .-]/g, '')}'`;
+  return `drawtext=fontfile=${q(font)}:${what}:expansion=none:${PTZ_TEXT_STYLE}`;
+}
+
+export function filterChain(s: OverlaySettings, files: { clock: string; name: string; ptz?: string }, fonts: { regular: string; bold: string }): string {
   const out: string[] = [];
   if (s.rotation) out.push('vflip');
   if (s.mirroring) out.push('hflip');
@@ -65,5 +80,6 @@ export function filterChain(s: OverlaySettings, files: { clock: string; name: st
   const top = /^(Upper|Top)/.test(s.name.pos);
   if (s.time.enable) out.push(text(files.clock, s.time.pos, shared ? (top ? 0 : 1) : 0));
   if (s.name.enable) out.push(text(files.name, s.name.pos, shared ? (top ? 1 : 0) : 0));
+  if (files.ptz) out.push(ptzDrawtext(fonts.regular, { file: files.ptz }));
   return out.length ? out.join(',') : 'null';
 }

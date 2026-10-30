@@ -20,6 +20,9 @@ import { Certificates } from '../tls/certs';
 import { RequestLog } from './request-log';
 import { profileFor, type CameraProfile } from '../profile/profile';
 import { Ptz, ptzEnabled } from './ptz';
+import { ptzText } from '../pipeline/overlay';
+import { findFonts } from '../pipeline/fonts';
+import { drawTextOnJpeg } from '../pipeline/ptz-picture';
 import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
@@ -80,6 +83,13 @@ export class Engine {
   pipeline: { on: boolean; until?: number; error?: string } = { on: false };
   private pipelineTimer?: NodeJS.Timeout;
   liveSub?: LiveSubSource; // set by SdPipeline
+  // The ffmpeg that draws the PTZ position on snapshots (tests point it elsewhere).
+  ffmpeg = 'ffmpeg';
+  // The last PTZ snapshot (one entry: video and text), the font, and whether
+  // a failure was logged.
+  private ptzSnap?: { key: string; jpeg: Buffer };
+  private ptzFont?: string | null;
+  private ptzSnapFailed = false;
   // Set by the Baichuan server (src/baichuan/server.ts): device actions reach port 9000.
   baichuan?: { dropAll(): void; dropTransfers(): void };
 
@@ -172,6 +182,30 @@ export class Engine {
       this.log.warn({ video: id }, 'recording_video_missing');
     }
     return this.media;
+  }
+
+  // The picture for Snap and the web UI. PTZ models draw their position in
+  // the middle (the simulator's; one ffmpeg run per new position, cached);
+  // without a font, or when ffmpeg fails, the plain picture. Fixed models:
+  // the media's snapshot unchanged. (The FTP upload keeps the plain picture:
+  // whether the camera's FTP picture shows anything extra is not measured.)
+  async snapshot(): Promise<Buffer> {
+    const plain = await this.media.snapshot();
+    if (!this.ptz) return plain;
+    if (this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
+    if (!this.ptzFont) return plain;
+    const text = ptzText(this.ptz.position());
+    const key = `${this.videoId}|${text}`;
+    if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
+    try {
+      const jpeg = await drawTextOnJpeg(plain, text, this.ptzFont, this.ffmpeg);
+      this.ptzSnap = { key, jpeg };
+      return jpeg;
+    } catch (err) {
+      if (!this.ptzSnapFailed) this.log.warn({ err: (err as Error).message }, 'ptz_snapshot_failed');
+      this.ptzSnapFailed = true;
+      return plain;
+    }
   }
 
   // Powered off, booting, rebooting or the offline fault: every port is down.

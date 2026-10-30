@@ -456,6 +456,13 @@ curl -sk "https://$CAM/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=$RANDOM&token=$TOKE
 
 The reply is `image/jpeg`. A bad token gets 200 `text/html` with the `-6` body.
 
+PTZ models (`E1-Outdoor-Pro`) draw `PAN x TILT y ZOOM z` in the middle of
+the snapshot (one ffmpeg run per new position, cached), so a test can see where
+the camera points; the web UI's snapshot shows the same. Without a font
+(`CAMSIM_FONT_DIR`, as for the SD pipeline) or when ffmpeg fails, the plain
+picture. The RLC-1224A and CX820 serve the picture unchanged, and FTP uploads
+stay plain on every model.
+
 ### Recordings: Search
 
 **Days with recordings in a month** (`onlyStatus: 1`):
@@ -955,8 +962,10 @@ ctl -X PUT $C/video -d '{"id":"garden-walk"}'
 Optional and time-limited: it re-encodes the **live SD stream** (FLV
 `channel0_sub` and RTSP `h264Preview_01_sub`) with the camera's name, date and
 time and watermark (`Osd`) and flip/mirror (`Isp.rotation`, `Isp.mirroring`),
-following setting changes within about a second. The main stream, snapshots,
-recordings, downloads and FTP uploads stay as the source.
+following setting changes within about a second. PTZ models also draw
+`PAN x TILT y ZOOM z` in the middle, updated every second. The main stream,
+recordings, downloads and FTP uploads stay as the source (snapshots of PTZ
+models show the position too, see [Snapshots](#snapshots)).
 
 - **On:** `POST /sim/api/pipeline` with `{"minutes":60}`, 1 to
   `CAMSIM_PIPELINE_MAX_MIN` (default 60). It answers

@@ -216,7 +216,7 @@ export function createControlApp(engine: Engine): express.Express {
 
   // For the web UI: what a person looks at on a camera, without being a
   // camera client (no sessions, no counters).
-  api.get('/media/snapshot', async (_req, res) => void res.type('image/jpeg').send(await e.media.snapshot()));
+  api.get('/media/snapshot', async (_req, res) => void res.type('image/jpeg').send(await e.snapshot()));
   api.get('/media/live/:stream', (req, res) => {
     const stream = req.params.stream;
     if (stream !== 'sub' && stream !== 'main') return void res.status(404).json({ error: 'not_found' });
