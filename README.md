@@ -15,8 +15,9 @@
      stale; the badge and the releases page carry them. -->
 
 cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
-v3.2.0.6011_2607012059), or, with `CAMSIM_MODEL=CX820`, a **Reolink CX820**
-(see [Camera models](#camera-models)). It speaks the camera's HTTP API, reproduces its
+v3.2.0.6011_2607012059), or, with `CAMSIM_MODEL=CX820`, a **Reolink CX820**,
+or, with `CAMSIM_MODEL=E1-Outdoor-Pro`, a **Reolink E1 Outdoor Pro**
+pan/tilt/zoom camera (see [Camera models](#camera-models)). It speaks the camera's HTTP API, reproduces its
 quirks, and can be made to fail in the ways the real device fails. It exists to
 test software written against the camera, such as
 [cams](https://github.com/klaushofrichter/cams) and
@@ -127,7 +128,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
-| `CAMSIM_MODEL` | `RLC-1224A` | the camera model: `RLC-1224A` or `CX820` (see [Camera models](#camera-models)) |
+| `CAMSIM_MODEL` | `RLC-1224A` | the camera model: `RLC-1224A`, `CX820` or `E1-Outdoor-Pro` (see [Camera models](#camera-models)) |
 | `CAMSIM_NAME` | `Cam` | the factory camera name: `GetDevName`, `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (one value; `SetDevName` or `SetOsd` change it, it is stored and a settings reset brings this one back; drawn on live SD only while the [SD pipeline](#sd-pipeline) is on) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
@@ -135,7 +136,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday |
 | `CAMSIM_AUTO_EVENTS` | `off` | background events, e.g. `motion:6/h,person:1/h` |
 | `CAMSIM_FAULTS` | `[]` | faults switched on at start, as JSON, e.g. `[{"name":"downloads.refuse"}]` |
-| `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820) | the firmware version reported |
+| `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820), `v3.1.0.5714_2511271366` (E1-Outdoor-Pro) | the firmware version reported |
 | `CAMSIM_SEED` | time | seed for serials and the reboot coin flip |
 | `CAMSIM_DATA_DIR` | `/data` in the image | persistent settings, SD card index and certificates; unset means in memory |
 | `CAMSIM_TLS_CERT_FILE` / `_KEY_FILE` | — | certificate at start; otherwise the one stored by `ImportCertificate`; otherwise a factory-style self-signed one (`CN=CERTIFICATE`) |
@@ -152,7 +153,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
 | `CAMSIM_LIBRARY_DIR` | — | a folder of videos to offer besides the test pattern (see [Video library](#video-library)) |
 | `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
-| `CAMSIM_MAIN_SIZE` | the model's: `4512x2512` (RLC-1224A), `3840x2160` (CX820) | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
+| `CAMSIM_MAIN_SIZE` | the model's: `4512x2512` (RLC-1224A), `3840x2160` (CX820, E1-Outdoor-Pro) | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
 | `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
 | `CAMSIM_PIPELINE_MAX_MIN` | `1440` | the longest [SD pipeline](#sd-pipeline) switch-on, in minutes (1–1440) |
 | `CAMSIM_FONT_DIR` | system fonts | a folder with `DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` for the SD pipeline (the image has DejaVu; on a Mac, Arial is used) |
@@ -196,6 +197,20 @@ from read-only captures of a real camera in `reference/<model>/`.
     idle close), and FloodlightStatus has no brightness.
   - ONVIF and the HTTP errors answer as on the RLC-1224A (captured, and the
     same).
+- **`E1-Outdoor-Pro`** (a pan/tilt/zoom camera, measured 2026-10-30 on
+  firmware v3.1.0.5714; `reference/E1-Outdoor-Pro/README.md` lists every
+  difference and what is not measured). What changes from the CX820, which
+  it otherwise follows:
+  - `GetDevInfo`: model `E1 Outdoor Pro`, `exactType` `WIFI_SOLO_IPC`,
+    `wifi` 1, hardVer `IPC_560SD88MPW`, itemNo `E560`.
+  - `GetEnc`: main H.265 3840×2160 at 20 fps (4096 kbps), sub H.264 640×360
+    at 10 fps (256 kbps), audio 1. The test pattern and converted videos
+    follow: sub 640×360, main at 20 fps, `CAMSIM_MAIN_SIZE` 3840x2160.
+  - `GetAbility` is the E1's: `ptzCtrl`, `ptzPreset`, `ptzPatrol` and
+    `ptzTattern` permit 7, with speed, zoom, focus and the PTZ check.
+  - Settings: motion and AI areas on a 60×33 grid; `GetIsp` with
+    `bd_night`, `CBR`, day/night `Auto`; `GetWhiteLed` mode 1, bright 85.
+  - The pan/tilt/zoom commands: see [PTZ](#ptz-pantilt-models).
 
 ### Video library
 

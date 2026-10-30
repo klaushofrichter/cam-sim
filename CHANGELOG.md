@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A third camera model: `CAMSIM_MODEL=E1-Outdoor-Pro` (in process `createCamSim({ model: 'E1-Outdoor-Pro' })`) answers as a Reolink E1 Outdoor Pro, a pan/tilt/zoom camera, from captures of the real E1 (firmware v3.1.0.5714, `reference/E1-Outdoor-Pro/`): its DevInfo (`WIFI_SOLO_IPC`, wifi 1), GetEnc (4K H.265 main at 20 fps, 640×360 sub, audio on), GetAbility (PTZ permitted), settings (60×33 areas, Isp and WhiteLed values). What was not captured follows the CX820. The default stays `RLC-1224A`, unchanged. See the README's Camera models.
 - `scripts/sync-secrets.sh` no longer creates `cam2-camera-credentials`: the `cam2-cert-push` CronJob that used it is gone. cam2's certificate comes from the cluster cam-proxy's site CA (`cam2.cluster.internal`), and `cam2.skylar.technology` is retired (README updated).
 
 ## v2026.10.25.1

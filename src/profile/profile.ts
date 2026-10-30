@@ -5,8 +5,10 @@ import type { PushMessage } from '../baichuan/xml';
 import type { Settings } from './rlc1224a';
 import { RLC1224A } from './rlc1224a';
 import { CX820 } from './cx820';
+import { E1_OUTDOOR_PRO } from './E1-Outdoor-Pro';
+import type { PtzSpec } from '../engine/ptz';
 
-export const MODELS = ['RLC-1224A', 'CX820'] as const;
+export const MODELS = ['RLC-1224A', 'CX820', 'E1-Outdoor-Pro'] as const;
 export type Model = (typeof MODELS)[number];
 
 type Obj = Record<string, any>;
@@ -47,9 +49,11 @@ export interface CameraProfile {
   // Generated and converted media: sub size and frame rate, main frame rate,
   // the default CAMSIM_MAIN_SIZE (WxH).
   media: { sub: string; subFps: number; mainFps: number; mainSize: string };
+  // Pan/tilt/zoom: set exactly when the ability grants ptzCtrl (ptzEnabled).
+  ptz?: PtzSpec;
 }
 
-const PROFILES: Record<Model, CameraProfile> = { 'RLC-1224A': RLC1224A, CX820 };
+const PROFILES: Record<Model, CameraProfile> = { 'RLC-1224A': RLC1224A, CX820, 'E1-Outdoor-Pro': E1_OUTDOOR_PRO };
 
 export const DEFAULT_MODEL: Model = 'RLC-1224A';
 
