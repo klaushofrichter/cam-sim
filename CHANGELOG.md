@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- E1: a `ZoomInc` or `ZoomDec` while a zoom runs (no `Stop` since), in either direction, now answers `-13` "set config failed" and the running zoom goes on, as the real E1 does (measured 2026-10-30, `reference/E1-Outdoor-Pro/ptz-zoom-overlap.json`). Moves and focus are still accepted mid-motion, and a zoom after a move, a focus or a `Stop`.
+
+## v2026.10.30.1
+
 - A third camera model: `CAMSIM_MODEL=E1-Outdoor-Pro` (in process `createCamSim({ model: 'E1-Outdoor-Pro' })`) answers as a Reolink E1 Outdoor Pro, a pan/tilt/zoom camera, from captures of the real E1 (firmware v3.1.0.5714, `reference/E1-Outdoor-Pro/`): its DevInfo (`WIFI_SOLO_IPC`, wifi 1), GetEnc (4K H.265 main at 20 fps, 640×360 sub, audio on), GetAbility (PTZ permitted), settings (60×33 areas, Isp and WhiteLed values). What was not captured follows the CX820. The default stays `RLC-1224A`, unchanged. See the README's Camera models.
 - PTZ commands on the E1 (only on models whose ability grants `ptzCtrl`; the RLC-1224A and CX820 still answer them `-9`): `PtzCtrl` (moves, `Stop`, zoom, focus, `ToPos`), `StartZoomFocus`, `GetZoomFocus`, `GetPtzPreset` / `SetPtzPreset` (64 slots, ids 0–63), `GetPtzGuard`, `GetPtzCheckState`, `GetAutoFocus`, `GetPtzPatrol`, and the captured refusals of `GetPtzCurPos`, `GetPtzTraceSection` (`-1`), `GetPtzTattern`, `GetPtzSerial` (`-12`). A virtual pan/tilt/zoom/focus moves at the given speed until `Stop`, with the measured limits and errors. See the README's PTZ section.
 - Control API: `GET /sim/api/ptz` shows a PTZ model's virtual position, running move and saved presets (404 `no_ptz` on the fixed models); `POST /sim/api/reset` takes `ptz` (an empty body clears it too). The package exports the type `PtzView`; in process `sim.engine.ptz?.view()`.

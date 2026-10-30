@@ -56,6 +56,8 @@ interface Slot { enable: 0 | 1; name: string; pan: number; tilt: number; zoom: n
 interface Move { op: Op; speed: number; sinceMs: number }
 
 const PARAM_ERROR = -4;
+const SET_CONFIG_FAILED = -13;
+const isZoom = (op: string): boolean => op === 'ZoomInc' || op === 'ZoomDec';
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
 const clamp = (v: number, [lo, hi]: Range): number => Math.min(hi, Math.max(lo, v));
 const defaultName = (id: number): string => `pos${id + 1}`;
@@ -130,6 +132,10 @@ export class Ptz {
       this.base = { ...this.base, pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom };
       return null;
     }
+    // A zoom while a zoom runs, either direction: -13 "set config failed",
+    // and the running zoom goes on (measured 2026-10-30). Moves and focus may
+    // be repeated or reversed mid-motion, and replace a zoom.
+    if (isZoom(op) && this.moving && isZoom(this.moving.op)) return SET_CONFIG_FAILED;
     this.settle();
     this.moving = { op: op as Op, speed, sinceMs: this.clock.now().getTime() };
     return null;

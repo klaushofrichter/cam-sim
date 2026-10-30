@@ -403,14 +403,20 @@ Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
   1.5 s takes the zoom 7 → 26;
 - preset ids 0–63 (64 → `-4`); a name longer than 31 characters is stored as
   `pos<id+1>`; `ToPos` to an empty slot answers 200 and nothing moves;
-- `ToPos` restores the zoom of the slot, not its focus.
+- `ToPos` restores the zoom of the slot, not its focus;
+- while a zoom runs (`ZoomInc` or `ZoomDec`, no `Stop` since), another
+  `ZoomInc` or `ZoomDec`, even the same one, → `-13` "set config failed" and
+  the zoom goes on; moves and focus may be repeated or reversed mid-motion, a
+  move or focus may follow a zoom and a zoom a move or focus, and `Stop` then
+  a zoom is accepted (measured 2026-10-30).
 
 The simulator's own choices (not measured):
 - pan 0–355 and tilt 0–50 degrees, starting at 180 and 25 (the camera reports
   no pan/tilt position);
 - per speed unit, pan and tilt move 1.5°/s, zoom and focus 0.4 steps/s;
   `Up` raises the tilt; diagonals move both axes at full rate;
-- a move lasts until `Stop`, another op, `ToPos` or `StartZoomFocus`, and
+- a move lasts until `Stop`, another op (not a zoom over a zoom), `ToPos`
+  or `StartZoomFocus`, and
   stops at the limits; `ToPos` and `StartZoomFocus` apply at once;
 - omitted speed is 32; a speed that isn't an integer → `-4`; `Stop` ignores
   speed;

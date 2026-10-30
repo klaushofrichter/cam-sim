@@ -22,7 +22,7 @@ const E1_FILES = [
   'GetAbility', 'GetDevInfo', 'GetEnc', 'GetAiState', 'GetIrLights', 'GetWhiteLed', 'GetIsp', 'GetMdAlarm', 'GetOsd',
   'GetPtzPreset', 'GetZoomFocus', 'GetPtzGuard', 'GetPtzCheckState', 'GetAutoFocus', 'GetPtzPatrol', 'GetPtzCurPos',
   'GetPtzTattern', 'GetPtzSerial', 'GetPtzTraceSection',
-].map((c) => `${c}.json`).concat(['ptz-exchanges.json', 'README.md']);
+].map((c) => `${c}.json`).concat(['ptz-exchanges.json', 'ptz-zoom-overlap.json', 'README.md']);
 
 describe('reference captures hold no private data', () => {
   const files = walk(ROOT);

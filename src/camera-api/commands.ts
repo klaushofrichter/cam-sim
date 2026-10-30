@@ -18,6 +18,7 @@ const DETAIL: Record<number, string> = {
   [-7]: 'login failed',
   [-9]: 'not support', // measured
   [-12]: 'get config failed', // measured (GetPtzTattern on the E1)
+  [-13]: 'set config failed', // measured (PtzCtrl zoom while zooming on the E1)
   [-54]: 'the respode of msg is err', // measured
   [-56]: 'err get data from json', // measured (GetPushV20)
   [-64]: 'err received data from json', // measured (Search, onlyStatus with reversed months)
