@@ -55,6 +55,18 @@ describe('E1 PTZ conformance: the measured exchanges', () => {
   });
 });
 
+describe('E1 PTZ conformance: a zoom while zooming (measured 2026-10-30)', () => {
+  it('replays ptz-zoom-overlap.json in order with the camera\'s answers', async () => {
+    const { clock, call } = await e1();
+    const overlap: Array<{ cmd: string; param: unknown; res: any }> = read('ptz-zoom-overlap.json');
+    expect(overlap.some((ex) => ex.res.error?.rspCode === -13)).toBe(true);
+    for (const [i, ex] of overlap.entries()) {
+      clock.advance(100);
+      expect(await call(ex.cmd, ex.param), `#${i} ${JSON.stringify(ex.param)}`).toEqual(ex.res);
+    }
+  });
+});
+
 describe('E1 PTZ conformance: the Get captures', () => {
   it.each(['GetZoomFocus', 'GetPtzPreset', 'GetPtzGuard', 'GetPtzCheckState', 'GetAutoFocus', 'GetPtzPatrol'])('%s has the captured shape and range', async (cmd) => {
     const { call } = await e1();
