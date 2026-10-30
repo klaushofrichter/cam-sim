@@ -112,6 +112,27 @@ describe('Ptz', () => {
     expect(p.position()).toMatchObject({ pan: 132, tilt: 2 });
   });
 
+  it('a zoom while a zoom runs → -13 and the running zoom continues (measured 2026-10-30)', () => {
+    expect(p.control({ op: 'ZoomInc', speed: 32 })).toBeNull();
+    clock.advance(500);
+    expect(p.control({ op: 'ZoomInc', speed: 32 })).toBe(-13);
+    expect(p.control({ op: 'ZoomDec', speed: 10 })).toBe(-13);
+    expect(p.view().moving).toMatchObject({ op: 'ZoomInc', speed: 32 });
+    clock.advance(1000);
+    expect(p.control({ op: 'Stop' })).toBeNull();
+    expect(p.position().zoom).toBe(26); // 1.5 s at 32, as without the refusals
+    // Stop, then a zoom at once: accepted.
+    expect(p.control({ op: 'ZoomDec', speed: 32 })).toBeNull();
+    expect(p.view().moving).toMatchObject({ op: 'ZoomDec' });
+  });
+
+  it('moves and focus mid-motion, and a zoom after them, are accepted (measured 2026-10-30)', () => {
+    for (const op of ['Left', 'Left', 'Right', 'Up', 'Down', 'LeftUp', 'RightDown', 'ZoomInc', 'Left', 'FocusInc', 'FocusInc', 'FocusDec', 'ZoomDec', 'FocusInc']) {
+      clock.advance(100);
+      expect(p.control({ op, speed: 32 }), op).toBeNull();
+    }
+  });
+
   it('speed: omitted ok; 1 and 64 ok; 0, 65, 100, 1.5, "32" → -4', () => {
     expect(p.control({ op: 'Right' })).toBeNull();
     clock.advance(1000);

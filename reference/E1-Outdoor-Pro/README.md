@@ -22,6 +22,10 @@ the source of `src/profile/E1-Outdoor-Pro.ts`.
   trip in ms). The time between two exchanges was not recorded, except that
   `ZoomInc` ran about 1.5 s before its `Stop`.
 
+- `ptz-zoom-overlap.json`: a zoom while a zoom runs, measured 2026-10-30,
+  as `{cmd, param, res}` in order (no round trip times). Written down from
+  that measurement's results; see Measured PTZ.
+
 Not kept (not modelled, and several carry redactions): Wifi, LocalLink,
 RtspUrl, Email, Ftp, Push, Channelstatus, Certificate and the other Gets of
 the probe.
@@ -68,6 +72,14 @@ the probe.
 - `GetPtzCurPos` → `-1` "not exist"; `GetPtzTraceSection` → `-1` "not
   exist"; `GetPtzTattern` and `GetPtzSerial` → `-12` "get config failed".
 - How long a move runs without `Stop` was not measured.
+- A zoom while a zoom runs (measured 2026-10-30): after `ZoomInc` or
+  `ZoomDec` with no `Stop` since, any further `ZoomInc` or `ZoomDec`, the
+  same direction too, → `{"code":1,"error":{"detail":"set config failed",
+  "rspCode":-13}}`. Accepted mid-motion: repeated or reversed moves (`Left`,
+  `Right`, `Up`, `Down`, the diagonals), `FocusInc`/`FocusDec` (also repeated
+  or reversed), a zoom after a move or a focus, and a move or focus after a
+  zoom. `Stop` then a zoom at once is accepted. The simulator keeps the
+  running zoom on a refusal (not measured whether the camera's zoom goes on).
 
 ## Not measured: the simulator's choices
 
