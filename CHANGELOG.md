@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.30.2
+
 - E1: a `ZoomInc` or `ZoomDec` while a zoom runs (no `Stop` since), in either direction, now answers `-13` "set config failed" and the running zoom goes on, as the real E1 does (measured 2026-10-30, `reference/E1-Outdoor-Pro/ptz-zoom-overlap.json`). Moves and focus are still accepted mid-motion, and a zoom after a move, a focus or a `Stop`.
 
 ## v2026.10.30.1
