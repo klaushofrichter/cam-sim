@@ -199,6 +199,29 @@ describe('SdPipeline', () => {
     expect(p.generation() - g).toBe(2); // restarted once again, not off at the first failure
   }, 30_000);
 
+  it('an E1 pipeline writes the PTZ text next to the clock each tick', async () => {
+    const e = await makeEngine({ CAMSIM_MODEL: 'E1-Outdoor-Pro' });
+    const p = new SdPipeline(e, { fonts: findFonts() });
+    pipes.push(p);
+    const files = () => (p as unknown as { files(): { clock: string; name: string; ptz?: string } }).files();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    const ptz = files().ptz!;
+    expect(readFileSync(ptz, 'utf8')).toBe('PAN 180 TILT 25 ZOOM 7');
+    expect((p as unknown as { vf: string }).vf).toContain('ptz.txt');
+    e.ptz!.control({ op: 'Left', speed: 64 });
+    await until(() => readFileSync(ptz, 'utf8') !== 'PAN 180 TILT 25 ZOOM 7');
+    expect(readFileSync(ptz, 'utf8')).toMatch(/^PAN \d+ TILT 25 ZOOM 7$/);
+  }, 30_000);
+
+  it('the RLC-1224A pipeline has no PTZ text (review focus 4)', async () => {
+    const { e, p } = await setup();
+    e.pipelineOn(5);
+    await until(() => p.active());
+    expect((p as unknown as { files(): { ptz?: string } }).files().ptz).toBeUndefined();
+    expect((p as unknown as { vf: string }).vf).not.toContain('ptz');
+  }, 30_000);
+
   it('makes its temp folder only when it starts', async () => {
     const { e, p } = await setup();
     expect((p as unknown as { dir?: string }).dir).toBeUndefined();

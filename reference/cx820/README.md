@@ -1,6 +1,6 @@
 # CX820 captures (2026-10-20)
 
-Read-only captures of the real Reolink CX820 (cam4, "Backyard middle"),
+Read-only captures of the real Reolink CX820 (cam4),
 firmware v3.2.0.5316_2509028854, made on 2026-10-20 from the LAN host that
 runs its cam-proxy, as the user `proxy` (admin level). They mirror
 `reference/rlc-1224a/` and are the source of `src/profile/cx820.ts`.

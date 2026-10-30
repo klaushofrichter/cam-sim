@@ -8,13 +8,16 @@ import { testFtp } from '../ftp/uploader';
 import { NAME_MAX, AI_TYPES } from '../profile/rlc1224a';
 import { sleep } from '../util/sleep';
 import { isOneOf } from '../util/one-of';
+import { ptzHandler } from './ptz-commands';
 
 // Error details as the firmware words them (measured where noted).
 const DETAIL: Record<number, string> = {
+  [-1]: 'not exist', // measured (GetPtzCurPos on the E1)
   [-4]: 'param error', // measured (CheckDownload)
   [-6]: 'please login first', // measured
   [-7]: 'login failed',
   [-9]: 'not support', // measured
+  [-12]: 'get config failed', // measured (GetPtzTattern on the E1)
   [-54]: 'the respode of msg is err', // measured
   [-56]: 'err get data from json', // measured (GetPushV20)
   [-64]: 'err received data from json', // measured (Search, onlyStatus with reversed months)
@@ -44,7 +47,7 @@ export interface Ctx {
 
 // A handler returns the reply entry, or 'destroyed' when it dropped the
 // connection itself (like the firmware sometimes does).
-type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
+export type Handler = (c: Ctx) => Entry | 'destroyed' | Promise<Entry | 'destroyed'>;
 
 const getter = (key: string, pick: (e: Engine, p: any) => unknown): Handler => (c) => ok(c.cmd, { [key]: pick(c.engine, c.param) });
 
@@ -202,6 +205,9 @@ function setCommand(c: Ctx): Entry {
 }
 
 export function runCommand(c: Ctx): Entry | 'destroyed' | Promise<Entry | 'destroyed'> {
+  // PTZ models only: the fixed models answer these as unknown, as before.
+  const ptz = c.engine.ptz ? ptzHandler(c) : undefined;
+  if (ptz) return ptz(c);
   if (Object.hasOwn(HANDLERS, c.cmd)) return HANDLERS[c.cmd](c);
   if (isSetCommand(c.cmd) || c.cmd === 'SetDevName') return setCommand(c);
   return UNKNOWN;

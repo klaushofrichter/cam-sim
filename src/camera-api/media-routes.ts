@@ -86,7 +86,7 @@ export async function download(engine: Engine, req: Request, res: Response): Pro
 export async function snap(engine: Engine, req: Request, res: Response): Promise<void> {
   if (!engine.sessions.validate(tokenOf(req))) return void res.status(200).type('text/html').send(NOT_LOGGED_IN_GET_BODY);
   if (engine.faults.active('snap.fail')) return void res.status(500).type('text/html').end();
-  res.type('image/jpeg').send(await engine.media.snapshot());
+  res.type('image/jpeg').send(await engine.snapshot());
 }
 
 // A tag with its timestamp moved by `offsetMs` (for looping the fixture).

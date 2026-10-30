@@ -3,7 +3,7 @@ import { execFileSync } from 'child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { clockText, filterChain, overlayOf, type OverlaySettings } from '../src/pipeline/overlay';
+import { clockText, filterChain, overlayOf, ptzText, type OverlaySettings } from '../src/pipeline/overlay';
 import { findFonts } from '../src/pipeline/fonts';
 
 const FMT = { timeFmt: 'MM/DD/YYYY', hourFmt: 1 };
@@ -116,5 +116,31 @@ describe('filterChain in ffmpeg', () => {
     const drawn = frame(filterChain({ ...off, watermark: 1, name: { enable: 1, pos: 'Lower Right' }, time: { enable: 1, pos: 'Lower Left' } }, f, oddFonts), d);
     expect(drawn.length).toBe(plain.length);
     expect(drawn.equals(plain)).toBe(false);
+  });
+});
+
+describe('the PTZ position text', () => {
+  const s: OverlaySettings = { rotation: 1, mirroring: 0, watermark: 1, name: { enable: 1, pos: 'Lower Right' }, time: { enable: 1, pos: 'Upper Left' } };
+  const f = { regular: '/f/r.ttf', bold: '/f/b.ttf' };
+  const TODAY = "vflip,drawtext=fontfile=/f/b.ttf:text='Reolink':fontsize=34:fontcolor=white@0.8:borderw=1:bordercolor=black@0.4:x=10:y=10,"
+    + 'drawtext=fontfile=/f/r.ttf:textfile=/t/clock.txt:reload=1:expansion=none:fontsize=20:fontcolor=white:borderw=2:bordercolor=black@0.6:x=10:y=54,'
+    + 'drawtext=fontfile=/f/r.ttf:textfile=/t/name.txt:reload=1:expansion=none:fontsize=20:fontcolor=white:borderw=2:bordercolor=black@0.6:x=w-text_w-10:y=h-th-10';
+
+  it('reads PAN x TILT y ZOOM z, rounded', () => {
+    expect(ptzText({ pan: 179.6, tilt: 25.04, zoom: 7 })).toBe('PAN 180 TILT 25 ZOOM 7');
+    expect(ptzText({ pan: 0, tilt: 50, zoom: 27 })).toBe('PAN 0 TILT 50 ZOOM 27');
+    expect(ptzText({ pan: 354.96, tilt: 0.2, zoom: 0 })).toMatch(/^[A-Z0-9 .-]+$/);
+  });
+
+  it('without a ptz file the chain is unchanged (review focus 4)', () => {
+    expect(filterChain(s, { clock: '/t/clock.txt', name: '/t/name.txt' }, f)).toBe(TODAY);
+  });
+
+  it('with a ptz file it appends a centered drawtext', () => {
+    const chain = filterChain(s, { clock: '/t/clock.txt', name: '/t/name.txt', ptz: '/t/ptz.txt' }, f);
+    expect(chain.startsWith(`${TODAY},`)).toBe(true);
+    expect(chain).toMatch(/textfile=\/t\/ptz\.txt.*x=\(w-text_w\)\/2:y=\(h-text_h\)\/2$/);
+    expect(chain.slice(TODAY.length)).toMatch(/reload=1:expansion=none/);
+    expect(filterChain(off, { ...files, ptz: '/t/ptz.txt' }, f)).toMatch(/^drawtext=fontfile=\/f\/r\.ttf:textfile=\/t\/ptz\.txt/);
   });
 });

@@ -106,14 +106,15 @@ describe('sync-secrets.sh', () => {
     expect(read('gh.env')).not.toContain('ghp_camsim');
   });
 
-  it('creates the camera-credentials Secret for the certificate push job', () => {
+  // cam2-cert-push is gone (2026-10-26: cam2's certificate comes from the cluster
+  // proxy's site CA), and with it the Secret of cam2's admin credentials.
+  it('no longer creates a camera-credentials Secret', () => {
     write(BASE + 'CAMSIM_USERS=admin:admin:aaaaaaaaaaaaaaaaaaaaaaaa;cams:admin:bbbbbbbbbbbbbbbbbbbbbbbb\n');
     const r = run('--only', 'kube');
     expect(r.status).toBe(0);
-    expect(read('kubectl.argv')).toMatch(/create secret generic cam2-camera-credentials/);
-    expect(read('kubectl.files')).toContain('username=admin\npassword=aaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(read('kubectl.argv')).not.toMatch(/camera-credentials/);
+    expect(read('kubectl.files')).not.toContain('username=admin');
     expect(r.stdout + r.stderr).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaa');
-    expect(read('kubectl.argv')).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaa');
   });
 
   it('ignores inline comments after a value', () => {

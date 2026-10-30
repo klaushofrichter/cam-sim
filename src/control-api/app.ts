@@ -83,6 +83,8 @@ export function createControlApp(engine: Engine): express.Express {
   const bad = (res: Response, detail: string) => void res.status(400).json({ error: 'invalid', detail });
 
   api.get('/state', (_req, res) => void res.json(e.state()));
+  // The virtual pan/tilt/zoom state of a PTZ model; fixed models have none.
+  api.get('/ptz', (_req, res) => (e.ptz ? void res.json(e.ptz.view()) : void res.status(404).json({ error: 'no_ptz' })));
 
   // Without a library folder the test pattern is the only video.
   const library = () => e.library ?? new Library(e, { cacheDir: '' });
@@ -208,13 +210,13 @@ export function createControlApp(engine: Engine): express.Express {
   api.post('/reset', (req, res) => {
     const b = req.body ?? {};
     const pick = (k: string) => (typeof b[k] === 'boolean' ? b[k] : undefined);
-    e.reset({ settings: pick('settings'), recordings: pick('recordings'), counters: pick('counters'), faults: pick('faults'), video: pick('video') });
+    e.reset({ settings: pick('settings'), recordings: pick('recordings'), counters: pick('counters'), faults: pick('faults'), video: pick('video'), ptz: pick('ptz') });
     res.status(204).end();
   });
 
   // For the web UI: what a person looks at on a camera, without being a
   // camera client (no sessions, no counters).
-  api.get('/media/snapshot', async (_req, res) => void res.type('image/jpeg').send(await e.media.snapshot()));
+  api.get('/media/snapshot', async (_req, res) => void res.type('image/jpeg').send(await e.snapshot()));
   api.get('/media/live/:stream', (req, res) => {
     const stream = req.params.stream;
     if (stream !== 'sub' && stream !== 'main') return void res.status(404).json({ error: 'not_found' });

@@ -1,4 +1,4 @@
-// The Reolink CX820 (cam4, "Backyard middle") on firmware
+// The Reolink CX820 (cam4) on firmware
 // v3.2.0.5316_2509028854, measured on the real camera on 2026-10-20 with the
 // read-only captures in reference/cx820/ (README there). Where the CX820 was
 // not measured (anything that needs a Set), it behaves like the RLC-1224A;

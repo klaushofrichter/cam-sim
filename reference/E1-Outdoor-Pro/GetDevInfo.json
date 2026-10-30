@@ -1,0 +1,28 @@
+{
+ "cmd": "GetDevInfo",
+ "code": 0,
+ "value": {
+  "DevInfo": {
+   "B485": 0,
+   "IOInputNum": 0,
+   "IOOutputNum": 0,
+   "audioNum": 1,
+   "buildDay": "build 2511271366",
+   "cfgVer": "v3.1.0.0",
+   "channelNum": 1,
+   "detail": "IPC_560SD88MPWS38A9T460E1W13110",
+   "diskNum": 1,
+   "exactType": "WIFI_SOLO_IPC",
+   "firmVer": "v3.1.0.5714_2511271366",
+   "frameworkVer": 1,
+   "hardVer": "IPC_560SD88MPW",
+   "itemNo": "E560",
+   "model": "E1 Outdoor Pro",
+   "name": "Cam",
+   "pakSuffix": "pak,paks",
+   "serial": "SIM000000000000",
+   "type": "IPC",
+   "wifi": 1
+  }
+ }
+}

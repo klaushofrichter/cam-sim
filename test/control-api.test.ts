@@ -324,3 +324,47 @@ describe('SD pipeline switch', () => {
     expect(engine.pipelineState()).toEqual({ on: false });
   });
 });
+
+describe('control API: PTZ state', () => {
+  const e1 = () => setup({ CAMSIM_MODEL: 'E1-Outdoor-Pro' });
+
+  it('GET /sim/api/ptz on an E1: start state, then a preset and a move show up', async () => {
+    const { ctl, cam } = await e1();
+    expect((await request(ctl).get('/sim/api/ptz')).status).toBe(401);
+    const r = await request(ctl).get('/sim/api/ptz').set(auth);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ pan: 180, tilt: 25, zoom: 7, focus: 49, moving: null, presets: [] });
+    const t = await login(cam);
+    await post(cam, 'SetPtzPreset', { PtzPreset: { channel: 0, enable: 1, id: 4, name: 'gate' } }, t);
+    await post(cam, 'PtzCtrl', { channel: 0, op: 'Left', speed: 32 }, t);
+    const b = (await request(ctl).get('/sim/api/ptz').set(auth)).body;
+    expect(b.moving).toMatchObject({ op: 'Left', speed: 32 });
+    expect(Number.isNaN(Date.parse(b.moving.since))).toBe(false);
+    expect(b.pan).toBeLessThanOrEqual(180);
+    expect(b.presets).toEqual([{ id: 4, name: 'gate', pan: 180, tilt: 25, zoom: 7 }]);
+  });
+
+  it('GET /sim/api/ptz on the RLC-1224A → 404 {error:"no_ptz"} (review focus 4)', async () => {
+    const { ctl } = await setup();
+    const r = await request(ctl).get('/sim/api/ptz').set(auth);
+    expect(r.status).toBe(404);
+    expect(r.body).toEqual({ error: 'no_ptz' });
+  });
+
+  it('POST /sim/api/reset {} and {ptz:true} clear presets and position; {settings:true} alone keeps them', async () => {
+    const { ctl, cam, engine } = await e1();
+    const dirty = async () => {
+      const t = await login(cam);
+      await post(cam, 'SetPtzPreset', { PtzPreset: { channel: 0, enable: 1, id: 4, name: 'gate' } }, t);
+      await post(cam, 'StartZoomFocus', { ZoomFocus: { channel: 0, op: 'ZoomPos', pos: 20 } }, t);
+    };
+    await dirty();
+    expect((await request(ctl).post('/sim/api/reset').set(auth).send({ settings: true })).status).toBe(204);
+    expect(engine.ptz!.view()).toMatchObject({ zoom: 20, presets: [{ id: 4 }] });
+    expect((await request(ctl).post('/sim/api/reset').set(auth).send({ ptz: true })).status).toBe(204);
+    expect(engine.ptz!.view()).toEqual({ pan: 180, tilt: 25, zoom: 7, focus: 49, moving: null, presets: [] });
+    await dirty();
+    expect((await request(ctl).post('/sim/api/reset').set(auth).send({})).status).toBe(204);
+    expect((await request(ctl).get('/sim/api/ptz').set(auth)).body).toEqual({ pan: 180, tilt: 25, zoom: 7, focus: 49, moving: null, presets: [] });
+  });
+});

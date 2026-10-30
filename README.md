@@ -15,8 +15,9 @@
      stale; the badge and the releases page carry them. -->
 
 cam-sim is a simulated **Reolink RLC-1224A** camera (firmware
-v3.2.0.6011_2607012059), or, with `CAMSIM_MODEL=CX820`, a **Reolink CX820**
-(see [Camera models](#camera-models)). It speaks the camera's HTTP API, reproduces its
+v3.2.0.6011_2607012059), or, with `CAMSIM_MODEL=CX820`, a **Reolink CX820**,
+or, with `CAMSIM_MODEL=E1-Outdoor-Pro`, a **Reolink E1 Outdoor Pro**
+pan/tilt/zoom camera (see [Camera models](#camera-models)). It speaks the camera's HTTP API, reproduces its
 quirks, and can be made to fail in the ways the real device fails. It exists to
 test software written against the camera, such as
 [cams](https://github.com/klaushofrichter/cams) and
@@ -127,7 +128,7 @@ pointing at a mounted file wins over the plain variable.
 |---|---|---|
 | `CAMSIM_USERS` / `_FILE` | required | camera users, `name:level:password` separated by `;`, level `admin` or `guest` |
 | `CAMSIM_CONTROL_TOKEN` / `_FILE` | — | bearer token for the control API. **Without it the control API is off** (404) |
-| `CAMSIM_MODEL` | `RLC-1224A` | the camera model: `RLC-1224A` or `CX820` (see [Camera models](#camera-models)) |
+| `CAMSIM_MODEL` | `RLC-1224A` | the camera model: `RLC-1224A`, `CX820` or `E1-Outdoor-Pro` (see [Camera models](#camera-models)) |
 | `CAMSIM_NAME` | `Cam` | the factory camera name: `GetDevName`, `GetDevInfo.name` and the OSD name in `Osd.osdChannel.name` (one value; `SetDevName` or `SetOsd` change it, it is stored and a settings reset brings this one back; drawn on live SD only while the [SD pipeline](#sd-pipeline) is on) |
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
@@ -135,7 +136,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday |
 | `CAMSIM_AUTO_EVENTS` | `off` | background events, e.g. `motion:6/h,person:1/h` |
 | `CAMSIM_FAULTS` | `[]` | faults switched on at start, as JSON, e.g. `[{"name":"downloads.refuse"}]` |
-| `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820) | the firmware version reported |
+| `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820), `v3.1.0.5714_2511271366` (E1-Outdoor-Pro) | the firmware version reported |
 | `CAMSIM_SEED` | time | seed for serials and the reboot coin flip |
 | `CAMSIM_DATA_DIR` | `/data` in the image | persistent settings, SD card index and certificates; unset means in memory |
 | `CAMSIM_TLS_CERT_FILE` / `_KEY_FILE` | — | certificate at start; otherwise the one stored by `ImportCertificate`; otherwise a factory-style self-signed one (`CN=CERTIFICATE`) |
@@ -152,7 +153,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
 | `CAMSIM_LIBRARY_DIR` | — | a folder of videos to offer besides the test pattern (see [Video library](#video-library)) |
 | `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
-| `CAMSIM_MAIN_SIZE` | the model's: `4512x2512` (RLC-1224A), `3840x2160` (CX820) | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
+| `CAMSIM_MAIN_SIZE` | the model's: `4512x2512` (RLC-1224A), `3840x2160` (CX820, E1-Outdoor-Pro) | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
 | `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
 | `CAMSIM_PIPELINE_MAX_MIN` | `1440` | the longest [SD pipeline](#sd-pipeline) switch-on, in minutes (1–1440) |
 | `CAMSIM_FONT_DIR` | system fonts | a folder with `DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` for the SD pipeline (the image has DejaVu; on a Mac, Arial is used) |
@@ -196,6 +197,20 @@ from read-only captures of a real camera in `reference/<model>/`.
     idle close), and FloodlightStatus has no brightness.
   - ONVIF and the HTTP errors answer as on the RLC-1224A (captured, and the
     same).
+- **`E1-Outdoor-Pro`** (a pan/tilt/zoom camera, measured 2026-10-30 on
+  firmware v3.1.0.5714; `reference/E1-Outdoor-Pro/README.md` lists every
+  difference and what is not measured). What changes from the CX820, which
+  it otherwise follows:
+  - `GetDevInfo`: model `E1 Outdoor Pro`, `exactType` `WIFI_SOLO_IPC`,
+    `wifi` 1, hardVer `IPC_560SD88MPW`, itemNo `E560`.
+  - `GetEnc`: main H.265 3840×2160 at 20 fps (4096 kbps), sub H.264 640×360
+    at 10 fps (256 kbps), audio 1. The test pattern and converted videos
+    follow: sub 640×360, main at 20 fps, `CAMSIM_MAIN_SIZE` 3840x2160.
+  - `GetAbility` is the E1's: `ptzCtrl`, `ptzPreset`, `ptzPatrol` and
+    `ptzTattern` permit 7, with speed, zoom, focus and the PTZ check.
+  - Settings: motion and AI areas on a 60×33 grid; `GetIsp` with
+    `bd_night`, `CBR`, day/night `Auto`; `GetWhiteLed` mode 1, bright 85.
+  - The pan/tilt/zoom commands: see [PTZ](#ptz-pantilt-models).
 
 ### Video library
 
@@ -362,6 +377,52 @@ post Logout
 Not supported, as on this firmware: `GetFtp` and `TestFtpV20` (`-9`). For now,
 `CheckFirmware` (its reply isn't captured yet) also answers `-9`.
 
+### PTZ (pan/tilt models)
+
+Only on a model whose `GetAbility` grants `ptzCtrl` (`E1-Outdoor-Pro`). The
+RLC-1224A and CX820 answer every command below as unknown (`-9`), as before.
+The simulator keeps a virtual pan, tilt, zoom and focus and 64 preset slots
+per camera; the [control API](#ptz-state) shows them, and snapshots and live
+SD draw `PAN x TILT y ZOOM z`.
+
+| Command | `param` | Reply |
+|---|---|---|
+| `PtzCtrl` | `{channel:0,op,speed?,id?}` | `{rspCode:200}`; ops `Left` `Right` `Up` `Down` `LeftUp` `LeftDown` `RightUp` `RightDown` `Stop` `ZoomInc` `ZoomDec` `FocusInc` `FocusDec` `ToPos` (with `id`) |
+| `StartZoomFocus` | `{ZoomFocus:{channel:0,op:"ZoomPos"\|"FocusPos",pos}}` | `{rspCode:200}`: zoom (0–27) or focus (0–97) at once |
+| `GetZoomFocus` | `{channel:0}` | `initial`, `range` and `{ZoomFocus:{channel:0,focus:{pos},zoom:{pos}}}`; `initial` follows the position, as on the camera |
+| `GetPtzPreset` | `{channel:0}` | `initial`, `range` (says ids 1–64) and `{PtzPreset:[{channel,enable,id,imgName,name}]}`, 64 slots, ids 0–63, empty ones named `pos<id+1>` |
+| `SetPtzPreset` | `{PtzPreset:{channel:0,enable,id,name}}` | `{rspCode:200}`; `enable:1` saves the current pan, tilt and zoom, `enable:0` empties the slot |
+| `GetPtzGuard`, `GetPtzCheckState`, `GetAutoFocus`, `GetPtzPatrol` | `{channel:0}` | the E1's captured answers (`initial`, `range`, `value`) |
+| `GetPtzCurPos`, `GetPtzTraceSection` | | `-1` "not exist" |
+| `GetPtzTattern`, `GetPtzSerial` | | `-12` "get config failed" |
+
+Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
+- speed 1–64, and may be left out; 0 or above 64 → `-4` "param error"; an
+  unknown op → `-4`;
+- zoom 0–27 and focus 0–97, at the start 7 and 49; speed 32 `ZoomInc` for
+  1.5 s takes the zoom 7 → 26;
+- preset ids 0–63 (64 → `-4`); a name longer than 31 characters is stored as
+  `pos<id+1>`; `ToPos` to an empty slot answers 200 and nothing moves;
+- `ToPos` restores the zoom of the slot, not its focus.
+
+The simulator's own choices (not measured):
+- pan 0–355 and tilt 0–50 degrees, starting at 180 and 25 (the camera reports
+  no pan/tilt position);
+- per speed unit, pan and tilt move 1.5°/s, zoom and focus 0.4 steps/s;
+  `Up` raises the tilt; diagonals move both axes at full rate;
+- a move lasts until `Stop`, another op, `ToPos` or `StartZoomFocus`, and
+  stops at the limits; `ToPos` and `StartZoomFocus` apply at once;
+- omitted speed is 32; a speed that isn't an integer → `-4`; `Stop` ignores
+  speed;
+- a preset stores pan, tilt and zoom, not focus; `enable:0` resets the name to
+  `pos<id+1>`; `enable:1` without a name keeps the slot's name;
+- the PTZ Gets answer `initial` and `range` for any `action`;
+- reboot, power-off and power-on stop a move and keep the presets;
+  `POST /sim/api/reset` and factory reset clear both.
+
+`SetPtzPreset` counts in `setCalls` and takes the `settings.fail` and
+`settings.ignore` faults like the settings Sets.
+
 ### Settings: always write the whole object
 
 A `Set` answers `code 0, rspCode 200` for a partial object, and an immediate
@@ -394,6 +455,13 @@ curl -sk "https://$CAM/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=$RANDOM&token=$TOKE
 ```
 
 The reply is `image/jpeg`. A bad token gets 200 `text/html` with the `-6` body.
+
+PTZ models (`E1-Outdoor-Pro`) draw `PAN x TILT y ZOOM z` in the middle of
+the snapshot (one ffmpeg run per new position, cached), so a test can see where
+the camera points; the web UI's snapshot shows the same. Without a font
+(`CAMSIM_FONT_DIR`, as for the SD pipeline) or when ffmpeg fails, the plain
+picture. The RLC-1224A and CX820 serve the picture unchanged, and FTP uploads
+stay plain on every model.
 
 ### Recordings: Search
 
@@ -850,8 +918,8 @@ matching requests.
 | `flv.reset` | | every `/flv` connection resets, even with a valid token |
 | `flv.delayMs` | `ms` | delay the `/flv` response |
 | `search.delayMs` | `ms` | make Search slower (widens the `-54` window) |
-| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error |
-| `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing |
+| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`) |
+| `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing (also `SetPtzPreset`) |
 | `settings.strictPartial` | | a partial Set's resets show at once, not after a reboot |
 | `offline` | | every camera connection is destroyed, Baichuan included (the camera stays powered) |
 | `latencyMs` | `ms` | delay every camera request |
@@ -894,8 +962,10 @@ ctl -X PUT $C/video -d '{"id":"garden-walk"}'
 Optional and time-limited: it re-encodes the **live SD stream** (FLV
 `channel0_sub` and RTSP `h264Preview_01_sub`) with the camera's name, date and
 time and watermark (`Osd`) and flip/mirror (`Isp.rotation`, `Isp.mirroring`),
-following setting changes within about a second. The main stream, snapshots,
-recordings, downloads and FTP uploads stay as the source.
+following setting changes within about a second. PTZ models also draw
+`PAN x TILT y ZOOM z` in the middle, updated every second. The main stream,
+recordings, downloads and FTP uploads stay as the source (snapshots of PTZ
+models show the position too, see [Snapshots](#snapshots)).
 
 - **On:** `POST /sim/api/pipeline` with `{"minutes":60}`, 1 to
   `CAMSIM_PIPELINE_MAX_MIN` (default 60). It answers
@@ -917,11 +987,28 @@ ctl -X POST $C/pipeline -d '{"minutes":15}'
 ctl -X DELETE $C/pipeline
 ```
 
+### PTZ state
+
+`GET /sim/api/ptz` (PTZ models: `E1-Outdoor-Pro`) answers the virtual
+position, the running move and the saved presets:
+
+```json
+{"pan":180,"tilt":25,"zoom":7,"focus":49,"moving":null,"presets":[]}
+```
+
+`pan` and `tilt` are the simulator's degrees (0.1 steps), `zoom` and `focus`
+the camera's steps; `moving` is `{op,speed,since}` (an ISO time) while a
+`PtzCtrl` move runs, and `presets` lists the enabled slots
+(`{id,name,pan,tilt,zoom}`, by id). A model without PTZ answers 404
+`{"error":"no_ptz"}`. In process, `sim.engine.ptz?.view()` gives the same
+object (type `PtzView`, exported from the package). See
+[PTZ](#ptz-pantilt-models) for the commands.
+
 ### Reset, request log, live feed
 
-- `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true}`
-  answers 204 (`video` goes back to the test pattern). An empty body resets
-  all five.
+- `POST /sim/api/reset` with `{"settings":true,"recordings":true,"counters":true,"faults":true,"video":true,"ptz":true}`
+  answers 204 (`video` goes back to the test pattern, `ptz` to the start
+  position with every preset slot empty). An empty body resets all six.
 - `GET /sim/api/requests?limit=100` lists recent camera API requests: time,
   port, method, path **without the query**, command, status and duration.
   Tokens and passwords never appear. Baichuan messages show as port `baichuan`, method `BC`, the cmd number, the status and the body lengths (`len`, `replyLen`), never a body.
@@ -1017,15 +1104,16 @@ run in Chrome.
 
 ## cam2 in the cluster
 
-`cam2.skylar.technology` is a permanent simulator in the k3s cluster: namespace
+`cam2` is a permanent simulator in the k3s cluster: namespace
 `cam-sim`, Deployment and Service `cam2`, PVC `cam2-data`. kube-setup owns the
 manifests.
 
 - **How clients reach it:**
-  - cams uses `cam2.cam-sim.svc.cluster.local:443`, with the TLS name
-    `cam2.skylar.technology`;
-  - the web UI and control API are at https://cam2.skylar.technology/ on the
-    LAN only (Traefik; 403 from outside; the ACME challenge path stays open);
+  - cam-proxy and cams use the Service's pinned ClusterIP
+    `10.43.61.52:443`, with the TLS name `cam2.cluster.internal`;
+  - it has no public name since 2026-10-26 (cameras get no public DNS names):
+    the web UI and control API are reached by port-forward
+    (`scripts/cam-ui.sh`);
   - ONVIF `192.168.1.103:8000` and RTSP `192.168.1.103:554` are open to the
     LAN (Service `cam2-gateway`), in plain text like the camera, for
     cam-proxy;
@@ -1043,15 +1131,19 @@ manifests.
   files into its `/library/`, scale it back to 0, and restart cam2 (the
   library is read at start). Convert large sources on a bigger machine first
   (see [Video library](#video-library)).
-- **Certificate:** a Let's Encrypt certificate, pushed daily at 04:27 by the
-  `cam2-cert-push` CronJob, with the same script as cam1.
+- **Certificate:** issued and renewed by the cluster cam-proxy's site CA
+  (`cam2.cluster.internal`, since 2026-10-26; before, a Let's Encrypt
+  certificate for `cam2.skylar.technology` pushed by the `cam2-cert-push`
+  CronJob).
+- **FTP source:** cam2 uploads from its pod address (10.42.x), not the
+  Service address, so the cluster cam-proxy sets `ftp.sourceSubnet`
+  `10.42.0.0/16`.
 - **Settings:**
   - `CAMSIM_SPEED=real`, `CAMSIM_SEED_CLIPS=demo`;
   - background motion, person, vehicle and pet events;
   - `CAMSIM_CONTROL_TLS=on`, `CAMSIM_WEB_UI=true`.
-- **Control API and web UI:** on the LAN at https://cam2.skylar.technology/
-  (sign in with `CAMSIM_CONTROL_TOKEN`). From elsewhere,
-  `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in
+- **Control API and web UI:** by port-forward only (sign in with
+  `CAMSIM_CONTROL_TOKEN`): `scripts/cam-ui.sh [camera]` finds the camera in local Docker first, then in
   the cluster, where it port-forwards the control port to
   `https://127.0.0.1:9443/`. It copies the token to the clipboard and opens
   the web UI.
@@ -1073,8 +1165,9 @@ see `.env.example`. `scripts/sync-secrets.sh`:
 - sets the GitHub Actions secrets `CAMSIM_CONTROL_TOKEN`, `CAMSIM_USERS` and
   `KUBE_SETUP_DEPLOY_TOKEN` (from `GITHUB_KUBE_SETUP_PAT`; GitHub refuses
   `GITHUB_*` names);
-- applies the Kubernetes Secrets `cam-sim-secrets` (the `CAMSIM_*` values)
-  and `cam2-camera-credentials` (the admin user, for `cam2-cert-push`).
+- applies the Kubernetes Secret `cam-sim-secrets` (the `CAMSIM_*` values).
+  (`cam2-camera-credentials` went with `cam2-cert-push` on 2026-10-26: cam2's
+  certificate comes from the cluster proxy's site CA.)
 
 It prints key names only, and `--dry-run` shows what it would do. Options:
 `--only github|kube`, `--rotate KEY` or `--rotate CAMSIM_USERS:<user>` (a new

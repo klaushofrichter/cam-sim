@@ -3,7 +3,7 @@ info:
   title: cam-sim control API
   version: '1'
   description: >
-    Controls a simulated Reolink RLC-1224A camera (or a CX820, CAMSIM_MODEL): events, recordings, faults,
+    Controls a simulated Reolink RLC-1224A camera (or a CX820 or E1-Outdoor-Pro, CAMSIM_MODEL): events, recordings, faults,
     actions and state. Every /sim/api route needs `Authorization: Bearer <CAMSIM_CONTROL_TOKEN>`,
     or the web UI's session cookie (from /sim/login); with the cookie, writes also need the
     header `X-CamSim-UI: 1`. A token in the URL is refused. Without a configured token the API
@@ -31,6 +31,35 @@ components:
         cmds: { type: array, items: { type: string } }
         rspCode: { type: integer }
         max: { type: integer, minimum: 1, description: 'baichuan.sessionLimit only: Baichuan connections at once, at most 12 (the camera allows 12)' }
+    PtzView:
+      type: object
+      required: [pan, tilt, zoom, focus, moving, presets]
+      properties:
+        pan: { type: number, description: 'simulator degrees, 0-355 (0.1 steps)' }
+        tilt: { type: number, description: 'simulator degrees, 0-50 (0.1 steps)' }
+        zoom: { type: integer, description: 'camera steps, 0-27' }
+        focus: { type: integer, description: 'camera steps, 0-97' }
+        moving:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [op, speed, since]
+              properties:
+                op: { type: string, description: 'the PtzCtrl op, e.g. Left or ZoomInc' }
+                speed: { type: integer, minimum: 1, maximum: 64 }
+                since: { type: string, format: date-time }
+        presets:
+          type: array
+          description: the saved (enabled) slots, by id
+          items:
+            type: object
+            required: [id, name, pan, tilt, zoom]
+            properties:
+              id: { type: integer, minimum: 0, maximum: 63 }
+              name: { type: string }
+              pan: { type: number }
+              tilt: { type: number }
+              zoom: { type: integer }
     SeedClip:
       type: object
       required: [daysAgo, start, end, triggers]
@@ -83,6 +112,17 @@ paths:
       responses:
         '200': { description: state }
         '401': { description: missing or wrong token }
+  /sim/api/ptz:
+    get:
+      summary: 'The virtual pan/tilt/zoom/focus, the running move and the saved presets of a PTZ model (E1-Outdoor-Pro)'
+      responses:
+        '200':
+          description: PTZ state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PtzView' }
+        '401': { description: missing or wrong token }
+        '404': { description: 'not a PTZ model: {"error":"no_ptz"}' }
   /sim/api/videos:
     get:
       summary: The video library and the selected video
@@ -250,6 +290,7 @@ paths:
                 counters: { type: boolean }
                 faults: { type: boolean }
                 video: { type: boolean, description: back to the test pattern }
+                ptz: { type: boolean, description: 'PTZ models: start position, every preset slot empty' }
       responses:
         '204': { description: reset }
   /sim/api/media/snapshot:

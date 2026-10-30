@@ -1,0 +1,226 @@
+{
+ "answers": {
+  "GetPtzGuard": {
+   "initial": {
+    "PtzGuard": {
+     "benable": 0,
+     "bexistPos": 0,
+     "channel": 0,
+     "imgName": "",
+     "timeout": 60
+    }
+   },
+   "range": {
+    "PtzGuard": {
+     "benable": 0,
+     "bexistPos": 0,
+     "bneedSetPos": 0,
+     "channel": 0,
+     "cmdStr": [
+      "setPos",
+      "toPos"
+     ],
+     "imgName": {
+      "maxLen": 31
+     },
+     "timeout": {
+      "max": 300,
+      "min": 10
+     }
+    }
+   },
+   "value": {
+    "PtzGuard": {
+     "benable": 0,
+     "bexistPos": 0,
+     "channel": 0,
+     "imgName": "",
+     "timeout": 60
+    }
+   }
+  },
+  "GetPtzCheckState": {
+   "initial": {
+    "PtzCheckState": 0
+   },
+   "range": {
+    "PtzCheckState": [
+     0,
+     1,
+     2
+    ]
+   },
+   "value": {
+    "PtzCheckState": 0
+   }
+  },
+  "GetAutoFocus": {
+   "initial": {
+    "AutoFocus": {
+     "disable": 0
+    }
+   },
+   "range": {
+    "AutoFocus": {
+     "disable": "boolean"
+    }
+   },
+   "value": {
+    "AutoFocus": {
+     "afType": 0,
+     "channel": 0,
+     "disable": 0
+    }
+   }
+  },
+  "GetPtzPatrol": {
+   "initial": {
+    "PtzPatrol": {
+     "trackTime": 60
+    }
+   },
+   "range": {
+    "PtzPatrol": {
+     "enable": "boolean",
+     "id": {
+      "max": 1,
+      "min": 1
+     },
+     "name": {
+      "maxLen": 31
+     },
+     "preset": {
+      "dwellTime": {
+       "max": 300,
+       "min": 1
+      },
+      "id": {
+       "max": 64,
+       "min": 1
+      },
+      "speed": {
+       "max": 64,
+       "min": 1
+      }
+     },
+     "running": "boolean"
+    }
+   },
+   "value": {
+    "PtzPatrol": [
+     {
+      "bOpen": 0,
+      "channel": 0,
+      "cruiseSchedule": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "enable": 0,
+      "id": 0,
+      "name": "cruise1",
+      "preset": null,
+      "running": 0
+     },
+     {
+      "bOpen": 0,
+      "channel": 0,
+      "cruiseSchedule": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "enable": 0,
+      "id": 1,
+      "name": "cruise2",
+      "preset": null,
+      "running": 0
+     },
+     {
+      "bOpen": 0,
+      "channel": 0,
+      "cruiseSchedule": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "enable": 0,
+      "id": 2,
+      "name": "cruise3",
+      "preset": null,
+      "running": 0
+     },
+     {
+      "bOpen": 0,
+      "channel": 0,
+      "cruiseSchedule": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "enable": 0,
+      "id": 3,
+      "name": "cruise4",
+      "preset": null,
+      "running": 0
+     },
+     {
+      "bOpen": 0,
+      "channel": 0,
+      "cruiseSchedule": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "enable": 0,
+      "id": 4,
+      "name": "cruise5",
+      "preset": null,
+      "running": 0
+     },
+     {
+      "bOpen": 0,
+      "channel": 0,
+      "cruiseSchedule": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "enable": 0,
+      "id": 5,
+      "name": "cruise6",
+      "preset": null,
+      "running": 0
+     }
+    ]
+   }
+  }
+ },
+ "zoomFocusRange": {
+  "ZoomFocus": {
+   "channel": 0,
+   "focus": {
+    "pos": {
+     "max": 97,
+     "min": 0
+    }
+   },
+   "zoom": {
+    "pos": {
+     "max": 27,
+     "min": 0
+    }
+   }
+  }
+ },
+ "presetRange": {
+  "PtzPreset": {
+   "channel": 0,
+   "enable": "boolean",
+   "id": {
+    "max": 64,
+    "min": 1
+   },
+   "imgName": {
+    "maxLen": 31
+   },
+   "name": {
+    "maxLen": 31
+   }
+  }
+ },
+ "refusals": {
+  "GetPtzCurPos": {
+   "rspCode": -1,
+   "detail": "not exist"
+  },
+  "GetPtzTattern": {
+   "rspCode": -12,
+   "detail": "get config failed"
+  },
+  "GetPtzSerial": {
+   "rspCode": -12,
+   "detail": "get config failed"
+  },
+  "GetPtzTraceSection": {
+   "rspCode": -1,
+   "detail": "not exist"
+  }
+ }
+}
