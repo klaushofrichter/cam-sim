@@ -238,8 +238,13 @@ export class Library {
       // The model's sub size and frame rates (profile media).
       const m = this.engine.profile.media;
       const [sw, sh] = m.sub.split('x');
-      const limit = ['-t', String(this.engine.config.maxVideoS)];
-      const silent = ['-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono'];
+      const max = this.engine.config.maxVideoS;
+      const limit = ['-t', String(max)];
+      // Silence for a source without sound, as long as its (trimmed) video.
+      // -shortest alone doesn't bound it: under load ffmpeg 8 let the endless
+      // anullsrc run up to a second past the video's end (2.9 s for a 2 s trim).
+      const silent = (p: { duration: number }) =>
+        ['-t', String(p.duration > 0 ? Math.min(p.duration, max) : max), '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono'];
       let converted = true;
       // The first path's probe, reused when a pair is converted.
       let first: Awaited<ReturnType<typeof probe>> | undefined;
@@ -254,15 +259,16 @@ export class Library {
             p.acodec === 'aac' ? ['-map', '0:v:0', '-map', '0:a:0', '-c:a', 'copy']
               : p.acodec ? ['-map', '0:v:0', '-map', '0:a:0', '-c:a', 'aac', '-ar', '16000']
                 : ['-map', '0:v:0', '-map', '1:a:0', '-shortest', '-c:a', 'aac', '-ar', '16000'];
-          const extra = (p: typeof m) => (p.acodec ? [] : silent);
+          const extra = (p: typeof m) => (p.acodec ? [] : silent(p));
           await ffmpeg([...limit, '-i', input(s.paths[0]), ...extra(m), ...audio(m), '-c:v', 'copy', '-tag:v', 'hvc1', ...FRAG, '-f', 'mp4', out.clipMain], this.abort.signal);
           await ffmpeg([...limit, '-i', input(s.paths[1]), ...extra(sub), ...audio(sub), '-c:v', 'copy', ...FRAG, '-f', 'mp4', out.clipSub], this.abort.signal);
         }
       }
       if (converted) {
         const from = [...limit, '-i', input(s.paths[0])];
-        const hasAudio = !!(first ?? (await probe(s.paths[0]))).acodec;
-        const quiet = hasAudio ? [] : silent;
+        const src = first ?? (await probe(s.paths[0]));
+        const hasAudio = !!src.acodec;
+        const quiet = hasAudio ? [] : silent(src);
         const amap = hasAudio ? ['-map', '0:v:0', '-map', '0:a:0'] : ['-map', '0:v:0', '-map', '1:a:0', '-shortest'];
         const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=${m.mainFps}`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',

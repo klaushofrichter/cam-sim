@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `SetTime` (`{Dst, Time}`, whole objects), as measured on the real E1 2026-10-30 (`reference/E1-Outdoor-Pro/time-exchanges.json`), on every model: the camera's clock moves to the given date and time and runs on from there, and the zone (`timeZone`, seconds west of UTC), the DST rule and the formats are stored; `GetTime` reports them. A value out of range (`timeZone` outside −46800…43200, …) answers `-4` "param error" and changes nothing. `GetTime` with `action: 1` adds the camera's `initial` and `range`. A reset goes back to `CAMSIM_TZ` and the simulator's clock; file names, Search and events keep `CAMSIM_TZ`. `SetTime` counts in `setCalls` and follows the `settings.fail` / `settings.ignore` faults.
+
+## v2026.10.30.2
+
 - E1: a `ZoomInc` or `ZoomDec` while a zoom runs (no `Stop` since), in either direction, now answers `-13` "set config failed" and the running zoom goes on, as the real E1 does (measured 2026-10-30, `reference/E1-Outdoor-Pro/ptz-zoom-overlap.json`). Moves and focus are still accepted mid-motion, and a zoom after a move, a focus or a `Stop`.
 
 ## v2026.10.30.1

@@ -370,13 +370,15 @@ describe('Baichuan recordings: replacing a transfer (Task 6 review)', () => {
     const { engine, loggedIn } = await startBc({ env: DEMO });
     const rec = engine.sd.all()[0];
     const c = await loggedIn();
-    const old = c.send(8, downloadXml(rec.files.main.name));
-    const next = c.send(8, downloadXml(rec.files.sub.name)); // same tick: the old file isn't open yet
+    // One write, so both arrive in one read and are handled in the same tick:
+    // the old file isn't open yet. (Two writes are two reads on Linux CI; the
+    // old transfer then sent the record and a chunk first: 1 + 3 + 8 = 12.)
+    const [old, next] = c.sendTogether([8, downloadXml(rec.files.main.name)], [8, downloadXml(rec.files.sub.name)]);
     const r = await c.collect(next, rec.files.sub.size);
     expect(r.data.length).toBe(rec.files.sub.size);
     const mine = framesOf(c, old);
     expect(mine[0].header).toMatchObject({ status: 200, payloadOffset: 106 });
-    expect(mine.length - 1).toBe(8);
+    expect(mine.length - 1).toBe(8); // nothing sent at the replace: the record, then two blocks
     const firstNew = c.frames.findIndex((f) => f.header.msgId === next);
     expect(c.frames.slice(firstNew).some((f) => f.header.msgId === old)).toBe(false);
     expect(engine.counters.baichuanDownloads).toBe(2);

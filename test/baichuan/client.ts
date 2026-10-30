@@ -132,6 +132,17 @@ export class BcClient {
     return msgId;
   }
 
+  // Several AES requests in one TCP write, so the server reads them in one
+  // 'data' event and handles them in the same tick. Separate writes are
+  // separate segments on Linux (Nagle holds the second until the first is
+  // ACKed): the server may run the first request's async work in between.
+  sendTogether(...reqs: [cmd: number, xml?: string][]): number[] {
+    this.socket.cork();
+    const ids = reqs.map(([cmd, xml]) => this.send(cmd, xml));
+    this.socket.uncork();
+    return ids;
+  }
+
   call(cmd: number, xml?: string, ms?: number): Promise<BcFrame> {
     return this.reply(this.send(cmd, xml), cmd, ms);
   }

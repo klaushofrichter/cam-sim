@@ -350,7 +350,7 @@ post Logout
 | | `ModifyUser` | `{User:{userName,password?,level?}}` | `{rspCode:200}`; a new password ends that user's sessions |
 | Device | `GetDevInfo` | `{}` | `{DevInfo:{model,firmVer,hardVer,serial,name,…}}`; the serial starts with `SIM` and changes at every boot |
 | | `GetDevName` / `SetDevName` | `{channel:0}` / `{DevName:{name}}` | `{DevName:{name}}`; with `action: 1` also `initial` (the factory name, `CAMSIM_NAME`) and `range: {DevName:{name:{maxLen:31,minLen:0}}}`. **One name:** `GetDevName`, `GetDevInfo.name` and the OSD's `osdChannel.name` are the same value, and `SetDevName` or a `SetOsd` with a new `osdChannel.name` change all three (measured 2026-10-03). Rules: 1–31 characters of ASCII letters, digits, space and `- ( ) + = [ ] { }`, no leading or trailing space; anything else (`_`, `.`, `é`, the empty name, …) `-54`, longer than 31 `-56`; a refused name keeps the old one. Stored like the other settings (survives reboot, power cycle and a restart with `CAMSIM_DATA_DIR`) |
-| | `GetTime` | `{}` | `{Dst:{enable,offset,…},Time:{year,mon,day,hour,min,sec,isDst,timeZone,…}}`; `timeZone` is seconds **west** of UTC (Chicago: 21600) |
+| | `GetTime` / `SetTime` | `{}` / `{Dst:{…},Time:{…}}` | `{Dst:{enable,offset,start/endMon,Week,Weekday,Hour,Min,Sec},Time:{year,mon,day,hour,min,sec,isDst,timeZone,hourFmt,timeFmt}}`; `timeZone` is seconds **west** of UTC (Chicago: 21600); `action: 1` adds `initial` and `range` (timeZone −46800…43200). `SetTime` with the whole objects (measured on the E1 2026-10-30) sets the camera's clock to the given date and time and stores the zone, DST rule and formats, which `GetTime` then reports; a value out of range → `-4` "param error", nothing changed. Until then, and after a reset, `CAMSIM_TZ` and the simulator's clock. File names, Search and events keep `CAMSIM_TZ`. Not stored across a restart. `settings.fail` / `settings.ignore` and `setCalls` cover it |
 | | `GetHddInfo` | `{}` | `{HddInfo:[{capacity,size,mount,format,number,storageType}]}`; MB, **`size` is the free space** |
 | | `GetEnc` | `{channel:0}` | `{Enc:{mainStream:{vType:"h265",size:"4512*2512",frameRate:20,…},subStream:{vType:"h264",size:"896*512",frameRate:10,…}}}` |
 | | `GetNetPort` / `SetNetPort` | `{}` / `{NetPort:{…}}` | ports and `*Enable` flags |
@@ -924,8 +924,8 @@ matching requests.
 | `flv.reset` | | every `/flv` connection resets, even with a valid token |
 | `flv.delayMs` | `ms` | delay the `/flv` response |
 | `search.delayMs` | `ms` | make Search slower (widens the `-54` window) |
-| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`) |
-| `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing (also `SetPtzPreset`) |
+| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`, `SetTime`) |
+| `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing (also `SetPtzPreset`, `SetTime`) |
 | `settings.strictPartial` | | a partial Set's resets show at once, not after a reboot |
 | `offline` | | every camera connection is destroyed, Baichuan included (the camera stays powered) |
 | `latencyMs` | `ms` | delay every camera request |
