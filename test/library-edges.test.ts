@@ -13,6 +13,8 @@ const ff = (args: string[]) => execFileSync('ffmpeg', ['-hide_banner', '-logleve
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
 const clip = (file: string, seconds = 2) =>
   ff(['-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=15', '-t', String(seconds), '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', file]);
+const streamDurations = (file: string) =>
+  execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=duration', '-of', 'csv=p=0', file]).toString().trim().split('\n').map(Number);
 let src: string;
 
 beforeAll(() => {
@@ -77,6 +79,13 @@ describe('video library edges', () => {
     const lib = new Library(engine, { sourceDir: src, cacheDir: tmp('camsim-edge-trim-') });
     await lib.prepareAll();
     expect(lib.list().find((v) => v.id === 'garden')!.durationS).toBeLessThanOrEqual(2.3);
+    // Every stream ends at the cut, also the silence added for a source
+    // without sound (-shortest alone let it overrun by up to a second under
+    // load on CI). The 0.3 s allow a frame and AAC's priming and padding.
+    const media = engine.mediaFor({ video: 'garden' });
+    for (const s of ['main', 'sub'] as const) {
+      for (const d of streamDurations(media.clipPath(s))) expect(d).toBeLessThanOrEqual(2.3);
+    }
   }, 120_000);
 
   it('prepares a captured pair without sound', async () => {
