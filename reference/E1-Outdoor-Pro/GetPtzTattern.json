@@ -1,0 +1,8 @@
+{
+ "cmd": "GetPtzTattern",
+ "code": 1,
+ "error": {
+  "detail": "get config failed",
+  "rspCode": -12
+ }
+}

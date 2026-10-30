@@ -1,0 +1,21 @@
+{
+ "cmd": "GetAutoFocus",
+ "code": 0,
+ "initial": {
+  "AutoFocus": {
+   "disable": 0
+  }
+ },
+ "range": {
+  "AutoFocus": {
+   "disable": "boolean"
+  }
+ },
+ "value": {
+  "AutoFocus": {
+   "afType": 0,
+   "channel": 0,
+   "disable": 0
+  }
+ }
+}

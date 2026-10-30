@@ -1,0 +1,43 @@
+{
+ "cmd": "GetZoomFocus",
+ "code": 0,
+ "initial": {
+  "ZoomFocus": {
+   "channel": 0,
+   "focus": {
+    "pos": 49
+   },
+   "zoom": {
+    "pos": 7
+   }
+  }
+ },
+ "range": {
+  "ZoomFocus": {
+   "channel": 0,
+   "focus": {
+    "pos": {
+     "max": 97,
+     "min": 0
+    }
+   },
+   "zoom": {
+    "pos": {
+     "max": 27,
+     "min": 0
+    }
+   }
+  }
+ },
+ "value": {
+  "ZoomFocus": {
+   "channel": 0,
+   "focus": {
+    "pos": 49
+   },
+   "zoom": {
+    "pos": 7
+   }
+  }
+ }
+}

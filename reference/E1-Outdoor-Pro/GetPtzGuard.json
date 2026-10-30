@@ -1,0 +1,41 @@
+{
+ "cmd": "GetPtzGuard",
+ "code": 0,
+ "initial": {
+  "PtzGuard": {
+   "benable": 0,
+   "bexistPos": 0,
+   "channel": 0,
+   "imgName": "<redacted>",
+   "timeout": 60
+  }
+ },
+ "range": {
+  "PtzGuard": {
+   "benable": 0,
+   "bexistPos": 0,
+   "bneedSetPos": 0,
+   "channel": 0,
+   "cmdStr": [
+    "setPos",
+    "toPos"
+   ],
+   "imgName": {
+    "maxLen": 31
+   },
+   "timeout": {
+    "max": 300,
+    "min": 10
+   }
+  }
+ },
+ "value": {
+  "PtzGuard": {
+   "benable": 0,
+   "bexistPos": 0,
+   "channel": 0,
+   "imgName": "<redacted>",
+   "timeout": 60
+  }
+ }
+}
