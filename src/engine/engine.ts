@@ -19,6 +19,10 @@ import { createLogger } from '../log';
 import { Certificates } from '../tls/certs';
 import { RequestLog } from './request-log';
 import { profileFor, type CameraProfile } from '../profile/profile';
+import { Ptz, ptzEnabled } from './ptz';
+import { ptzText } from '../pipeline/overlay';
+import { findFonts } from '../pipeline/fonts';
+import { drawTextOnJpeg } from '../pipeline/ptz-picture';
 import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
@@ -58,6 +62,8 @@ export class Engine {
   readonly rng: Rng;
   // The camera model's fixed answers (CAMSIM_MODEL).
   readonly profile: CameraProfile;
+  // The virtual pan/tilt/zoom state of a PTZ model; null for fixed models.
+  readonly ptz: Ptz | null;
   serial: string;
   rebooting = false;
   // Power: 'off' after power-off, 'booting' during power-on, else 'on'.
@@ -77,6 +83,13 @@ export class Engine {
   pipeline: { on: boolean; until?: number; error?: string } = { on: false };
   private pipelineTimer?: NodeJS.Timeout;
   liveSub?: LiveSubSource; // set by SdPipeline
+  // The ffmpeg that draws the PTZ position on snapshots (tests point it elsewhere).
+  ffmpeg = 'ffmpeg';
+  // The last PTZ snapshot (one entry: video and text), the font, and whether
+  // a failure was logged.
+  private ptzSnap?: { key: string; jpeg: Buffer };
+  private ptzFont?: string | null;
+  private ptzSnapFailed = false;
   // Set by the Baichuan server (src/baichuan/server.ts): device actions reach port 9000.
   baichuan?: { dropAll(): void; dropTransfers(): void };
 
@@ -87,6 +100,8 @@ export class Engine {
     public media: MediaSource,
   ) {
     this.profile = profileFor(config.model);
+    if (ptzEnabled(this.profile.ability) && !this.profile.ptz) throw new Error(`profile ${this.profile.model} permits PTZ but has no ptz spec`);
+    this.ptz = ptzEnabled(this.profile.ability) ? new Ptz(this.profile.ptz!, clock) : null;
     this.rng = createRng(config.seed);
     this.certs = new Certificates({ certFile: config.tlsCertFile, keyFile: config.tlsKeyFile, dataDir: config.dataDir });
     this.serial = this.newSerial();
@@ -169,6 +184,30 @@ export class Engine {
     return this.media;
   }
 
+  // The picture for Snap and the web UI. PTZ models draw their position in
+  // the middle (the simulator's; one ffmpeg run per new position, cached);
+  // without a font, or when ffmpeg fails, the plain picture. Fixed models:
+  // the media's snapshot unchanged. (The FTP upload keeps the plain picture:
+  // whether the camera's FTP picture shows anything extra is not measured.)
+  async snapshot(): Promise<Buffer> {
+    const plain = await this.media.snapshot();
+    if (!this.ptz) return plain;
+    if (this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
+    if (!this.ptzFont) return plain;
+    const text = ptzText(this.ptz.position());
+    const key = `${this.videoId}|${text}`;
+    if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
+    try {
+      const jpeg = await drawTextOnJpeg(plain, text, this.ptzFont, this.ffmpeg);
+      this.ptzSnap = { key, jpeg };
+      return jpeg;
+    } catch (err) {
+      if (!this.ptzSnapFailed) this.log.warn({ err: (err as Error).message }, 'ptz_snapshot_failed');
+      this.ptzSnapFailed = true;
+      return plain;
+    }
+  }
+
   // Powered off, booting, rebooting or the offline fault: every port is down.
   down(): boolean {
     return this.power !== 'on' || this.rebooting || !!this.faults.active('offline');
@@ -221,8 +260,10 @@ export class Engine {
   }
 
   // Start-up after a reboot or power-on: offline for `ms`, then a new serial,
-  // no sessions, and the saved settings take effect.
+  // no sessions, and the saved settings take effect. A PTZ move stops; the
+  // presets stay (not measured).
   private async boot(msOpt?: number): Promise<void> {
+    this.ptz?.stop();
     const ms = Math.min(Math.max(0, Number(msOpt ?? this.timings.rebootMs) || 0), 600_000);
     await sleep(ms);
     this.serial = this.newSerial();
@@ -235,6 +276,7 @@ export class Engine {
   powerOff(): boolean {
     if (this.power !== 'on' || this.rebooting) return false;
     this.power = 'off';
+    this.ptz?.stop();
     this.events.stop();
     this.sessions.revokeAll();
     this.dropConnections();
@@ -279,8 +321,9 @@ export class Engine {
   }
 
   // Back to a known state between tests. Every part defaults to on.
-  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean; video?: boolean } = {}): void {
+  reset(what: { settings?: boolean; recordings?: boolean; counters?: boolean; faults?: boolean; video?: boolean; ptz?: boolean } = {}): void {
     const all = Object.values(what).every((v) => v === undefined);
+    if (all || what.ptz) this.ptz?.reset();
     if (all || what.faults) this.faults.clearAll();
     if (all || what.settings) this.settings.resetFactory();
     if (all || what.recordings) this.sd.clear();

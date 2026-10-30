@@ -1,0 +1,17 @@
+{
+ "cmd": "GetPtzCheckState",
+ "code": 0,
+ "initial": {
+  "PtzCheckState": 0
+ },
+ "range": {
+  "PtzCheckState": [
+   0,
+   1,
+   2
+  ]
+ },
+ "value": {
+  "PtzCheckState": 0
+ }
+}

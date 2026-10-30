@@ -1,0 +1,8 @@
+{
+ "cmd": "GetPtzCurPos",
+ "code": 1,
+ "error": {
+  "detail": "not exist",
+  "rspCode": -1
+ }
+}

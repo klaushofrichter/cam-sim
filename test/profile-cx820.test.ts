@@ -35,7 +35,7 @@ function shape(o: unknown): unknown {
 
 describe('model selection', () => {
   it('CAMSIM_MODEL picks the profile; RLC-1224A is the default; anything else is refused', () => {
-    expect(MODELS).toEqual(['RLC-1224A', 'CX820']);
+    expect(MODELS).toEqual(['RLC-1224A', 'CX820', 'E1-Outdoor-Pro']);
     const base = { CAMSIM_USERS: 'a:admin:pw' };
     expect(loadConfig(base).model).toBe('RLC-1224A');
     expect(loadConfig({ ...base, CAMSIM_MODEL: 'CX820' }).model).toBe('CX820');

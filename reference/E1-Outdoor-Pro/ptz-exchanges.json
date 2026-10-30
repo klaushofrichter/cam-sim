@@ -1,0 +1,1103 @@
+[
+ {
+  "cmd": "GetZoomFocus",
+  "param": {
+   "channel": 0
+  },
+  "res": {
+   "cmd": "GetZoomFocus",
+   "code": 0,
+   "initial": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 49
+     },
+     "zoom": {
+      "pos": 7
+     }
+    }
+   },
+   "range": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": {
+       "max": 97,
+       "min": 0
+      }
+     },
+     "zoom": {
+      "pos": {
+       "max": 27,
+       "min": 0
+      }
+     }
+    }
+   },
+   "value": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 49
+     },
+     "zoom": {
+      "pos": 7
+     }
+    }
+   }
+  },
+  "ms": 143
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 1,
+    "id": 64,
+    "name": "cams-measure-start"
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 61
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Left",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 120
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 123
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Right",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 120
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 145
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Up",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 132
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 121
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Down",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 178
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 101
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "LeftUp",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 167
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 153
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "LeftDown",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 196
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 162
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "RightUp",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 149
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 117
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "RightDown",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 141
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 154
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Left",
+   "speed": 0
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 117
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 141
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Left",
+   "speed": 1
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 141
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 135
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Left",
+   "speed": 64
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 182
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 141
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Left",
+   "speed": 65
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 40
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 127
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Left",
+   "speed": 100
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 79
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 80
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Right"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 120
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 134
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Bogus",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 57
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "ZoomInc",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 339
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 130
+ },
+ {
+  "cmd": "GetZoomFocus",
+  "param": {
+   "channel": 0
+  },
+  "res": {
+   "cmd": "GetZoomFocus",
+   "code": 0,
+   "initial": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 81
+     },
+     "zoom": {
+      "pos": 26
+     }
+    }
+   },
+   "range": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": {
+       "max": 97,
+       "min": 0
+      }
+     },
+     "zoom": {
+      "pos": {
+       "max": 27,
+       "min": 0
+      }
+     }
+    }
+   },
+   "value": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 81
+     },
+     "zoom": {
+      "pos": 26
+     }
+    }
+   }
+  },
+  "ms": 132
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "ZoomDec",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 477
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 346
+ },
+ {
+  "cmd": "GetZoomFocus",
+  "param": {
+   "channel": 0
+  },
+  "res": {
+   "cmd": "GetZoomFocus",
+   "code": 0,
+   "initial": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 79
+     },
+     "zoom": {
+      "pos": 20
+     }
+    }
+   },
+   "range": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": {
+       "max": 97,
+       "min": 0
+      }
+     },
+     "zoom": {
+      "pos": {
+       "max": 27,
+       "min": 0
+      }
+     }
+    }
+   },
+   "value": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 79
+     },
+     "zoom": {
+      "pos": 20
+     }
+    }
+   }
+  },
+  "ms": 270
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "FocusInc",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 331
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 189
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "FocusDec",
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 120
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "Stop"
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 172
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 1,
+    "id": 63,
+    "name": "cams-measure-zoomed"
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 157
+ },
+ {
+  "cmd": "StartZoomFocus",
+  "param": {
+   "ZoomFocus": {
+    "channel": 0,
+    "op": "ZoomPos",
+    "pos": 7
+   }
+  },
+  "res": {
+   "cmd": "StartZoomFocus",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 193
+ },
+ {
+  "cmd": "GetZoomFocus",
+  "param": {
+   "channel": 0
+  },
+  "res": {
+   "cmd": "GetZoomFocus",
+   "code": 0,
+   "initial": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 52
+     },
+     "zoom": {
+      "pos": 7
+     }
+    }
+   },
+   "range": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": {
+       "max": 97,
+       "min": 0
+      }
+     },
+     "zoom": {
+      "pos": {
+       "max": 27,
+       "min": 0
+      }
+     }
+    }
+   },
+   "value": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 52
+     },
+     "zoom": {
+      "pos": 7
+     }
+    }
+   }
+  },
+  "ms": 147
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "ToPos",
+   "id": 63,
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 283
+ },
+ {
+  "cmd": "GetZoomFocus",
+  "param": {
+   "channel": 0
+  },
+  "res": {
+   "cmd": "GetZoomFocus",
+   "code": 0,
+   "initial": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 77
+     },
+     "zoom": {
+      "pos": 20
+     }
+    }
+   },
+   "range": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": {
+       "max": 97,
+       "min": 0
+      }
+     },
+     "zoom": {
+      "pos": {
+       "max": 27,
+       "min": 0
+      }
+     }
+    }
+   },
+   "value": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 77
+     },
+     "zoom": {
+      "pos": 20
+     }
+    }
+   }
+  },
+  "ms": 236
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 1,
+    "id": 62,
+    "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 91
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 1,
+    "id": 65,
+    "name": "bad"
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 63
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "ToPos",
+   "id": 61,
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 246
+ },
+ {
+  "cmd": "PtzCtrl",
+  "param": {
+   "channel": 0,
+   "op": "ToPos",
+   "id": 64,
+   "speed": 32
+  },
+  "res": {
+   "cmd": "PtzCtrl",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 40
+ },
+ {
+  "cmd": "StartZoomFocus",
+  "param": {
+   "ZoomFocus": {
+    "channel": 0,
+    "op": "ZoomPos",
+    "pos": 7
+   }
+  },
+  "res": {
+   "cmd": "StartZoomFocus",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 278
+ },
+ {
+  "cmd": "GetZoomFocus",
+  "param": {
+   "channel": 0
+  },
+  "res": {
+   "cmd": "GetZoomFocus",
+   "code": 0,
+   "initial": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 52
+     },
+     "zoom": {
+      "pos": 7
+     }
+    }
+   },
+   "range": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": {
+       "max": 97,
+       "min": 0
+      }
+     },
+     "zoom": {
+      "pos": {
+       "max": 27,
+       "min": 0
+      }
+     }
+    }
+   },
+   "value": {
+    "ZoomFocus": {
+     "channel": 0,
+     "focus": {
+      "pos": 52
+     },
+     "zoom": {
+      "pos": 7
+     }
+    }
+   }
+  },
+  "ms": 198
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 0,
+    "id": 62,
+    "name": ""
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 182
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 0,
+    "id": 63,
+    "name": ""
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 0,
+   "value": {
+    "rspCode": 200
+   }
+  },
+  "ms": 118
+ },
+ {
+  "cmd": "SetPtzPreset",
+  "param": {
+   "PtzPreset": {
+    "channel": 0,
+    "enable": 0,
+    "id": 64,
+    "name": ""
+   }
+  },
+  "res": {
+   "cmd": "SetPtzPreset",
+   "code": 1,
+   "error": {
+    "detail": "param error",
+    "rspCode": -4
+   }
+  },
+  "ms": 43
+ }
+]

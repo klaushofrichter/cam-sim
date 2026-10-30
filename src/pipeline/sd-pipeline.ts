@@ -7,7 +7,7 @@ import { TIME_FORMAT } from '../engine/clock';
 import { writeFileAtomic } from '../util/json-file';
 import type { FlvTag } from '../media/flv';
 import { FlvStreamParser, isConfigTag, isKeyframe } from '../media/flv-stream';
-import { clockText, filterChain, overlayOf } from './overlay';
+import { clockText, filterChain, overlayOf, ptzText } from './overlay';
 import type { LiveSubSource } from './live-sub';
 
 type Fonts = { regular: string; bold: string };
@@ -112,9 +112,11 @@ export class SdPipeline implements LiveSubSource {
     } else if (!this.wanted() && this.proc) void this.kill();
   }
 
-  private files(): { dir: string; clock: string; name: string } {
+  // PTZ models also draw their position (ptz.txt).
+  private files(): { dir: string; clock: string; name: string; ptz?: string } {
     this.dir ??= mkdtempSync(join(tmpdir(), 'cam-sim-pipeline-'));
-    return { dir: this.dir, clock: join(this.dir, 'clock.txt'), name: join(this.dir, 'name.txt') };
+    const f = { dir: this.dir, clock: join(this.dir, 'clock.txt'), name: join(this.dir, 'name.txt') };
+    return this.engine.ptz ? { ...f, ptz: join(this.dir, 'ptz.txt') } : f;
   }
 
   private chainOf(running: { Osd: any; Isp: any }): string {
@@ -136,7 +138,9 @@ export class SdPipeline implements LiveSubSource {
   private writeClock(): void {
     const e = this.engine;
     try {
-      writeFileAtomic(this.files().clock, clockText(e.clock.now(), e.config.tz, TIME_FORMAT), { sync: false });
+      const f = this.files();
+      writeFileAtomic(f.clock, clockText(e.clock.now(), e.config.tz, TIME_FORMAT), { sync: false });
+      if (f.ptz && e.ptz) writeFileAtomic(f.ptz, ptzText(e.ptz.position()), { sync: false });
     } catch (err) {
       e.log.warn({ err: (err as Error).message }, 'sd_pipeline_clock_write_failed');
     }
