@@ -5,7 +5,8 @@ import { loadConfig, ConfigError } from '../src/config';
 import { configFromOptions } from '../src/index';
 import { MODELS, profileFor } from '../src/profile/profile';
 import { E1_OUTDOOR_PRO } from '../src/profile/E1-Outdoor-Pro';
-import { ptzEnabled } from '../src/engine/ptz';
+import { Ptz, ptzEnabled } from '../src/engine/ptz';
+import { fixedClock } from '../src/engine/clock';
 import { fixtureSpec } from '../src/media/fixtures';
 
 // One reply entry per file (reference/E1-Outdoor-Pro/README.md).
@@ -92,6 +93,19 @@ describe('E1 Outdoor Pro profile (reference/E1-Outdoor-Pro)', () => {
       expect(shape(E1.ptz!.answers[cmd])).toEqual(shape({ initial: e.initial, range: e.range, value: e.value }));
     }
     expect(JSON.stringify(E1.ptz)).not.toContain('redacted');
+  });
+
+  it('autofocus: focus tracks zoom through the measured points (#114)', () => {
+    const p = new Ptz(E1.ptz!, fixedClock(new Date('2026-10-30T12:00:00Z')));
+    const at = (zoom: number) => (p.zoomFocus({ op: 'ZoomPos', pos: zoom }), p.position().focus);
+    expect(at(7)).toBe(49);
+    expect(at(26)).toBe(81);
+    expect(at(20)).toBe(77);
+    for (let z = 0; z <= 27; z++) {
+      const f = at(z);
+      expect(f).toBeGreaterThanOrEqual(0);
+      expect(f).toBeLessThanOrEqual(97);
+    }
   });
 
   it('every model has a PTZ spec exactly when its ability grants ptzCtrl', () => {

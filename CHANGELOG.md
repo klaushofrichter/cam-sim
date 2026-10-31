@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- E1: the focus follows the zoom, as the real E1's autofocus does (#114): `ZoomInc`/`ZoomDec` (while running too), `ToPos` and `ZoomPos` set the focus from the zoom (measured: zoom 7 → 26 took the focus 49 → 81; `ToPos` to zoom 20 gave about 77; the mapping in between is not measured exactly). `GetZoomFocus` and `/sim/api/ptz` show it. A focus set by hand stays until the next zoom.
+
 ## v2026.10.30.3
 
 - `SetTime` (`{Dst, Time}`, whole objects), as measured on the real E1 2026-10-30 (`reference/E1-Outdoor-Pro/time-exchanges.json`), on every model: the camera's clock moves to the given date and time and runs on from there, and the zone (`timeZone`, seconds west of UTC), the DST rule and the formats are stored; `GetTime` reports them. A value out of range (`timeZone` outside −46800…43200, …) answers `-4` "param error" and changes nothing. `GetTime` with `action: 1` adds the camera's `initial` and `range`. A reset goes back to `CAMSIM_TZ` and the simulator's clock; file names, Search and events keep `CAMSIM_TZ`. `SetTime` counts in `setCalls` and follows the `settings.fail` / `settings.ignore` faults.

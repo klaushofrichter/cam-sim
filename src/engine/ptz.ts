@@ -20,6 +20,9 @@ export interface PtzSpec {
   start: { pan: number; tilt: number; zoom: number; focus: number };
   slots: number; nameMax: number; speed: Range; defaultSpeed: number;
   rate: { panTilt: number; zoom: number; focus: number }; // units per second per speed unit
+  // Autofocus: [zoom, focus] points, ascending zoom; the focus after a zoom
+  // change is interpolated between them. Absent: focus stays through zooms.
+  focusTrack?: ReadonlyArray<readonly [number, number]>;
   answers: { GetPtzGuard: Answer; GetPtzCheckState: Answer; GetAutoFocus: Answer; GetPtzPatrol: Answer };
   zoomFocusRange: unknown; presetRange: unknown; // GetZoomFocus / GetPtzPreset `range`
   refusals: Record<string, { rspCode: number; detail: string }>; // GetPtzCurPos, GetPtzTattern, ...
@@ -62,6 +65,18 @@ const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInt
 const clamp = (v: number, [lo, hi]: Range): number => Math.min(hi, Math.max(lo, v));
 const defaultName = (id: number): string => `pos${id + 1}`;
 
+// The autofocus position for a zoom: linear between the track's points,
+// held flat beyond its ends.
+function trackFocus(track: ReadonlyArray<readonly [number, number]>, zoom: number): number {
+  if (zoom <= track[0][0]) return track[0][1];
+  for (let i = 1; i < track.length; i++) {
+    const [z0, f0] = track[i - 1];
+    const [z1, f1] = track[i];
+    if (zoom <= z1) return f0 + ((f1 - f0) * (zoom - z0)) / (z1 - z0);
+  }
+  return track[track.length - 1][1];
+}
+
 export class Ptz {
   private base: PtzPos;
   private moving?: Move;
@@ -85,7 +100,15 @@ export class Ptz {
       const rate = a === 'zoom' ? this.spec.rate.zoom : a === 'focus' ? this.spec.rate.focus : this.spec.rate.panTilt;
       out[a] = clamp(this.base[a] + d * rate * m.speed * secs, this.spec[a]);
     }
+    if (isZoom(m.op)) out.focus = this.refocus(out.zoom, out.focus);
     return out;
+  }
+
+  // The camera refocuses after every zoom change (autofocus on): focus
+  // follows the zoom on the spec's track, or stays without one.
+  private refocus(zoom: number, focus: number): number {
+    const t = this.spec.focusTrack;
+    return t?.length ? clamp(trackFocus(t, Math.round(zoom)), this.spec.focus) : focus;
   }
 
   // Ends the running move where it is now (every change starts here, so a
@@ -127,9 +150,10 @@ export class Ptz {
       const slot = this.slots[p.id];
       // An empty slot: 200 and no move (measured).
       if (!slot.enable) return null;
-      // Applies at once (not measured); focus stays (the camera refocuses).
+      // Applies at once (not measured); focus is not stored: the camera
+      // refocuses for the slot's zoom (measured: zoom 20, focus 52 -> 77).
       this.settle();
-      this.base = { ...this.base, pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom };
+      this.base = { ...this.base, pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom, focus: this.refocus(slot.zoom, this.base.focus) };
       return null;
     }
     // A zoom while a zoom runs, either direction: -13 "set config failed",
@@ -149,6 +173,8 @@ export class Ptz {
     if (!isInt(p.pos) || p.pos < lo || p.pos > hi) return PARAM_ERROR;
     this.settle();
     this.base = { ...this.base, [axis]: p.pos };
+    // ZoomPos refocuses like any zoom (not measured).
+    if (axis === 'zoom') this.base.focus = this.refocus(p.pos, this.base.focus);
     return null;
   }
 

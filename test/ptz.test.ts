@@ -7,6 +7,7 @@ const SPEC: PtzSpec = {
   start: { pan: 180, tilt: 25, zoom: 7, focus: 49 },
   slots: 64, nameMax: 31, speed: [1, 64], defaultSpeed: 32,
   rate: { panTilt: 1.5, zoom: 0.4, focus: 0.4 },
+  focusTrack: [[0, 34], [7, 49], [20, 77], [26, 81], [27, 82]],
   answers: {
     GetPtzGuard: { value: { PtzGuard: { timeout: 60 } } },
     GetPtzCheckState: { value: { PtzCheckState: 0 } },
@@ -15,6 +16,17 @@ const SPEC: PtzSpec = {
   },
   zoomFocusRange: {}, presetRange: {},
   refusals: { GetPtzCurPos: { rspCode: -1, detail: 'not exist' } },
+};
+
+// focusTrack interpolated (the test's own copy of the mapping).
+const focusFor = (zoom: number): number => {
+  const t = SPEC.focusTrack!;
+  for (let i = 1; i < t.length; i++) {
+    const [z0, f0] = t[i - 1];
+    const [z1, f1] = t[i];
+    if (zoom <= z1) return Math.round(f0 + ((f1 - f0) * (zoom - z0)) / (z1 - z0));
+  }
+  return t[t.length - 1][1];
 };
 
 describe('Ptz', () => {
@@ -59,6 +71,43 @@ describe('Ptz', () => {
     clock.advance(1500);
     p.control({ op: 'Stop' });
     expect(p.position().zoom).toBe(26);
+  });
+
+  it('focus tracks zoom like the E1 (#114): ZoomInc 7 → 26 refocuses 49 → 81 (measured)', () => {
+    p.control({ op: 'ZoomInc', speed: 32 });
+    clock.advance(750);
+    const mid = p.position();
+    expect(mid.focus).toBe(focusFor(mid.zoom)); // during the zoom too
+    clock.advance(750);
+    p.control({ op: 'Stop' });
+    expect(p.position()).toMatchObject({ zoom: 26, focus: 81 });
+  });
+
+  it('ToPos to a zoom-20 slot refocuses to ~77 (measured), whatever the focus was', () => {
+    p.zoomFocus({ op: 'ZoomPos', pos: 20 });
+    p.setPreset({ id: 0, enable: 1, name: 'z20' });
+    p.zoomFocus({ op: 'ZoomPos', pos: 7 });
+    p.zoomFocus({ op: 'FocusPos', pos: 52 });
+    expect(p.position()).toMatchObject({ zoom: 7, focus: 52 });
+    p.control({ op: 'ToPos', id: 0, speed: 32 });
+    expect(p.position()).toMatchObject({ zoom: 20, focus: 77 });
+  });
+
+  it('ZoomPos refocuses; manual focus stays until the next zoom; pan/tilt leave focus alone', () => {
+    expect(p.zoomFocus({ op: 'ZoomPos', pos: 26 })).toBeNull();
+    expect(p.position().focus).toBe(81);
+    p.zoomFocus({ op: 'FocusPos', pos: 10 });
+    p.control({ op: 'Left', speed: 32 }); clock.advance(1000); p.control({ op: 'Stop' });
+    expect(p.position().focus).toBe(10);
+    p.control({ op: 'ZoomDec', speed: 32 }); clock.advance(1000); p.control({ op: 'Stop' });
+    const pos = p.position();
+    expect(pos.focus).toBe(focusFor(pos.zoom));
+  });
+
+  it('without focusTrack, focus stays through zoom (fixed-focus spec)', () => {
+    const q = new Ptz({ ...SPEC, focusTrack: undefined }, clock);
+    q.control({ op: 'ZoomInc', speed: 32 }); clock.advance(1500); q.control({ op: 'Stop' });
+    expect(q.position()).toMatchObject({ zoom: 26, focus: 49 });
   });
 
   it('FocusInc and FocusDec move the focus, ZoomDec the zoom', () => {
@@ -172,8 +221,10 @@ describe('Ptz', () => {
     clock.advance(1000);
     const now = p.position();
     expect(now).toMatchObject({ pan: 132, tilt: 25, zoom: 11 });
-    // Focus is not part of a preset (the camera refocuses).
-    expect(now.focus).not.toBe(saved.focus);
+    // Focus is not part of a preset: the camera refocuses for the zoom, so
+    // the manual FocusInc is gone (focus tracks zoom).
+    expect(now.focus).toBe(focusFor(11));
+    expect(now.focus).toBe(saved.focus);
     expect(p.view().moving).toBeNull();
   });
 
@@ -238,7 +289,7 @@ describe('Ptz', () => {
       { op: 'ZoomPos', pos: '7' }, { op: 'ZoomPos' }, { op: 'Bogus', pos: 7 }, {}]) {
       expect(p.zoomFocus(bad)).toBe(-4);
     }
-    expect(p.position()).toMatchObject({ zoom: 0, focus: 97 });
+    expect(p.position()).toMatchObject({ zoom: 0, focus: focusFor(0) });
   });
 
   it('presets() lists 64 entries id 0..63 named pos1..pos64, imgName ""', () => {

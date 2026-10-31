@@ -85,12 +85,16 @@ function factorySettings(name: string): Settings {
 // speed 1-64, 64 preset slots (ids 0-63), names up to 31 characters, speed 32
 // ZoomInc for 1.5 s takes zoom 7 -> 26. The simulator's own (not measured):
 // pan 0-355 and tilt 0-50 degrees starting at 180/25, the rates, and the
-// default speed 32.
+// default speed 32. Autofocus: focus follows zoom on focusTrack, through the
+// measured points zoom 7 -> 49, 20 -> ~77 (after ToPos) and 26 -> 81 (after
+// ZoomInc); the ends (zoom 0 -> 34, 27 -> 82) are extrapolated (not measured
+// exactly).
 const PTZ: PtzSpec = {
   pan: [0, 355], tilt: [0, 50], zoom: [0, 27], focus: [0, 97],
   start: { pan: 180, tilt: 25, zoom: 7, focus: 49 },
   slots: 64, nameMax: 31, speed: [1, 64], defaultSpeed: 32,
   rate: { panTilt: 1.5, zoom: 0.4, focus: 0.4 },
+  focusTrack: [[0, 34], [7, 49], [20, 77], [26, 81], [27, 82]],
   answers: ptzAnswers.answers,
   zoomFocusRange: ptzAnswers.zoomFocusRange,
   presetRange: ptzAnswers.presetRange,
