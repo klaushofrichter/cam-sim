@@ -1,6 +1,9 @@
 // The PTZ position on snapshots (E1-Outdoor-Pro); fixed models unchanged.
 import { describe, it, expect } from 'vitest';
 import { Writable } from 'stream';
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import request from 'supertest';
 import { fixedClock } from '../src/engine/clock';
 import { findFonts } from '../src/pipeline/fonts';
@@ -10,6 +13,17 @@ import { createControlApp } from '../src/control-api/app';
 import { makeCamera, makeEngine, login } from './helpers';
 
 const fonts = findFonts();
+// An ffmpeg that counts its runs (one line each) and takes `delay` seconds.
+function countingFfmpeg(delay = 0.3): { path: string; runs: () => number } {
+  const dir = mkdtempSync(join(tmpdir(), 'camsim-ff-'));
+  const count = join(dir, 'runs');
+  const path = join(dir, 'ffmpeg');
+  writeFileSync(path, `#!/bin/sh\necho run >> '${count}'\nsleep ${delay}\nexec ffmpeg "$@"\n`);
+  chmodSync(path, 0o755);
+  return { path, runs: () => (existsSync(count) ? readFileSync(count, 'utf8').split('\n').filter(Boolean).length : 0) };
+}
+const tick = () => new Promise((r) => setTimeout(r, 20));
+
 const isJpeg = (b: Buffer) => b[0] === 0xff && b[1] === 0xd8 && b.at(-2) === 0xff && b.at(-1) === 0xd9;
 
 describe.skipIf(!fonts)('PTZ snapshots', () => {
@@ -42,18 +56,21 @@ describe.skipIf(!fonts)('PTZ snapshots', () => {
     const want = await engine.snapshot();
     const snap = await request(app).get(`/cgi-bin/api.cgi?cmd=Snap&channel=0&token=${t}`).buffer(true);
     expect(snap.headers['content-type']).toMatch(/image\/jpeg/);
-    expect(Buffer.from(snap.body).equals(want)).toBe(true);
+    // Snap: the overlaid picture at the main size (#126).
+    expect(Buffer.from(snap.body).equals(await engine.snapMain())).toBe(true);
+    expect(Buffer.from(snap.body).equals(await engine.media.snapshot())).toBe(false);
     const ctl = await request(createControlApp(engine)).get('/sim/api/media/snapshot').set('Authorization', 'Bearer tok').buffer(true);
     expect(Buffer.from(ctl.body).equals(want)).toBe(true);
   });
 
-  it('RLC-1224A snapshot is the fixture byte for byte (review focus 4)', async () => {
+  it('RLC-1224A snapshot is the fixture byte for byte (review focus 4); Snap is only scaled (#126)', async () => {
     const { app, engine } = await makeCamera();
     const plain = await engine.media.snapshot();
     expect((await engine.snapshot()).equals(plain)).toBe(true);
     const t = await login(app);
     const snap = await request(app).get(`/cgi-bin/api.cgi?cmd=Snap&channel=0&token=${t}`).buffer(true);
-    expect(Buffer.from(snap.body).equals(plain)).toBe(true);
+    expect(Buffer.from(snap.body).equals(await engine.snapMain())).toBe(true);
+    expect(Buffer.from(snap.body).equals(plain)).toBe(false);
   });
 
   it('a failing ffmpeg (ffmpeg path "/nonexistent") falls back to the fixture JPEG, no throw, logged once', async () => {
@@ -67,6 +84,29 @@ describe.skipIf(!fonts)('PTZ snapshots', () => {
     expect((await e.snapshot()).equals(plain)).toBe(true);
     await expect(drawTextOnJpeg(plain, 'PAN 1', fonts!.regular, '/nonexistent')).rejects.toThrow();
     expect(out.match(/ptz_snapshot_failed/g)).toHaveLength(1);
+  });
+
+  it('during a move, concurrent snapshots share one ffmpeg run (#114)', async () => {
+    const clock = fixedClock(new Date('2026-10-30T12:00:00Z'));
+    const e = await makeEngine({ CAMSIM_MODEL: 'E1-Outdoor-Pro' }, { clock });
+    const ff = countingFfmpeg();
+    e.ffmpeg = ff.path;
+    e.ptz!.control({ op: 'Left', speed: 32 });
+    const first = e.snapshot();
+    const all = [first];
+    for (let i = 0; i < 5; i++) {
+      await tick();
+      clock.advance(200); // a new position each time
+      all.push(e.snapshot());
+    }
+    const out = await Promise.all(all);
+    expect(ff.runs()).toBe(1);
+    for (const b of out) expect(b).toBe(out[0]);
+    // Once it is done, the next new position runs again.
+    clock.advance(200);
+    const next = await e.snapshot();
+    expect(ff.runs()).toBe(2);
+    expect(next.equals(out[0])).toBe(false);
   });
 
   it('without a font the E1 snapshot is the plain fixture', async () => {
