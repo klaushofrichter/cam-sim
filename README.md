@@ -391,7 +391,7 @@ SD draw `PAN x TILT y ZOOM z`.
 | `StartZoomFocus` | `{ZoomFocus:{channel:0,op:"ZoomPos"\|"FocusPos",pos}}` | `{rspCode:200}`: zoom (0–27) or focus (0–97) at once |
 | `GetZoomFocus` | `{channel:0}` | `initial`, `range` and `{ZoomFocus:{channel:0,focus:{pos},zoom:{pos}}}`; `initial` follows the position, as on the camera |
 | `GetPtzPreset` | `{channel:0}` | `initial`, `range` (says ids 1–64) and `{PtzPreset:[{channel,enable,id,imgName,name}]}`, 64 slots, ids 0–63, empty ones named `pos<id+1>` |
-| `SetPtzPreset` | `{PtzPreset:{channel:0,enable,id,name}}` | `{rspCode:200}`; `enable:1` saves the current pan, tilt and zoom, `enable:0` empties the slot |
+| `SetPtzPreset` | `{PtzPreset:{channel:0,enable,id,name}}` | `{rspCode:200}`; `enable:1` saves the current pan, tilt and zoom, `enable:0` empties the slot; a name longer than 31 is stored as `pos<id+1>`, one with a leading or trailing space or two spaces in a row changes nothing (measured) |
 | `GetPtzGuard`, `GetPtzCheckState`, `GetAutoFocus`, `GetPtzPatrol` | `{channel:0}` | the E1's captured answers (`initial`, `range`, `value`) |
 | `GetPtzCurPos`, `GetPtzTraceSection` | | `-1` "not exist" |
 | `GetPtzTattern`, `GetPtzSerial` | | `-12` "get config failed" |

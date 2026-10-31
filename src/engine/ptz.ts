@@ -180,7 +180,9 @@ export class Ptz {
 
   // SetPtzPreset: enable 1 saves the current pan/tilt/zoom; a name longer
   // than nameMax is stored as pos<id+1> (measured); an empty or missing name
-  // keeps the slot's (not measured). enable 0 empties the slot.
+  // keeps the slot's (not measured); one with a leading or trailing space or
+  // two spaces in a row is ignored, slot unchanged (measured on the E1).
+  // enable 0 empties the slot.
   setPreset(p: { id?: unknown; enable?: unknown; name?: unknown }): number | null {
     if (!this.validId(p.id)) return PARAM_ERROR;
     if (p.enable !== 0 && p.enable !== 1) return PARAM_ERROR;
@@ -189,6 +191,7 @@ export class Ptz {
       this.slots[id] = this.emptySlot(id);
       return null;
     }
+    if (typeof p.name === 'string' && /^\s|\s$|\s\s/.test(p.name)) return null;
     const now = this.position();
     const old = this.slots[id];
     let name = old.name;
