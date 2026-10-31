@@ -931,7 +931,7 @@ matching requests.
 | `flv.reset` | | every `/flv` connection resets, even with a valid token |
 | `flv.delayMs` | `ms` | delay the `/flv` response |
 | `search.delayMs` | `ms` | make Search slower (widens the `-54` window) |
-| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`, `SetTime`) |
+| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`, `SetTime`), with the firmware's `detail` for that code on every model (e.g. `-1` "not exist", `-12` "get config failed") |
 | `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing (also `SetPtzPreset`, `SetTime`) |
 | `settings.strictPartial` | | a partial Set's resets show at once, not after a reboot |
 | `offline` | | every camera connection is destroyed, Baichuan included (the camera stays powered) |
