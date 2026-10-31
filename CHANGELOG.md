@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.30.4
+
 - E1: the focus follows the zoom, as the real E1's autofocus does (#114): `ZoomInc`/`ZoomDec` (while running too), `ToPos` and `ZoomPos` set the focus from the zoom (measured: zoom 7 → 26 took the focus 49 → 81; `ToPos` to zoom 20 gave about 77; the mapping in between is not measured exactly). `GetZoomFocus` and `/sim/api/ptz` show it. A focus set by hand stays until the next zoom.
 - E1: snapshots asked for during a move no longer start one ffmpeg each (#114): at most one runs per camera, and requests that arrive meanwhile share its picture.
 - `Snap` answers at the main stream's size, as the camera does (#126): 4512×2512 on the RLC-1224A, 3840×2160 on the CX820 and E1 (their `GetEnc`), the fixture picture scaled up (cached per video and position). Before, it was the sub size (896×512 / 640×360). The web UI's snapshot stays at the sub size.
