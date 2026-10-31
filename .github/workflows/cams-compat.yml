@@ -42,6 +42,9 @@ jobs:
         run: npm ci && npm i -D --no-save ../cam-sim
       - working-directory: cams
         run: npm test
+      # MediaMTX on PATH: the sims' RTSP, which cams's real-proxy e2e reads
+      # through cam-proxy's go2rtc (cams #307); cams pins the version.
+      - uses: ./cams/.github/actions/mediamtx
       - working-directory: cams
         run: npx playwright install --with-deps chromium && npm run build
       - working-directory: cams
