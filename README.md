@@ -403,7 +403,9 @@ Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
   1.5 s takes the zoom 7 → 26;
 - preset ids 0–63 (64 → `-4`); a name longer than 31 characters is stored as
   `pos<id+1>`; `ToPos` to an empty slot answers 200 and nothing moves;
-- `ToPos` restores the zoom of the slot, not its focus;
+- `ToPos` restores the zoom of the slot, not its focus; the camera refocuses
+  for the new zoom (a slot at zoom 20: focus 52 → about 77), and `ZoomInc`
+  7 → 26 took the focus 49 → 81;
 - while a zoom runs (`ZoomInc` or `ZoomDec`, no `Stop` since), another
   `ZoomInc` or `ZoomDec`, even the same one, → `-13` "set config failed" and
   the zoom goes on; moves and focus may be repeated or reversed mid-motion, a
@@ -414,6 +416,11 @@ The simulator's own choices (not measured):
 - pan 0–355 and tilt 0–50 degrees, starting at 180 and 25 (the camera reports
   no pan/tilt position);
 - per speed unit, pan and tilt move 1.5°/s, zoom and focus 0.4 steps/s;
+- autofocus: every zoom change (`ZoomInc`/`ZoomDec`, while it runs too,
+  `ToPos`, `ZoomPos`) sets the focus from the zoom, linear through zoom 7 →
+  49, 20 → 77 and 26 → 81, with 0 → 34 and 27 → 82 at the ends (not measured
+  exactly); `FocusInc`/`FocusDec`/`FocusPos` set it by hand until the next
+  zoom;
   `Up` raises the tilt; diagonals move both axes at full rate;
 - a move lasts until `Stop`, another op (not a zoom over a zoom), `ToPos`
   or `StartZoomFocus`, and
@@ -460,11 +467,18 @@ This is an endless `video/x-flv` response, paced in real time.
 curl -sk "https://$CAM/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=$RANDOM&token=$TOKEN" -o snap.jpg
 ```
 
-The reply is `image/jpeg`. A bad token gets 200 `text/html` with the `-6` body.
+The reply is `image/jpeg` at the main stream's size, as `GetEnc` reports it
+(RLC-1224A 4512×2512, CX820 and E1-Outdoor-Pro 3840×2160), as the camera
+sends it: the fixture picture scaled up (one ffmpeg run per video and
+position, cached; when ffmpeg fails, the fixture picture as it is). The web
+UI's snapshot (`/sim/api/media/snapshot`) stays at the sub size. A bad token
+gets 200 `text/html` with the `-6` body.
 
 PTZ models (`E1-Outdoor-Pro`) draw `PAN x TILT y ZOOM z` in the middle of
 the snapshot (one ffmpeg run per new position, cached), so a test can see where
-the camera points; the web UI's snapshot shows the same. Without a font
+the camera points; the web UI's snapshot shows the same. At most one such
+ffmpeg runs per camera: snapshots asked for while one runs (stills polled
+during a move) share its picture. Without a font
 (`CAMSIM_FONT_DIR`, as for the SD pipeline) or when ffmpeg fails, the plain
 picture. The RLC-1224A and CX820 serve the picture unchanged, and FTP uploads
 stay plain on every model.
@@ -924,7 +938,7 @@ matching requests.
 | `flv.reset` | | every `/flv` connection resets, even with a valid token |
 | `flv.delayMs` | `ms` | delay the `/flv` response |
 | `search.delayMs` | `ms` | make Search slower (widens the `-54` window) |
-| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`, `SetTime`) |
+| `settings.fail` | `cmds`, `rspCode` (default -67) | those Set commands answer an error (also `SetPtzPreset`, `SetTime`), with the firmware's `detail` for that code on every model (e.g. `-1` "not exist", `-12` "get config failed") |
 | `settings.ignore` | `cmds` | those Set commands answer 200 and change nothing (also `SetPtzPreset`, `SetTime`) |
 | `settings.strictPartial` | | a partial Set's resets show at once, not after a reboot |
 | `offline` | | every camera connection is destroyed, Baichuan included (the camera stays powered) |

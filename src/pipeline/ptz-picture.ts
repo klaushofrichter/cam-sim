@@ -1,14 +1,24 @@
-// The PTZ position drawn on a snapshot: one ffmpeg run, a JPEG in on stdin,
-// a JPEG out on stdout, in the live SD text's style (overlay.ts).
+// Snapshot pictures: one ffmpeg run, a JPEG in on stdin, a JPEG out on
+// stdout. The PTZ position is drawn in the live SD text's style
+// (overlay.ts); Snap scales the picture to the main stream's size.
 import { spawn } from 'child_process';
 import { ptzDrawtext } from './overlay';
 
 export function drawTextOnJpeg(jpeg: Buffer, text: string, font: string, ffmpeg = 'ffmpeg'): Promise<Buffer> {
+  return renderJpeg(jpeg, { text, font }, ffmpeg);
+}
+
+// The text (with its font) drawn first, then the scale to `size` (WxH), so
+// the text keeps its share of the picture.
+export function renderJpeg(jpeg: Buffer, o: { text?: string; font?: string; size?: string }, ffmpeg = 'ffmpeg'): Promise<Buffer> {
+  const filters: string[] = [];
+  if (o.text !== undefined && o.font) filters.push(ptzDrawtext(o.font, { text: o.text }));
+  if (o.size) filters.push(`scale=${o.size.replace('x', ':')}`);
   return new Promise((resolve, reject) => {
     const args = [
       '-hide_banner', '-nostdin', '-loglevel', 'error',
       '-f', 'image2pipe', '-c:v', 'mjpeg', '-i', 'pipe:0',
-      '-vf', ptzDrawtext(font, { text }),
+      '-vf', filters.length ? filters.join(',') : 'null',
       '-frames:v', '1', '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '3', 'pipe:1',
     ];
     const p = spawn(ffmpeg, args, { stdio: ['pipe', 'pipe', 'pipe'] });

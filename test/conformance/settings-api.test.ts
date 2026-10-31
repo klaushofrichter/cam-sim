@@ -63,6 +63,18 @@ describe('camera API: settings', () => {
     expect(engine.counters.setCalls).toEqual(['SetWhiteLed', 'SetIrLights']);
   });
 
+  // #114: the firmware's wording for -1 and -12 (measured on the E1) applies
+  // to settings.fail faults on every model, the fixed ones included.
+  it.each(['RLC-1224A', 'CX820', 'E1-Outdoor-Pro'])('settings.fail rspCode -1 / -12 answer the firmware details on %s', async (model) => {
+    const { app, engine } = await makeCamera({ CAMSIM_MODEL: model });
+    const t = await login(app);
+    const isp = (await post(app, 'GetIsp', { channel: 0 }, t)).reply.value.Isp;
+    engine.faults.set({ name: 'settings.fail', cmds: ['SetIsp'], rspCode: -1 });
+    expect((await post(app, 'SetIsp', { Isp: isp }, t)).reply).toEqual({ cmd: 'SetIsp', code: 1, error: { rspCode: -1, detail: 'not exist' } });
+    engine.faults.set({ name: 'settings.fail', cmds: ['SetIsp'], rspCode: -12 });
+    expect((await post(app, 'SetIsp', { Isp: isp }, t)).reply).toEqual({ cmd: 'SetIsp', code: 1, error: { rspCode: -12, detail: 'get config failed' } });
+  });
+
   it('GetIrLights carries initial and range like the firmware', async () => {
     const { app } = await makeCamera();
     const t = await login(app);
