@@ -471,7 +471,9 @@ The reply is `image/jpeg`. A bad token gets 200 `text/html` with the `-6` body.
 
 PTZ models (`E1-Outdoor-Pro`) draw `PAN x TILT y ZOOM z` in the middle of
 the snapshot (one ffmpeg run per new position, cached), so a test can see where
-the camera points; the web UI's snapshot shows the same. Without a font
+the camera points; the web UI's snapshot shows the same. At most one such
+ffmpeg runs per camera: snapshots asked for while one runs (stills polled
+during a move) share its picture. Without a font
 (`CAMSIM_FONT_DIR`, as for the SD pipeline) or when ffmpeg fails, the plain
 picture. The RLC-1224A and CX820 serve the picture unchanged, and FTP uploads
 stay plain on every model.

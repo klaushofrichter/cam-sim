@@ -93,6 +93,9 @@ export class Engine {
   private ptzSnap?: { key: string; jpeg: Buffer };
   private ptzFont?: string | null;
   private ptzSnapFailed = false;
+  // The picture ffmpeg in flight (at most one per camera): requests of the
+  // same kind share its result, others wait for it.
+  private render?: { kind: string; run: Promise<Buffer> };
   // Set by the Baichuan server (src/baichuan/server.ts): device actions reach port 9000.
   baichuan?: { dropAll(): void; dropTransfers(): void };
 
@@ -198,18 +201,39 @@ export class Engine {
     if (!this.ptz) return plain;
     if (this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
     if (!this.ptzFont) return plain;
-    const text = ptzText(this.ptz.position());
-    const key = `${this.videoId}|${text}`;
-    if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
-    try {
-      const jpeg = await drawTextOnJpeg(plain, text, this.ptzFont, this.ffmpeg);
-      this.ptzSnap = { key, jpeg };
-      return jpeg;
-    } catch (err) {
-      if (!this.ptzSnapFailed) this.log.warn({ err: (err as Error).message }, 'ptz_snapshot_failed');
-      this.ptzSnapFailed = true;
-      return plain;
+    const font = this.ptzFont;
+    const ptz = this.ptz;
+    return this.rendered('ptz', async () => {
+      const text = ptzText(ptz.position());
+      const key = `${this.videoId}|${text}`;
+      if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
+      try {
+        const jpeg = await drawTextOnJpeg(plain, text, font, this.ffmpeg);
+        this.ptzSnap = { key, jpeg };
+        return jpeg;
+      } catch (err) {
+        if (!this.ptzSnapFailed) this.log.warn({ err: (err as Error).message }, 'ptz_snapshot_failed');
+        this.ptzSnapFailed = true;
+        return plain;
+      }
+    });
+  }
+
+  // One picture ffmpeg at a time per camera (#114): stills polled during a
+  // move would otherwise start one run each, as the text changes every time.
+  // A request finding a run of its kind in flight shares that run's result
+  // (the position it started with); a run of another kind is waited for.
+  // `make` checks its cache first and never rejects.
+  private async rendered(kind: string, make: () => Promise<Buffer>): Promise<Buffer> {
+    while (this.render) {
+      if (this.render.kind === kind) return this.render.run;
+      await this.render.run;
     }
+    const run = make().finally(() => {
+      if (this.render?.run === run) this.render = undefined;
+    });
+    this.render = { kind, run };
+    return run;
   }
 
   // Powered off, booting, rebooting or the offline fault: every port is down.
