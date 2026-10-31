@@ -467,7 +467,12 @@ This is an endless `video/x-flv` response, paced in real time.
 curl -sk "https://$CAM/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=$RANDOM&token=$TOKEN" -o snap.jpg
 ```
 
-The reply is `image/jpeg`. A bad token gets 200 `text/html` with the `-6` body.
+The reply is `image/jpeg` at the main stream's size, as `GetEnc` reports it
+(RLC-1224A 4512×2512, CX820 and E1-Outdoor-Pro 3840×2160), as the camera
+sends it: the fixture picture scaled up (one ffmpeg run per video and
+position, cached; when ffmpeg fails, the fixture picture as it is). The web
+UI's snapshot (`/sim/api/media/snapshot`) stays at the sub size. A bad token
+gets 200 `text/html` with the `-6` body.
 
 PTZ models (`E1-Outdoor-Pro`) draw `PAN x TILT y ZOOM z` in the middle of
 the snapshot (one ffmpeg run per new position, cached), so a test can see where

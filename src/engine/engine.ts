@@ -23,7 +23,7 @@ import { profileFor, type CameraProfile } from '../profile/profile';
 import { Ptz, ptzEnabled } from './ptz';
 import { ptzText } from '../pipeline/overlay';
 import { findFonts } from '../pipeline/fonts';
-import { drawTextOnJpeg } from '../pipeline/ptz-picture';
+import { drawTextOnJpeg, renderJpeg } from '../pipeline/ptz-picture';
 import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
@@ -93,6 +93,10 @@ export class Engine {
   private ptzSnap?: { key: string; jpeg: Buffer };
   private ptzFont?: string | null;
   private ptzSnapFailed = false;
+  // The last Snap picture at the main size (one entry: video and text), and
+  // whether a failure was logged.
+  private mainSnap?: { key: string; jpeg: Buffer };
+  private mainSnapFailed = false;
   // The picture ffmpeg in flight (at most one per camera): requests of the
   // same kind share its result, others wait for it.
   private render?: { kind: string; run: Promise<Buffer> };
@@ -191,7 +195,7 @@ export class Engine {
     return this.media;
   }
 
-  // The picture for Snap and the web UI. PTZ models draw their position in
+  // The picture for the web UI (Snap: snapMain). PTZ models draw their position in
   // the middle (the simulator's; one ffmpeg run per new position, cached);
   // without a font, or when ffmpeg fails, the plain picture. Fixed models:
   // the media's snapshot unchanged. (The FTP upload keeps the plain picture:
@@ -214,6 +218,32 @@ export class Engine {
       } catch (err) {
         if (!this.ptzSnapFailed) this.log.warn({ err: (err as Error).message }, 'ptz_snapshot_failed');
         this.ptzSnapFailed = true;
+        return plain;
+      }
+    });
+  }
+
+  // Snap: the picture at the main stream's size as GetEnc reports it (the
+  // camera's Snap is the main stream's; #126), with the PTZ position on PTZ
+  // models. One ffmpeg run per video and position, cached; when ffmpeg
+  // fails, the fixture picture as it is.
+  async snapMain(): Promise<Buffer> {
+    const plain = await this.media.snapshot();
+    const { width, height } = this.profile.enc.mainStream;
+    if (this.ptz && this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
+    const font = this.ptz && this.ptzFont ? this.ptzFont : undefined;
+    const ptz = this.ptz;
+    return this.rendered('snap', async () => {
+      const text = font && ptz ? ptzText(ptz.position()) : undefined;
+      const key = `${this.videoId}|${text ?? ''}`;
+      if (this.mainSnap?.key === key) return this.mainSnap.jpeg;
+      try {
+        const jpeg = await renderJpeg(plain, { text, font, size: `${width}x${height}` }, this.ffmpeg);
+        this.mainSnap = { key, jpeg };
+        return jpeg;
+      } catch (err) {
+        if (!this.mainSnapFailed) this.log.warn({ err: (err as Error).message }, 'snap_scale_failed');
+        this.mainSnapFailed = true;
         return plain;
       }
     });

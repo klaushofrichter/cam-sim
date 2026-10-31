@@ -56,18 +56,21 @@ describe.skipIf(!fonts)('PTZ snapshots', () => {
     const want = await engine.snapshot();
     const snap = await request(app).get(`/cgi-bin/api.cgi?cmd=Snap&channel=0&token=${t}`).buffer(true);
     expect(snap.headers['content-type']).toMatch(/image\/jpeg/);
-    expect(Buffer.from(snap.body).equals(want)).toBe(true);
+    // Snap: the overlaid picture at the main size (#126).
+    expect(Buffer.from(snap.body).equals(await engine.snapMain())).toBe(true);
+    expect(Buffer.from(snap.body).equals(await engine.media.snapshot())).toBe(false);
     const ctl = await request(createControlApp(engine)).get('/sim/api/media/snapshot').set('Authorization', 'Bearer tok').buffer(true);
     expect(Buffer.from(ctl.body).equals(want)).toBe(true);
   });
 
-  it('RLC-1224A snapshot is the fixture byte for byte (review focus 4)', async () => {
+  it('RLC-1224A snapshot is the fixture byte for byte (review focus 4); Snap is only scaled (#126)', async () => {
     const { app, engine } = await makeCamera();
     const plain = await engine.media.snapshot();
     expect((await engine.snapshot()).equals(plain)).toBe(true);
     const t = await login(app);
     const snap = await request(app).get(`/cgi-bin/api.cgi?cmd=Snap&channel=0&token=${t}`).buffer(true);
-    expect(Buffer.from(snap.body).equals(plain)).toBe(true);
+    expect(Buffer.from(snap.body).equals(await engine.snapMain())).toBe(true);
+    expect(Buffer.from(snap.body).equals(plain)).toBe(false);
   });
 
   it('a failing ffmpeg (ffmpeg path "/nonexistent") falls back to the fixture JPEG, no throw, logged once', async () => {
