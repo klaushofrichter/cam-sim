@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.10.31.1
+
 - E1 Outdoor Pro: `SetPtzPreset` with a name that has a leading or trailing space or two spaces in a row answers 200 and changes nothing, like the real camera (measured 2026-10-31).
 
 ## v2026.10.30.4
