@@ -255,6 +255,17 @@ describe('Ptz', () => {
     expect(p.presets()[3].name).toBe('y'.repeat(31));
   });
 
+  it('a name with a leading or trailing space or two spaces in a row is ignored: 200, slot unchanged (measured)', () => {
+    for (const name of ['trail ', ' lead', 'two  spaces']) {
+      expect(p.setPreset({ id: 5, enable: 1, name })).toBeNull();
+      expect(p.presets()[5]).toEqual({ channel: 0, enable: 0, id: 5, imgName: '', name: 'pos6' });
+    }
+    p.setPreset({ id: 5, enable: 1, name: 'x y' });
+    expect(p.presets()[5]).toMatchObject({ enable: 1, name: 'x y' });
+    expect(p.setPreset({ id: 5, enable: 1, name: 'x y ' })).toBeNull();
+    expect(p.presets()[5].name).toBe('x y');
+  });
+
   it('enable 1 with an empty or non-string name keeps the slot name', () => {
     p.setPreset({ id: 4, enable: 1, name: 'porch' });
     expect(p.setPreset({ id: 4, enable: 1, name: '' })).toBeNull();
