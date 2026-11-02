@@ -103,7 +103,7 @@ describe.skipIf(!mediamtx)('RTSP lifecycle', () => {
       const engine = await makeEngine();
       const svc = new RtspService(engine, { port, host: '127.0.0.1', mediamtx: mediamtx! });
       services.push(svc);
-      await expect(svc.start()).rejects.toThrow(/MediaMTX/);
+      await expect(svc.start()).rejects.toThrow(/RTSP port is not available/);
       expect(svc.running()).toBe(false);
     } finally {
       holder.close();

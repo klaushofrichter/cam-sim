@@ -1,0 +1,314 @@
+[
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192,
+        9216,
+        10240
+      ],
+      "frameRate": [
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 2512,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "4512*2512",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 4512
+    },
+    "subStream": {
+      "bitRate": [
+        128,
+        256,
+        384,
+        512,
+        768,
+        1024,
+        1228
+      ],
+      "frameRate": [
+        20,
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 512,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "896*512",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 896
+    }
+  },
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192,
+        9216,
+        10240
+      ],
+      "frameRate": [
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 2160,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "3840*2160",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 3840
+    },
+    "subStream": {
+      "bitRate": [
+        128,
+        256,
+        384,
+        512,
+        768,
+        1024,
+        1228
+      ],
+      "frameRate": [
+        20,
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 512,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "896*512",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 896
+    }
+  },
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192,
+        9216,
+        10240
+      ],
+      "frameRate": [
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 1440,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "2560*1440",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 2560
+    },
+    "subStream": {
+      "bitRate": [
+        128,
+        256,
+        384,
+        512,
+        768,
+        1024,
+        1228
+      ],
+      "frameRate": [
+        20,
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 512,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "896*512",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 896
+    }
+  },
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192,
+        9216,
+        10240
+      ],
+      "frameRate": [
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 1296,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "2304*1296",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 2304
+    },
+    "subStream": {
+      "bitRate": [
+        128,
+        256,
+        384,
+        512,
+        768,
+        1024,
+        1228
+      ],
+      "frameRate": [
+        20,
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 512,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "896*512",
+      "vType": [
+        "h265",
+        "h264"
+      ],
+      "width": 896
+    }
+  }
+]

@@ -2,8 +2,18 @@
 
 ## Unreleased
 
+- The RLC-1224A's and CX820's encoding ranges are the real ones (measured 2026-11-02): RLC-1224A main 4512×2512, 3840×2160, 2560×1440 or 2304×1296 in H.265 or H.264, sub 896×512 only; CX820 main 3840×2160 in H.265 only, 2560×1440 and 2304×1296 in H.264 only, sub 640×360 only.
+- After a `SetEnc` that changed the streams, the camera restarts, as all three real models do (measured 2026-11-02: offline, back 40–75 s later with the change): 60 s with `CAMSIM_SPEED=real`, 1 s fast, `CAMSIM_ENC_RESTART_MS` (or `createCamSim({encRestartMs})`) sets it, `0` turns it off.
+- RTSP: the E1 Outdoor Pro's and RLC-1224A's DESCRIBE answers carry no `sprop-parameter-sets` (no fmtp line for video), as the real cameras' (measured 2026-11-02); the CX820's still do. The E1's SDP has its `a=tool` line.
+
+## v2026.11.02.3
+
+
 - `GetEnc` with `action: 1` answers `initial` and `range`, and `SetEnc` changes the streams: size, frame rate, codec, bit rate, GOP and profile, checked against the range (`-4` and no change outside it). RTSP follows at once: a changed stream is re-encoded at the new size and frame rate, and its readers drop and reconnect. `Snap` follows the main size, the SD pipeline the sub size and frame rate. The E1 Outdoor Pro's range is the captured one (its sub is 640×360 only); the RLC-1224A's and CX820's were not captured and offer their own sizes only, with the E1's frame rate and bit rate lists. In process, `createCamSim({encRange})` sets another range (tests).
 - E1 Outdoor Pro: the sub stream has no aspect ratio in its H.264 VUI, as the real E1's (measured); like the camera's, it is coded 640×368 and cropped to 640×360.
+
+## v2026.11.02.2
+
 
 - E1 Outdoor Pro: the Baichuan download (cmd 8) is refused with 400, no body, for every recording, as the real E1 does (measured 2026-11-02: refused within about 0.5 s for a file its Search lists). HTTP `Download` serves the same files whole (`200 video/mp4` with Content-Length), as the E1's own web UI offers them (not yet measured over the API). The RLC-1224A and CX820 keep serving cmd 8.
 

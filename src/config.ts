@@ -51,6 +51,9 @@ export interface CamSimConfig {
   // Programmatic only (tests): GetEnc's range in place of the model's, e.g.
   // small sizes that encode quickly. Never set from the environment.
   encRange?: Array<Record<string, any>>;
+  // CAMSIM_ENC_RESTART_MS: how long the camera is offline after a SetEnc that
+  // changed the streams (unset: 60 s at real speed, 1 s fast; 0: no restart).
+  encRestartMs?: number;
   ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
 }
 
@@ -225,5 +228,6 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     video: env.CAMSIM_VIDEO || undefined,
     pipelineMaxMin: int('CAMSIM_PIPELINE_MAX_MIN', CONFIG_DEFAULTS.pipelineMaxMin, 1, 1440),
     fontDir: env.CAMSIM_FONT_DIR || undefined,
+    ...(env.CAMSIM_ENC_RESTART_MS ? { encRestartMs: int('CAMSIM_ENC_RESTART_MS', 0, 0, 600_000) } : {}),
   };
 }
