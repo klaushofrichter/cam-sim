@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- E1 Outdoor Pro: the Baichuan download (cmd 8) is refused with 400, no body, for every recording, as the real E1 does (measured 2026-11-02: refused within about 0.5 s for a file its Search lists). HTTP `Download` serves the same files whole (`200 video/mp4` with Content-Length), as the E1's own web UI offers them (not yet measured over the API). The RLC-1224A and CX820 keep serving cmd 8.
+
 ## v2026.11.02.1
 
 - E1 Outdoor Pro: recording file names now look like the real camera's (measured 2026-11-02): `RecS03_20261102_065854_065924_2B14808_B2B5F.mp4`, name version 03, no `0_` field and 7-digit flags (`2B14808` sub, `6728828` main for motion). The RLC-1224A and CX820 keep their names.

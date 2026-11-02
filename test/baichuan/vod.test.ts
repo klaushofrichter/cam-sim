@@ -105,6 +105,58 @@ describe('Baichuan recordings: cmd 8', () => {
   });
 });
 
+// Measured 2026-11-02 on the E1 Outdoor Pro (firmware v3.1.0.5714): the
+// Baichuan download of a recording its Search lists answers 400 within about
+// 0.5 s, while its web UI downloads the same files over HTTP.
+describe('Baichuan recordings: the E1 Outdoor Pro refuses cmd 8', () => {
+  const E1 = { ...DEMO, CAMSIM_MODEL: 'E1-Outdoor-Pro' };
+
+  it('cmd 8 for a listed file answers 400 with no body and no chunks, every time; the session stays usable', async () => {
+    const { engine, loggedIn } = await startBc({ env: E1 });
+    const c = await loggedIn();
+    const { name, size } = engine.sd.all()[0].files.sub;
+    for (let i = 0; i < 2; i++) {
+      const r = await c.download(name, size);
+      expect(r.status).toBe(400);
+      expect(framesOf(c, r.msgId)).toHaveLength(1);
+      expect(framesOf(c, r.msgId)[0].header.bodyLen).toBe(0);
+    }
+    await sleep(300);
+    expect(c.frames.filter((f) => f.header.cmd === 8 && f.header.status === 200)).toHaveLength(0);
+    expect(engine.counters.baichuanDownloads).toBe(0);
+    expect(engine.requests.recent(20).filter((x) => x.port === 'baichuan' && x.cmd === '8').map((x) => x.status)).toEqual([400, 400]);
+    // cmd 13 (file info) is not measured on the E1: it answers as on the other models.
+    expect((await c.call(13, fileInfoRequestXml(name))).header.status).toBe(200);
+    expect((await c.call(9, stopXml())).header.status).toBe(200);
+  });
+
+  it('HTTP Download serves the same file whole: 200 video/mp4 with its Content-Length', async () => {
+    const { engine } = await startBc({ env: E1 });
+    const http = await withHttp(engine);
+    const rec = engine.sd.all()[0];
+    for (const s of ['sub', 'main'] as const) {
+      const { name } = rec.files[s];
+      const res = await fetch(http.url(name));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toMatch(/^video\/mp4/);
+      const body = Buffer.from(await res.arrayBuffer());
+      expect(Number(res.headers.get('content-length'))).toBe(body.length);
+      expect(body.length).toBe(engine.mediaFor(rec).clipSize(s));
+      expect(body.subarray(4, 8).toString()).toBe('ftyp');
+    }
+    expect(engine.counters.downloads).toBe(2);
+  });
+
+  it('the RLC-1224A and the CX820 still serve cmd 8', async () => {
+    for (const model of ['RLC-1224A', 'CX820']) {
+      const { engine, loggedIn } = await startBc({ env: { ...DEMO, CAMSIM_MODEL: model } });
+      const c = await loggedIn();
+      const { name, size } = engine.sd.all()[0].files.sub;
+      expect((await c.download(name, size)).status, model).toBe(200);
+    }
+  });
+});
+
 describe('Baichuan recordings: stop, replace, parallel', () => {
   it('cmd 9 answers 200; 13 more chunks follow under the old id, then nothing; the next cmd 8 works (abort.txt)', async () => {
     const { engine, loggedIn } = await startBc({ env: DEMO });
