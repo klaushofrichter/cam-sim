@@ -8,6 +8,7 @@ import { CX820 } from './cx820';
 import { E1_OUTDOOR_PRO } from './E1-Outdoor-Pro';
 import type { PtzSpec } from '../engine/ptz';
 import type { NameFormat } from '../engine/sdcard';
+import type { Enc } from './enc';
 
 export const MODELS = ['RLC-1224A', 'CX820', 'E1-Outdoor-Pro'] as const;
 export type Model = (typeof MODELS)[number];
@@ -15,23 +16,17 @@ export type Model = (typeof MODELS)[number];
 type Obj = Record<string, any>;
 type Stream = 'sub' | 'main';
 
-export interface EncStream {
-  bitRate: number;
-  frameRate: number;
-  gop: number;
-  height: number;
-  profile: string;
-  size: string;
-  vType: string;
-  width: number;
-}
+export type { EncStream } from './enc';
 
 export interface CameraProfile {
   model: Model;
   // GetDevInfo's fixed fields; firmVer is the default for CAMSIM_FIRMWARE.
   firmware: { model: string; firmVer: string; hardVer: string; buildDay: string; cfgVer: string; detail: string };
   devInfo(name: string, serial: string, firmVer: string): Obj;
-  enc: { audio: number; channel: number; mainStream: EncStream; subStream: EncStream };
+  // GetEnc's factory value (the settings' Enc starts as this; SetEnc changes
+  // the running one) and its range for action 1 (src/profile/enc.ts).
+  enc: Enc;
+  encRange: Obj[];
   ability: unknown;
   // Extra keys next to `value` that a Get answers with even for action 0.
   extras: { IrLights?: Obj; WhiteLed?: Obj };
@@ -54,7 +49,9 @@ export interface CameraProfile {
   baichuan: { authTypes: readonly string[]; loginReplyLines: readonly string[]; pushes: readonly PushMessage[]; refusesDownload?: boolean };
   // Generated and converted media: sub size and frame rate, main frame rate,
   // the default CAMSIM_MAIN_SIZE (WxH).
-  media: { sub: string; subFps: number; mainFps: number; mainSize: string };
+  // noSar: the sub stream's H.264 VUI has no aspect_ratio_info, as the E1
+  // Outdoor Pro's (measured); x264 writes a 1:1 SAR unless told otherwise.
+  media: { sub: string; subFps: number; mainFps: number; mainSize: string; noSar?: boolean };
   // Pan/tilt/zoom: set exactly when the ability grants ptzCtrl (ptzEnabled).
   ptz?: PtzSpec;
 }

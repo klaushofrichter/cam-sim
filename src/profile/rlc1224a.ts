@@ -8,6 +8,7 @@ import { LOGIN_REPLY_LINES } from '../baichuan/device-info';
 import { PUSHES, RLC_AUTH_TYPES } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 import { deepMerge } from '../util/json-file';
+import { derivedRange } from './enc';
 
 export const FIRMWARE = {
   model: 'RLC-1224A',
@@ -91,6 +92,7 @@ export interface Settings {
   Ftp: Obj;
   NetPort: Obj;
   Ntp: Obj;
+  Enc: Obj;
 }
 
 export const ALL = '1'.repeat(168);
@@ -172,6 +174,7 @@ export function factorySettings(name: string): Settings {
     },
     NetPort: { ...DEFAULT_NET_PORT },
     Ntp: { ...DEFAULT_NTP },
+    Enc: structuredClone(ENC),
   };
 }
 
@@ -204,6 +207,9 @@ export function resetDefaultsFor(factory: Settings): Settings {
   // Not measured, and zero values would switch every port off after a
   // reboot, leaving no way back in: keep the factory ports.
   z.NetPort = { ...DEFAULT_NET_PORT };
+  // Not measured either, and zero sizes would leave no picture: the factory
+  // streams.
+  z.Enc = structuredClone(factory.Enc);
   return z;
 }
 
@@ -220,6 +226,7 @@ export const RLC1224A: CameraProfile = {
   firmware: FIRMWARE,
   devInfo,
   enc: ENC,
+  encRange: derivedRange(ENC),
   ability: ABILITY,
   extras: { IrLights: IR_LIGHTS_EXTRA },
   getUserCurUser: true,

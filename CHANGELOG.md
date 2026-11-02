@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `GetEnc` with `action: 1` answers `initial` and `range`, and `SetEnc` changes the streams: size, frame rate, codec, bit rate, GOP and profile, checked against the range (`-4` and no change outside it). RTSP follows at once: a changed stream is re-encoded at the new size and frame rate, and its readers drop and reconnect. `Snap` follows the main size, the SD pipeline the sub size and frame rate. The E1 Outdoor Pro's range is the captured one (its sub is 640×360 only); the RLC-1224A's and CX820's were not captured and offer their own sizes only, with the E1's frame rate and bit rate lists. In process, `createCamSim({encRange})` sets another range (tests).
+- E1 Outdoor Pro: the sub stream has no aspect ratio in its H.264 VUI, as the real E1's (measured); like the camera's, it is coded 640×368 and cropped to 640×360.
+
 - E1 Outdoor Pro: the Baichuan download (cmd 8) is refused with 400, no body, for every recording, as the real E1 does (measured 2026-11-02: refused within about 0.5 s for a file its Search lists). HTTP `Download` serves the same files whole (`200 video/mp4` with Content-Length), as the E1's own web UI offers them (not yet measured over the API). The RLC-1224A and CX820 keep serving cmd 8.
 
 ## v2026.11.02.1
