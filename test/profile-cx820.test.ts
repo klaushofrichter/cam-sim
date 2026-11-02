@@ -98,8 +98,8 @@ describe('CX820 profile (reference/cx820)', () => {
   });
 
   it('test media follow the profile: sub 640x360 at 10 fps, main at 25 fps', () => {
-    expect(fixtureSpec(profileFor('RLC-1224A'))).toEqual({ sub: '896x512', subFps: 10, mainFps: 20, suffix: '' });
-    expect(fixtureSpec(CX)).toEqual({ sub: '640x360', subFps: 10, mainFps: 25, suffix: '-cx820' });
+    expect(fixtureSpec(profileFor('RLC-1224A'))).toEqual({ sub: '896x512', subFps: 10, mainFps: 20, suffix: '', noSar: false });
+    expect(fixtureSpec(CX)).toEqual({ sub: '640x360', subFps: 10, mainFps: 25, suffix: '-cx820', noSar: false });
   });
 });
 

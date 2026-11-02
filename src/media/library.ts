@@ -213,7 +213,7 @@ export class Library {
     return s.paths.map((p) => {
       const st = statSync(p);
       return `${resolve(p)}:${st.size}:${st.mtimeMs}`;
-    }).join('|') + `|${c.mainSize}|${c.maxVideoS}${fixtureSpec(this.engine.profile).suffix}`;
+    }).join('|') + `|${c.mainSize}|${c.maxVideoS}${fixtureSpec(this.engine.profile).suffix}${this.engine.profile.media.noSar ? '|nosar' : ''}`;
   }
 
   // One folder per source version and settings, so instances sharing the
@@ -273,7 +273,7 @@ export class Library {
         const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=${m.mainFps}`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',
           '-x265-params', 'keyint=40:min-keyint=40:bframes=0:log-level=error', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipMain], this.abort.signal);
-        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(sw, sh)},fps=${m.subFps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
+        await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(sw, sh)},${m.noSar ? 'setsar=0,' : ''}fps=${m.subFps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
           '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipSub], this.abort.signal);
       }
       // Live FLV: sub as ffmpeg writes it; main as the camera's codec id 12.

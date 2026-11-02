@@ -3,9 +3,11 @@ import { nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from
 import { profileFor, type CameraProfile } from '../profile/profile';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 import { isOneOf } from '../util/one-of';
+import { encRspCode, withSizes } from '../profile/enc';
 
-// Settings keys added after files were first written (2026-10-05: Ntp).
-const ADDED_LATER: Array<keyof Settings> = ['Ntp'];
+// Settings keys added after files were first written (2026-10-05: Ntp;
+// 2026-11-02: Enc).
+const ADDED_LATER: Array<keyof Settings> = ['Ntp', 'Enc'];
 
 // Factory settings with every well-formed object of `loaded` laid over them.
 // Returns whether anything was missing or malformed.
@@ -41,6 +43,7 @@ const SET_COMMANDS: Record<string, Key> = {
   SetFtpV20: 'Ftp',
   SetNetPort: 'NetPort',
   SetNtp: 'Ntp',
+  SetEnc: 'Enc',
 };
 
 export const isSetCommand = (cmd: string): boolean => Object.hasOwn(SET_COMMANDS, cmd);
@@ -134,6 +137,15 @@ export class SettingsStore {
     if (key === 'Ftp' && mask !== undefined && sent.password === mask) sent = { ...sent, password: this.running.Ftp.password };
     this.defaults ??= this.profile.resetDefaults();
     const defaults = this.defaults;
+    // SetEnc: the streams the camera would run must be in its range (both
+    // sizes one entry's pair); width and height follow size.
+    if (key === 'Enc') {
+      const base = opts.strictPartial ? defaults.Enc : this.running.Enc;
+      const next = withSizes(deepMerge(clone(base), sent));
+      const r = encRspCode(this.profile.encRange, next);
+      if (r !== null) return { rspCode: r };
+      sent = withSizes(clone(sent));
+    }
     const lightWas = this.running.WhiteLed.state;
     if (key === 'AiAlarm') {
       const t = sent.ai_type as AiType;

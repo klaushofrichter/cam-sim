@@ -360,7 +360,7 @@ post Logout
 | | `GetDevName` / `SetDevName` | `{channel:0}` / `{DevName:{name}}` | `{DevName:{name}}`; with `action: 1` also `initial` (the factory name, `CAMSIM_NAME`) and `range: {DevName:{name:{maxLen:31,minLen:0}}}`. **One name:** `GetDevName`, `GetDevInfo.name` and the OSD's `osdChannel.name` are the same value, and `SetDevName` or a `SetOsd` with a new `osdChannel.name` change all three (measured 2026-10-03). Rules: 1–31 characters of ASCII letters, digits, space and `- ( ) + = [ ] { }`, no leading or trailing space; anything else (`_`, `.`, `é`, the empty name, …) `-54`, longer than 31 `-56`; a refused name keeps the old one. Stored like the other settings (survives reboot, power cycle and a restart with `CAMSIM_DATA_DIR`) |
 | | `GetTime` / `SetTime` | `{}` / `{Dst:{…},Time:{…}}` | `{Dst:{enable,offset,start/endMon,Week,Weekday,Hour,Min,Sec},Time:{year,mon,day,hour,min,sec,isDst,timeZone,hourFmt,timeFmt}}`; `timeZone` is seconds **west** of UTC (Chicago: 21600); `action: 1` adds `initial` and `range` (timeZone −46800…43200). `SetTime` with the whole objects (measured on the E1 2026-10-30) sets the camera's clock to the given date and time and stores the zone, DST rule and formats, which `GetTime` then reports; a value out of range → `-4` "param error", nothing changed. Until then, and after a reset, `CAMSIM_TZ` and the simulator's clock. File names, Search and events keep `CAMSIM_TZ`. Not stored across a restart. `settings.fail` / `settings.ignore` and `setCalls` cover it |
 | | `GetHddInfo` | `{}` | `{HddInfo:[{capacity,size,mount,format,number,storageType}]}`; MB, **`size` is the free space** |
-| | `GetEnc` | `{channel:0}` | `{Enc:{mainStream:{vType:"h265",size:"4512*2512",frameRate:20,…},subStream:{vType:"h264",size:"896*512",frameRate:10,…}}}` |
+| | `GetEnc` / `SetEnc` | `{channel:0}` / `{Enc:{…}}` | `{Enc:{audio,channel,mainStream:{vType:"h265",size:"4512*2512",width,height,frameRate:20,bitRate,gop,profile},subStream:{…}}}`; `action: 1` adds `initial` (the factory streams) and `range` (a list of entries, each one main size paired with one sub size, and per stream the `vType`, `frameRate`, `bitRate`, `profile` lists and `gop` `{min,max}`). The E1 Outdoor Pro's range is the captured one (main 3840×2160, 2560×1440 or 2304×1296, sub always 640×360); **the RLC-1224A's and CX820's were not captured**: one entry with the model's own sizes and the E1's lists plus the model's own values (`src/profile/enc.ts`). `SetEnc` with the whole object changes the running streams: the main and sub size must be one entry's pair and every value in that entry's lists, else `-4` (the real answer is not measured), nothing changed; `width`/`height` follow `size`. Stored like the other settings. A changed stream is re-encoded live at its size, frame rate, codec, bit rate and GOP: the RTSP publisher restarts (its readers drop and reconnect; whether the real camera drops them was not measured), `Snap` is at the main size, the [SD pipeline](#sd-pipeline) at the sub size. Live FLV without the pipeline, recordings and downloads keep the prepared media. In process, `createCamSim({encRange})` replaces the range (tests: small sizes) |
 | | `GetNetPort` / `SetNetPort` | `{}` / `{NetPort:{…}}` | ports and `*Enable` flags |
 | | `GetNtp` / `SetNtp` | `{}` / `{Ntp:{…}}` | `{Ntp:{enable,interval,port,server}}`, factory `{enable:1,interval:1440,port:123,server:"pool.ntp.org"}`. **Not measured yet**: the Reolink API document's shape. A settings object like the others (write the whole object) |
 | | `GetAbility` | `{User:{userName}}` | the camera's capability flags |
@@ -775,7 +775,13 @@ the FTP schedule allows is uploaded:
 
 - **Pictures:** without a library they're a test pattern. The test pattern's
   main stream is 1280×720 (and a converted video's is `CAMSIM_MAIN_SIZE`),
-  while `GetEnc` always reports 4512×2512.
+  while `GetEnc` reports 4512×2512 (the model's main size). After a `SetEnc`
+  that changes a stream, RTSP carries it re-encoded at the `GetEnc` size,
+  frame rate and codec (a 4K main takes a real encoder's CPU); live FLV
+  without the SD pipeline, recordings and downloads stay the prepared media.
+  The E1's sub stream is coded like the camera's: 640×368 with
+  `frame_crop_bottom_offset` 4 (640×360), and no `aspect_ratio_info` in the VUI
+  (x264 does the crop by itself; `setsar=0` drops the SAR).
 - **Recordings:** an event during a recording extends it instead of starting
   a second clip, so one clip often covers several events (on cam1 over 24 h:
   23 of 44 clips, events of one clip up to 25 s apart). The recording ends

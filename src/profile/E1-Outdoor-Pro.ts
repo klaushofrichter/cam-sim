@@ -16,6 +16,7 @@
 import ability from './e1-ability.json';
 import ptzAnswers from './e1-ptz.json';
 import { CX820 } from './cx820';
+import { E1_ENC_RANGE } from './enc';
 import { IR_LIGHTS_EXTRA, devInfoFor, resetDefaultsFor, type Settings } from './rlc1224a';
 import type { CameraProfile } from './profile';
 import type { PtzSpec } from '../engine/ptz';
@@ -60,6 +61,7 @@ const AREA = '1'.repeat(COLS * ROWS);
 // for what was not captured.
 function factorySettings(name: string): Settings {
   const s = CX820.factorySettings(name);
+  s.Enc = structuredClone(ENC);
   s.MdAlarm.scope = { cols: COLS, rows: ROWS, table: AREA };
   for (const t of ['people', 'vehicle', 'dog_cat'] as const) s.AiAlarm[t].scope = { area: AREA, cols: COLS, rows: ROWS }; // (not measured)
   // With bd_night, CBR, day/night Auto; no binningMode or corridorMode.
@@ -108,11 +110,12 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   firmware: E1_FIRMWARE,
   devInfo,
   enc: ENC,
+  encRange: E1_ENC_RANGE,
   ability,
   extras: { IrLights: IR_LIGHTS_EXTRA, WhiteLed: WHITE_LED_EXTRA },
   factorySettings,
   resetDefaults: () => resetDefaultsFor(factorySettings('')),
-  media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160' },
+  media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true },
   ptz: PTZ,
   // Record file names as measured 2026-11-02: RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
   // and RecM03_…_6728828_…: name version 03, no animal-type field, 7-digit

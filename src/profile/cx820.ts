@@ -9,6 +9,7 @@ import {
   devInfoFor, resetDefaultsFor, type AiType, type Settings,
 } from './rlc1224a';
 import { CX820_LOGIN_REPLY_LINES } from '../baichuan/device-info-cx820';
+import { derivedRange } from './enc';
 import { RLC_AUTH_TYPES, afterLogin } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 
@@ -54,6 +55,7 @@ const AREA = '1'.repeat(COLS * ROWS);
 function factorySettings(name: string): Settings {
   const s = rlcFactory(name);
   s.Rec.overwrite = 1;
+  s.Enc = structuredClone(ENC);
   s.MdAlarm.scope = { cols: COLS, rows: ROWS, table: AREA };
   for (const t of AI_TYPES as readonly AiType[]) {
     s.AiAlarm[t] = { ...s.AiAlarm[t], scope: { area: AREA, cols: COLS, rows: ROWS }, sensitivity: 60, stay_time: 0 };
@@ -108,6 +110,7 @@ export const CX820: CameraProfile = {
   firmware: CX820_FIRMWARE,
   devInfo,
   enc: ENC,
+  encRange: derivedRange(ENC),
   ability,
   extras: { IrLights: IR_LIGHTS_EXTRA, WhiteLed: WHITE_LED_EXTRA },
   // GetUser: only the User list.

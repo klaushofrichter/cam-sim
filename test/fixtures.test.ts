@@ -135,10 +135,10 @@ describe.skipIf(!hasFfmpeg)('fixtures per model', () => {
     const p = await ensureFixtures(defaultFixtureDir(cx), createLogger('silent'), cx);
     expect(probe(p.clipSub)).toBe('640,360,10/1');
     expect(probe(p.clipMain)).toBe('1280,720,25/1');
-    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 3, model: 'cx820' });
+    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 4, model: 'cx820' });
     // The default model's fixtures stay as they were.
     const d = await ensureFixtures(defaultFixtureDir(), createLogger('silent'));
     expect(probe(d.clipSub)).toBe('896,512,10/1');
-    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 3 });
+    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 4 });
   }, 120_000);
 });

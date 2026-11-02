@@ -108,7 +108,12 @@ const HANDLERS: Record<string, Handler> = {
     return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
   },
   GetHddInfo: getter('HddInfo', (e) => e.sd.hddInfo()),
-  GetEnc: getter('Enc', (e) => e.profile.enc),
+  // The running streams (SetEnc changes them). action 1 adds the factory
+  // value and the range, before value (as the E1 Outdoor Pro answers, measured
+  // 2026-10-30; the RLC-1224A's and CX820's range was not captured: src/profile/enc.ts).
+  GetEnc: (c) => ok(c.cmd, { Enc: c.engine.settings.get('Enc') }, c.action === 1
+    ? { initial: { Enc: structuredClone(c.engine.profile.enc) }, range: { Enc: structuredClone(c.engine.profile.encRange) } }
+    : {}),
   GetNetPort: getter('NetPort', (e) => e.settings.get('NetPort')),
   GetNtp: getter('Ntp', (e) => e.settings.get('Ntp')),
   GetAbility: (c) => ok(c.cmd, c.engine.profile.ability),

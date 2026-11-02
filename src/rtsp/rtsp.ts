@@ -10,6 +10,7 @@ import { safeEqual as same } from '../util/safe-equal';
 import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
 import { listen as listenOn } from '../util/net';
+import { encodingOf } from '../media/encoding';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
 const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
@@ -72,7 +73,20 @@ export class RtspService {
   private readonly onChange = () => {
     const e = this.engine;
     if (!e.serving('rtsp') || e.faults.active('rtsp.reset')) this.dropReaders();
+    else this.followEnc();
   };
+  // The encoding each running publisher was started with (encodingOf().key).
+  private readonly published = new Map<Stream, string>();
+
+  // A SetEnc that changed a stream restarts its publisher on the new
+  // encoding: its readers drop and reconnect, and the new stream starts with
+  // the new parameter sets. Whether the real camera drops its RTSP sessions
+  // on SetEnc was not measured; a client must cope with either.
+  private followEnc(): void {
+    for (const [stream, p] of this.publishers) {
+      if (this.published.get(stream) !== encodingOf(this.engine, stream).key) p.kill('SIGTERM');
+    }
+  }
 
   constructor(private readonly engine: Engine, private readonly opts: { port: number; host?: string; mediamtx: string | undefined }) {}
 
@@ -244,8 +258,10 @@ export class RtspService {
     const e = this.engine;
     if (this.stopping || this.mtxExited) return;
     if (stream === 'sub' && this.subMode === 'pipeline') return;
+    const enc = encodingOf(e, stream);
+    this.published.set(stream, enc.key);
     const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', '-i', e.media.clipPath(stream),
-      '-c', 'copy', '-f', 'rtsp', '-rtsp_transport', 'tcp', this.pubUrl(stream)], { stdio: ['ignore', 'ignore', 'pipe'] });
+      ...enc.args, '-f', 'rtsp', '-rtsp_transport', 'tcp', this.pubUrl(stream)], { stdio: ['ignore', 'ignore', 'pipe'] });
     p.stderr?.on('data', (d) => e.log.debug({ ffmpeg: String(d).trim().replaceAll(this.pubPassword, '***') }, 'rtsp_publisher'));
     p.on('error', (err) => e.log.error({ err: err.message }, 'rtsp_publisher_spawn_failed'));
     p.on('exit', () => {

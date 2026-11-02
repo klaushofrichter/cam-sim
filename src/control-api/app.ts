@@ -253,7 +253,7 @@ export function createControlApp(engine: Engine): express.Express {
     settings: e.settings.running,
     devInfo: e.profile.devInfo(e.settings.name, e.serial, e.config.firmVer),
     hddInfo: e.sd.hddInfo(),
-    enc: e.profile.enc,
+    enc: e.settings.running.Enc,
     certificate: { source: e.certs.state.source, enable: e.certs.state.enable },
   }));
   // Whole-object writes through the camera's own validation.

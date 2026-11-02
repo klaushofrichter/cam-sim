@@ -176,6 +176,27 @@ describe('SdPipeline', () => {
     await until(() => p.generation() === g + 1 && p.active());
   }, 30_000);
 
+  it('encodes the running Enc sub size and frame rate, and restarts on a SetEnc that changes it', async () => {
+    const { e, p } = await setup();
+    // onMetaData's width and height (AMF0 numbers after their names).
+    const meta = (name: string) => {
+      const t = p.configTags().find((x) => x.type === 18)!;
+      const i = t.bytes.indexOf(Buffer.from(name));
+      return t.bytes.readDoubleBE(i + name.length + 1);
+    };
+    e.pipelineOn(5);
+    await until(() => p.active());
+    expect([meta('width'), meta('height'), meta('framerate')]).toEqual([896, 512, 10]);
+    const g = p.generation();
+    e.bus.emit('settings', { cmd: 'SetRec' });
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(p.generation()).toBe(g);
+    Object.assign(e.settings.running.Enc.subStream, { size: '320*180', width: 320, height: 180, frameRate: 7 });
+    e.bus.emit('settings', { cmd: 'SetEnc' });
+    await until(() => p.generation() === g + 1 && p.active());
+    expect([meta('width'), meta('height'), meta('framerate')]).toEqual([320, 180, 7]);
+  }, 30_000);
+
   it('treats a failed spawn (no exit event) as a failure, and stop() still returns', async () => {
     const { e, p } = await setup(findFonts(), { ffmpeg: '/nonexistent/ffmpeg' });
     const g0 = p.generation();
