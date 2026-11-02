@@ -11,6 +11,7 @@ import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
 import { listen as listenOn } from '../util/net';
 import { encodingOf } from '../media/encoding';
+import { RtspFront } from './front';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
 const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
@@ -35,12 +36,11 @@ async function freePort(host: string): Promise<number> {
   });
 }
 
-// A wildcard bind address is reached on the loopback.
-const connectHost = (host: string) => (host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host);
-
 class Stopped extends Error {}
 
-// RTSP like the camera: MediaMTX serves the two paths, ffmpeg publishes the
+// RTSP like the camera: MediaMTX serves the two paths on the loopback behind
+// the camera's port (RtspFront, which shapes the DESCRIBE's SDP like the
+// model's), ffmpeg publishes the
 // stream copies into them, and MediaMTX asks us (HTTP auth) whether a reader
 // may watch: a camera user, RTSP switched on, the camera on and online, and
 // no rtsp.refuse/rtsp.reset fault. rtsp.refuse only turns new readers away;
@@ -55,6 +55,9 @@ export class RtspService {
   private stopping = false;
   private up = false;
   private boundPort = 0;
+  // MediaMTX's own port (loopback), behind the camera's port.
+  private mtxPort = 0;
+  private front?: RtspFront;
   private starting?: Promise<void>;
   private readonly pubPassword = randomBytes(16).toString('hex');
   // Who publishes sub: the stream copy, or the SD pipeline while it runs.
@@ -125,8 +128,15 @@ export class RtspService {
       e.log.warn('rtsp_unavailable_no_mediamtx');
       return;
     }
-    const host = this.opts.host ?? '127.0.0.1';
-    this.boundPort = this.opts.port || (await freePort(connectHost(host)));
+    // The camera's port first: a taken port fails before MediaMTX starts.
+    this.front = new RtspFront({ upstreamPort: () => this.mtxPort, shape: () => e.profile.rtsp });
+    try {
+      this.boundPort = await this.front.listen(this.opts.port, this.opts.host);
+    } catch (err) {
+      throw new Error(`the RTSP port is not available (${(err as NodeJS.ErrnoException).code ?? 'error'}); MediaMTX not started`);
+    }
+    this.check();
+    this.mtxPort = await freePort('127.0.0.1');
     this.check();
 
     this.auth = http.createServer(async (req, res) => {
@@ -142,7 +152,7 @@ export class RtspService {
 
     this.dir = mkdtempSync(join(tmpdir(), 'camsim-rtsp-'));
     const conf = join(this.dir, 'mediamtx.yml');
-    const listen = this.opts.host && !this.opts.host.includes(':') ? `${this.opts.host}:${this.boundPort}` : `:${this.boundPort}`;
+    const listen = `127.0.0.1:${this.mtxPort}`;
     writeFileSync(conf, [
       'logLevel: warn',
       'logDestinations: [stdout]',
@@ -188,7 +198,7 @@ export class RtspService {
     // Ready when MediaMTX accepts connections, or failed when it exits first.
     const ready = (async () => {
       for (let i = 0; i < 100 && !this.mtxExited; i++) {
-        if (await this.accepts(host)) return true;
+        if (await this.accepts()) return true;
         await sleep(100);
       }
       return false;
@@ -212,14 +222,14 @@ export class RtspService {
     e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
   }
 
-  private accepts(host: string): Promise<boolean> {
+  private accepts(): Promise<boolean> {
     return new Promise((r) => {
       const s = new net.Socket();
       s.setTimeout(500);
       s.once('connect', () => (s.destroy(), r(true)));
       s.once('error', () => r(false));
       s.once('timeout', () => (s.destroy(), r(false)));
-      s.connect(this.boundPort, connectHost(host));
+      s.connect(this.mtxPort, '127.0.0.1');
     });
   }
 
@@ -244,7 +254,7 @@ export class RtspService {
   }
 
   private pubUrl(stream: Stream): string {
-    return `rtsp://camsim-publisher:${this.pubPassword}@127.0.0.1:${this.boundPort}/${RTSP_PATHS[stream]}`;
+    return `rtsp://camsim-publisher:${this.pubPassword}@127.0.0.1:${this.mtxPort}/${RTSP_PATHS[stream]}`;
   }
 
   setSubSource(mode: 'copy' | 'pipeline'): void {
@@ -306,6 +316,8 @@ export class RtspService {
         setTimeout(() => (m.kill('SIGKILL'), r()), 3000).unref();
       });
     }
+    await this.front?.close();
+    this.front = undefined;
     const a = this.auth;
     this.auth = undefined;
     if (a) await new Promise<void>((r) => a.close(() => r()));

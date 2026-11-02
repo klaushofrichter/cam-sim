@@ -52,6 +52,11 @@ export interface CameraProfile {
   // noSar: the sub stream's H.264 VUI has no aspect_ratio_info, as the E1
   // Outdoor Pro's (measured); x264 writes a 1:1 SAR unless told otherwise.
   media: { sub: string; subFps: number; mainFps: number; mainSize: string; noSar?: boolean };
+  // The RTSP DESCRIBE's SDP (src/rtsp/sdp.ts). sprop false: the video tracks
+  // have no fmtp line, so no sprop-parameter-sets (the parameter sets come
+  // in band only), as the E1 Outdoor Pro's and the RLC-1224A's (measured
+  // 2026-11-02); the CX820 sends them. tool: the session's a=tool line.
+  rtsp: { sprop: boolean; tool?: string };
   // Pan/tilt/zoom: set exactly when the ability grants ptzCtrl (ptzEnabled).
   ptz?: PtzSpec;
 }

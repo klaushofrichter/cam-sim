@@ -28,8 +28,8 @@ import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
 const TIMINGS = {
-  real: { rebootMs: 60_000, searchMs: 300, loginMs: 200, downloadBytesPerS: 150 * 1024, certRestartMs: 10_000 },
-  fast: { rebootMs: 1_000, searchMs: 20, loginMs: 0, downloadBytesPerS: 0, certRestartMs: 200 },
+  real: { rebootMs: 60_000, searchMs: 300, loginMs: 200, downloadBytesPerS: 150 * 1024, certRestartMs: 10_000, encRestartMs: 60_000 },
+  fast: { rebootMs: 1_000, searchMs: 20, loginMs: 0, downloadBytesPerS: 0, certRestartMs: 200, encRestartMs: 1_000 },
 };
 
 export interface RequestRecord {
@@ -144,6 +144,12 @@ export class Engine {
 
   get timings() {
     return TIMINGS[this.config.speed];
+  }
+
+  // How long the camera restarts after a SetEnc that changed the streams
+  // (measured 2026-11-02: 40–75 s on all three models; 0: no restart).
+  get encRestartMs(): number {
+    return this.config.encRestartMs ?? this.timings.encRestartMs;
   }
 
   private newSerial(): string {

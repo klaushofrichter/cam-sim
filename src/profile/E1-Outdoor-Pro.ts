@@ -116,6 +116,9 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   factorySettings,
   resetDefaults: () => resetDefaultsFor(factorySettings('')),
   media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true },
+  // Its SDP (measured 2026-11-02): a=tool, and the video track's rtpmap
+  // (H264/90000) without an fmtp line.
+  rtsp: { sprop: false, tool: 'Reolink Streaming Media 2024.12.11' },
   ptz: PTZ,
   // Record file names as measured 2026-11-02: RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
   // and RecM03_…_6728828_…: name version 03, no animal-type field, 7-digit

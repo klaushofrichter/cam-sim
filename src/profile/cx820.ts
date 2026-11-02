@@ -9,7 +9,7 @@ import {
   devInfoFor, resetDefaultsFor, type AiType, type Settings,
 } from './rlc1224a';
 import { CX820_LOGIN_REPLY_LINES } from '../baichuan/device-info-cx820';
-import { derivedRange } from './enc';
+import { CX820_ENC_RANGE } from './enc';
 import { RLC_AUTH_TYPES, afterLogin } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 
@@ -110,7 +110,7 @@ export const CX820: CameraProfile = {
   firmware: CX820_FIRMWARE,
   devInfo,
   enc: ENC,
-  encRange: derivedRange(ENC),
+  encRange: CX820_ENC_RANGE,
   ability,
   extras: { IrLights: IR_LIGHTS_EXTRA, WhiteLed: WHITE_LED_EXTRA },
   // GetUser: only the User list.
@@ -136,4 +136,6 @@ export const CX820: CameraProfile = {
     pushes: PUSHES,
   },
   media: { sub: '640x360', subFps: 10, mainFps: 25, mainSize: '3840x2160' },
+  // Its SDP carries sprop-parameter-sets (measured 2026-11-02).
+  rtsp: { sprop: true },
 };

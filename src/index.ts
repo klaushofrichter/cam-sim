@@ -57,6 +57,8 @@ export interface CamSimOptions {
   mainSize?: string;
   // GetEnc's range in place of the model's (tests: small sizes encode quickly).
   encRange?: Array<Record<string, any>>;
+  // The restart after a SetEnc that changed the streams (ms; 0: none).
+  encRestartMs?: number;
   maxVideoS?: number;
   logLevel?: string;
   log?: pino.Logger;
@@ -116,6 +118,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     pipelineMaxMin: o.pipelineMaxMin ?? CONFIG_DEFAULTS.pipelineMaxMin,
     fontDir: o.fontDir,
     ...(o.encRange ? { encRange: o.encRange } : {}),
+    ...(o.encRestartMs !== undefined ? { encRestartMs: o.encRestartMs } : {}),
   };
 }
 

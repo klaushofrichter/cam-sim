@@ -13,11 +13,13 @@ import { createCameraApp } from '../src/camera-api/app';
 import { loadConfig } from '../src/config';
 import { createLogger } from '../src/log';
 import { RtspService, findMediaMtx } from '../src/rtsp/rtsp';
-import { derivedRange, E1_ENC_RANGE } from '../src/profile/enc';
+import { E1_ENC_RANGE } from '../src/profile/enc';
 import { profileFor } from '../src/profile/profile';
 import { ENC as RLC_ENC } from '../src/profile/rlc1224a';
 import { USERS, login, makeCamera } from './helpers';
 import e1GetEnc from '../reference/E1-Outdoor-Pro/GetEnc.json';
+import rlcProxy from '../reference/rlc-1224a/GetEnc-range-proxy.json';
+import cx820Proxy from '../reference/cx820/GetEnc-range-proxy.json';
 
 const run = promisify(execFile);
 const mediamtx = findMediaMtx();
@@ -31,14 +33,15 @@ async function cmd(app: App, t: string, name: string, param: unknown = {}, actio
 // A test range for the RLC-1224A: its own pair, plus the same main with a
 // small sub (320x180) that encodes quickly.
 function tinyRange() {
-  const [own] = derivedRange(RLC_ENC);
+  const own = structuredClone(profileFor('RLC-1224A').encRange[0]);
   const small = structuredClone(own);
   Object.assign(small.subStream, { size: '320*180', width: 320, height: 180 });
   return [own, small];
 }
 
+// The restart after SetEnc is off unless a test asks for it (CAMSIM_ENC_RESTART_MS).
 async function camera(env: Record<string, string> = {}, encRange?: Array<Record<string, any>>) {
-  const config = loadConfig({ CAMSIM_USERS: USERS, CAMSIM_SEED: '1', ...env });
+  const config = loadConfig({ CAMSIM_USERS: USERS, CAMSIM_SEED: '1', CAMSIM_ENC_RESTART_MS: '0', ...env });
   const engine = await createEngine({ ...config, ...(encRange ? { encRange } : {}) }, { log: createLogger('silent') });
   const app = createCameraApp(engine, { port: 'http' });
   return { engine, app, t: await login(app) };
@@ -63,20 +66,29 @@ describe('GetEnc', () => {
     expect(r.value).toEqual(e1GetEnc.value);
   });
 
-  it.each(['RLC-1224A', 'CX820'] as const)('action 1 on the %s: one entry with its own sizes (range not captured)', async (model) => {
+  // The proxy's GET /settings/encoding on the real cameras, 2026-11-02
+  // (reference/<model>/GetEnc-range-proxy.json): the range is that answer's
+  // options in the camera's own form.
+  it.each([['RLC-1224A', rlcProxy], ['CX820', cx820Proxy]] as const)('action 1 on the %s answers the range measured through the proxy', async (model, proxy) => {
     const { app, t } = await camera({ CAMSIM_MODEL: model });
     const r = await cmd(app, t, 'GetEnc', { channel: 0 }, 1);
-    const enc = profileFor(model).enc;
-    expect(r.range.Enc).toHaveLength(1);
-    const [e] = r.range.Enc;
-    for (const k of ['mainStream', 'subStream'] as const) {
-      expect(e[k]).toMatchObject({ size: enc[k].size, width: enc[k].width, height: enc[k].height });
-      expect(e[k].frameRate).toContain(enc[k].frameRate);
-      expect(e[k].bitRate).toContain(enc[k].bitRate);
-      expect(e[k].vType).toContain(enc[k].vType);
-      // The rest from the E1's captured lists.
-      for (const f of E1_ENC_RANGE[0][k].frameRate) expect(e[k].frameRate).toContain(f);
-    }
+    const asProxy = (s: any) => ({ width: s.width, height: s.height, codecs: s.vType, fps: s.frameRate, bitRates: s.bitRate, profiles: s.profile, gop: { min: s.gop.min, max: s.gop.max } });
+    expect(r.range.Enc.map((e: any) => ({ main: asProxy(e.mainStream), sub: asProxy(e.subStream) }))).toEqual(proxy.options);
+    for (const e of r.range.Enc) for (const k of ['mainStream', 'subStream'] as const) expect(e[k].size).toBe(`${e[k].width}*${e[k].height}`);
+    expect(r.value.Enc.mainStream).toMatchObject({ width: proxy.main.width, height: proxy.main.height, vType: proxy.main.codec, frameRate: proxy.main.fps, bitRate: proxy.main.bitRate });
+    expect(r.value.Enc.subStream).toMatchObject({ width: proxy.sub.width, height: proxy.sub.height, vType: proxy.sub.codec, frameRate: proxy.sub.fps, bitRate: proxy.sub.bitRate });
+  });
+
+  it('the RLC-1224A offers 4512x2512, 3840x2160, 2560x1440 and 2304x1296 in H.264 or H.265, the sub fixed at 896x512', () => {
+    const r = profileFor('RLC-1224A').encRange;
+    expect(r.map((e) => e.mainStream.size)).toEqual(['4512*2512', '3840*2160', '2560*1440', '2304*1296']);
+    for (const e of r) expect([e.mainStream.vType, e.subStream.size]).toEqual([['h265', 'h264'], '896*512']);
+  });
+
+  it('the CX820 offers 3840x2160 in H.265 only, 2560x1440 and 2304x1296 in H.264 only, the sub fixed at 640x360', () => {
+    const r = profileFor('CX820').encRange;
+    expect(r.map((e) => [e.mainStream.size, e.mainStream.vType])).toEqual([['3840*2160', ['h265']], ['2560*1440', ['h264']], ['2304*1296', ['h264']]]);
+    for (const e of r) expect(e.subStream.size).toBe('640*360');
   });
 });
 
@@ -106,6 +118,52 @@ describe('SetEnc', () => {
     const r = await cmd(app, t, 'SetEnc', { Enc: enc });
     expect([r.code, r.error.rspCode]).toEqual([1, -4]);
     expect((await cmd(app, t, 'GetEnc', { channel: 0 })).value.Enc).toEqual(before);
+  });
+
+  // Measured 2026-11-02 on the RLC-1224A, CX820 and E1 Outdoor Pro: after a
+  // SetEnc that changes the streams the camera restarts (offline, then back
+  // with the new settings; 40–75 s in all, 11 of 11 changes).
+  it('restarts after a SetEnc that changes the streams: offline, then back with the new streams', async () => {
+    const { app, t, engine } = await camera({ CAMSIM_MODEL: 'E1-Outdoor-Pro', CAMSIM_ENC_RESTART_MS: '400' });
+    const enc = (await cmd(app, t, 'GetEnc', { channel: 0 })).value.Enc;
+    enc.mainStream = { ...enc.mainStream, size: '2560*1440', frameRate: 25, bitRate: 3072 };
+    const states: unknown[] = [];
+    engine.bus.on('state', (s) => states.push(s));
+    expect((await cmd(app, t, 'SetEnc', { Enc: enc })).value).toEqual({ rspCode: 200 });
+    await expect.poll(() => engine.down(), { timeout: 2000, interval: 20 }).toBe(true);
+    expect(states).toContainEqual({ rebooting: true });
+    await expect.poll(() => engine.down(), { timeout: 3000, interval: 20 }).toBe(false);
+    // Sessions end with the restart: a new login sees the new streams.
+    const t2 = await login(app);
+    expect((await cmd(app, t2, 'GetEnc', { channel: 0 })).value.Enc.mainStream).toMatchObject({ width: 2560, height: 1440, frameRate: 25 });
+  });
+
+  it('does not restart after a SetEnc that changes nothing, or one it refuses', async () => {
+    const { app, t, engine } = await camera({ CAMSIM_MODEL: 'E1-Outdoor-Pro', CAMSIM_ENC_RESTART_MS: '400' });
+    const enc = (await cmd(app, t, 'GetEnc', { channel: 0 })).value.Enc;
+    expect((await cmd(app, t, 'SetEnc', { Enc: enc })).value).toEqual({ rspCode: 200 });
+    const bad = structuredClone(enc);
+    bad.subStream.size = '896*512';
+    expect((await cmd(app, t, 'SetEnc', { Enc: bad })).error.rspCode).toBe(-4);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(engine.down()).toBe(false);
+    expect(engine.counters.reboots).toBe(0);
+  });
+
+  it('the restart takes CAMSIM_ENC_RESTART_MS (default: 60 s at real speed, 1 s fast; 0: no restart)', async () => {
+    expect(loadConfig({ CAMSIM_USERS: USERS }).encRestartMs).toBeUndefined();
+    expect(loadConfig({ CAMSIM_USERS: USERS, CAMSIM_ENC_RESTART_MS: '45000' }).encRestartMs).toBe(45000);
+    expect(() => loadConfig({ CAMSIM_USERS: USERS, CAMSIM_ENC_RESTART_MS: 'x' })).toThrow(/CAMSIM_ENC_RESTART_MS/);
+    const real = await createEngine(loadConfig({ CAMSIM_USERS: USERS, CAMSIM_SPEED: 'real' }), { log: createLogger('silent') });
+    const fast = await createEngine(loadConfig({ CAMSIM_USERS: USERS }), { log: createLogger('silent') });
+    expect([real.encRestartMs, fast.encRestartMs]).toEqual([60_000, 1_000]);
+    const { app, t, engine } = await camera({ CAMSIM_MODEL: 'E1-Outdoor-Pro' });
+    expect(engine.encRestartMs).toBe(0);
+    const enc = (await cmd(app, t, 'GetEnc', { channel: 0 })).value.Enc;
+    enc.mainStream = { ...enc.mainStream, size: '2304*1296', frameRate: 15, bitRate: 2560 };
+    await cmd(app, t, 'SetEnc', { Enc: enc });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(engine.down()).toBe(false);
   });
 
   it('Snap follows the main size', async () => {
