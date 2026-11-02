@@ -216,6 +216,9 @@ from read-only captures of a real camera in `reference/<model>/`.
     `RecS03_20261102_065854_065924_2B14808_B2B5F.mp4` (sub) and
     `RecM03_…_6728828_…` (main) for a motion clip; see
     [Recording file names](#recording-file-names).
+  - Recordings download over HTTP only (measured 2026-11-02): the
+    [Baichuan](#baichuan-port-9000) download (cmd 8) answers 400 for every
+    file, while HTTP [Download](#recordings-download) serves it whole.
 
 ### Video library
 
@@ -576,9 +579,17 @@ the camera.
 - A name that isn't on the card, including any `..` path, resets the
   connection.
 
-The real camera currently refuses HTTP Download (see
+The real RLC-1224A currently refuses HTTP Download (see
 [Baichuan](#baichuan-port-9000)); with `downloads.refuse` on, the same
-files still download over [Baichuan](#baichuan-port-9000).
+files still download over [Baichuan](#baichuan-port-9000). The E1 Outdoor
+Pro is the other way round: it refuses the Baichuan download and serves
+HTTP Download, on every `E1-Outdoor-Pro` simulator without a fault.
+
+| Model | HTTP `Download` | Baichuan cmd 8 |
+|---|---|---|
+| `RLC-1224A` | served (the real one refuses it since 2026-10-01: `downloads.refuse`) | served |
+| `CX820` | served (the real one refuses it: `downloads.refuse`) | served |
+| `E1-Outdoor-Pro` | served (its web UI downloads this way) | **400**, no body, for every file (measured 2026-11-02) |
 
 ### Baichuan (port 9000)
 
@@ -616,7 +627,7 @@ that. The measured history of the refusal:
 
 | cmd | Answer |
 |---|---|
-| 8, download: `<Id>` is the full name HTTP Search returns; `<name>` is optional and ignored | 200 with a 32-byte info record, then the file in chunks (39,400 B three times, then 12,872 B, repeating). Every frame carries cmd 8's message id; there is no terminator. An unknown `<Id>` answers 400 with no body |
+| 8, download: `<Id>` is the full name HTTP Search returns; `<name>` is optional and ignored | 200 with a 32-byte info record, then the file in chunks (39,400 B three times, then 12,872 B, repeating). Every frame carries cmd 8's message id; there is no terminator. An unknown `<Id>` answers 400 with no body; so does every `<Id>` on the `E1-Outdoor-Pro` |
 | 9, stop (`handle` 0) | 200, no body. 13 more frames of the running download still arrive (including the info record if it hadn't gone out yet), then nothing |
 | 13, file info | 200 with `sizeL`/`sizeH`. With `<name>` it reports the main file's size even for a sub `<Id>`, as the camera does. A file it doesn't know answers 431 without `<name>` and 400 with it |
 | 93, LinkType | 200, `<LinkType><type>LAN</type>` |
