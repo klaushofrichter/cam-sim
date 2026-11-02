@@ -7,6 +7,7 @@ import { RLC1224A } from './rlc1224a';
 import { CX820 } from './cx820';
 import { E1_OUTDOOR_PRO } from './E1-Outdoor-Pro';
 import type { PtzSpec } from '../engine/ptz';
+import type { NameFormat } from '../engine/sdcard';
 
 export const MODELS = ['RLC-1224A', 'CX820', 'E1-Outdoor-Pro'] as const;
 export type Model = (typeof MODELS)[number];
@@ -45,6 +46,8 @@ export interface CameraProfile {
   resetDefaults(): Settings;
   // Record file names: the flags field without trigger bits.
   fileFlags: Record<Stream, bigint>;
+  // Record file names' format (absent: name version 0A, as the RLC-1224A's).
+  nameFormat?: NameFormat;
   baichuan: { authTypes: readonly string[]; loginReplyLines: readonly string[]; pushes: readonly PushMessage[] };
   // Generated and converted media: sub size and frame rate, main frame rate,
   // the default CAMSIM_MAIN_SIZE (WxH).
