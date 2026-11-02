@@ -48,7 +48,10 @@ export interface CameraProfile {
   fileFlags: Record<Stream, bigint>;
   // Record file names' format (absent: name version 0A, as the RLC-1224A's).
   nameFormat?: NameFormat;
-  baichuan: { authTypes: readonly string[]; loginReplyLines: readonly string[]; pushes: readonly PushMessage[] };
+  // refusesDownload: cmd 8 answers 400 (no body, no chunks) even for a file
+  // Search lists, as the E1 Outdoor Pro does (measured 2026-11-02); HTTP
+  // Download still serves it.
+  baichuan: { authTypes: readonly string[]; loginReplyLines: readonly string[]; pushes: readonly PushMessage[]; refusesDownload?: boolean };
   // Generated and converted media: sub size and frame rate, main frame rate,
   // the default CAMSIM_MAIN_SIZE (WxH).
   media: { sub: string; subFps: number; mainFps: number; mainSize: string };

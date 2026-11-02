@@ -119,4 +119,8 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   // flags (here without the motion bit).
   fileFlags: { sub: 0x2b14800n, main: 0x6728820n },
   nameFormat: V03_NAMES,
+  // Measured 2026-11-02: the Baichuan download (cmd 8) of a recording Search
+  // lists answers 400 within about 0.5 s; the E1's web UI downloads the same
+  // files over HTTP. HTTP Download serves them here.
+  baichuan: { ...CX820.baichuan, refusesDownload: true },
 };

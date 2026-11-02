@@ -280,8 +280,9 @@ export class BaichuanServer {
   private download(c: Conn, f: BcFrame, log: Log): void {
     const { msgId } = f.header;
     const file = resolveFile(this.engine, tagValue(this.requestXml(c, f), 'Id'));
-    // Measured: a refusal and a missing file look alike: 400, no body, no chunks.
-    if (this.engine.faults.consume('baichuan.refuse') || !file) return log(400, this.reply(c, 8, msgId, 400));
+    // Measured: a refusal and a missing file look alike: 400, no body, no
+    // chunks. The E1 Outdoor Pro refuses every file (profile refusesDownload).
+    if (this.engine.profile.baichuan.refusesDownload || this.engine.faults.consume('baichuan.refuse') || !file) return log(400, this.reply(c, 8, msgId, 400));
     // Measured: a new cmd 8 silently replaces the running one, which goes on
     // to a block boundary (or its cmd-9 tail) first; the new one waits for it.
     const prev = c.transfer && !c.transfer.done ? c.transfer : undefined;
