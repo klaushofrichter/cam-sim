@@ -13,7 +13,7 @@ import { profileFor, type CameraProfile } from '../profile/profile';
 const run = promisify(execFile);
 
 // Bump when the generated files change, so caches are rebuilt.
-const FIXTURE_VERSION = 3;
+const FIXTURE_VERSION = 4;
 
 export interface FixturePaths {
   dir: string;
@@ -34,12 +34,14 @@ export interface FixtureSpec {
   subFps: number;
   mainFps: number;
   suffix: string;
+  // The sub stream's VUI without aspect_ratio_info (the E1 Outdoor Pro's).
+  noSar: boolean;
 }
 
 export function fixtureSpec(profile: CameraProfile = profileFor(undefined)): FixtureSpec {
   const { sub, subFps, mainFps } = profile.media;
   const suffix = profile.model === profileFor(undefined).model ? '' : `-${profile.model.toLowerCase()}`;
-  return { sub, subFps, mainFps, suffix };
+  return { sub, subFps, mainFps, suffix, noSar: !!profile.media.noSar };
 }
 
 export const defaultFixtureDir = (profile?: CameraProfile) => join(tmpdir(), `cam-sim-fixtures-${FIXTURE_VERSION}${fixtureSpec(profile).suffix}`);
@@ -73,7 +75,9 @@ function complete(dir: string, spec: FixtureSpec): boolean {
   }
 }
 
-const sub = (s: FixtureSpec) => `testsrc2=size=${s.sub}:rate=${s.subFps}`;
+// x264 codes 640x360 as 640x368 with frame_crop_bottom_offset 4, as the E1's
+// sub stream is (measured); noSar also leaves the SAR out of the VUI.
+const sub = (s: FixtureSpec) => `testsrc2=size=${s.sub}:rate=${s.subFps}${s.noSar ? ',setsar=0' : ''}`;
 // Main is generated at 1280x720 rather than the camera's size (4512x2512 on
 // the RLC-1224A) so the fixtures build in seconds; GetEnc still reports the
 // camera's real sizes.

@@ -9,6 +9,7 @@ import type { FlvTag } from '../media/flv';
 import { FlvStreamParser, isConfigTag, isKeyframe } from '../media/flv-stream';
 import { clockText, filterChain, overlayOf, ptzText } from './overlay';
 import type { LiveSubSource } from './live-sub';
+import { encStream, sarFilter } from '../media/encoding';
 
 type Fonts = { regular: string; bold: string };
 
@@ -39,6 +40,7 @@ export class SdPipeline implements LiveSubSource {
   // The clock and name files, in a temp folder made at the first start.
   private dir?: string;
   private vf = ''; // the running process's filter chain
+  private rates = ''; // and its rate arguments (rateArgs)
   private videoChanged = false;
   private clockTimer?: NodeJS.Timeout;
   private startSoon?: NodeJS.Immediate;
@@ -56,7 +58,7 @@ export class SdPipeline implements LiveSubSource {
     this.videoChanged = true;
     this.onChange();
   };
-  // Settings restart it only when the filter chain changes (Osd, Isp); a new
+  // Settings restart it only when the filter chain or rates change (Osd, Isp, Enc); a new
   // name goes to its file, which drawtext reloads. Other Sets change nothing.
   private readonly onChange = () => {
     if (!this.proc) return;
@@ -65,7 +67,7 @@ export class SdPipeline implements LiveSubSource {
       if (!this.proc) return;
       const running = this.engine.settings.running as { Osd: any; Isp: any };
       this.writeName(running);
-      const restart = this.videoChanged || this.chainOf(running) !== this.vf;
+      const restart = this.videoChanged || this.chainOf(running) !== this.vf || this.rateArgs().join(' ') !== this.rates;
       this.videoChanged = false;
       if (restart) this.restartNow();
     }, 500);
@@ -119,8 +121,19 @@ export class SdPipeline implements LiveSubSource {
     return this.engine.ptz ? { ...f, ptz: join(this.dir, 'ptz.txt') } : f;
   }
 
+  // The sub stream's size and frame rate (the running Enc, SetEnc changes
+  // it) first, so the OSD is drawn at the stream's own size, then the OSD.
   private chainOf(running: { Osd: any; Isp: any }): string {
-    return filterChain(overlayOf(running), this.files(), this.opts.fonts!);
+    const sub = encStream(this.engine, 'sub');
+    const overlay = filterChain(overlayOf(running), this.files(), this.opts.fonts!);
+    return [`scale=${sub.width}:${sub.height}`, ...sarFilter(this.engine, 'sub'), `fps=${sub.frameRate}`, ...(overlay === 'null' ? [] : [overlay])].join(',');
+  }
+
+  // What a restart must follow besides the filter chain: bit rate and GOP.
+  private rateArgs(): string[] {
+    const sub = encStream(this.engine, 'sub');
+    const k = `${sub.bitRate}k`;
+    return ['-g', String(Math.max(1, sub.gop * sub.frameRate)), '-b:v', k, '-maxrate', k, '-bufsize', `${sub.bitRate * 2}k`];
   }
 
   // Replaced in one step: drawtext rereads the file on every frame.
@@ -161,6 +174,8 @@ export class SdPipeline implements LiveSubSource {
     this.clockTimer = setInterval(() => this.writeClock(), 1000);
     this.clockTimer.unref?.();
     const vf = (this.vf = this.chainOf(running));
+    const rates = this.rateArgs();
+    this.rates = rates.join(' ');
     this.videoChanged = false;
     const rtsp = this.opts.rtspUrl?.();
     const out = rtsp
@@ -168,7 +183,7 @@ export class SdPipeline implements LiveSubSource {
       : ['-map', '0:v', '-map', '0:a?', '-f', 'flv', 'pipe:1'];
     const args = ['-hide_banner', '-loglevel', 'warning', '-re', '-stream_loop', '-1', '-i', e.media.clipPath('sub'),
       '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
-      '-r', '10', '-g', '40', '-bf', '0', '-b:v', '1M', '-maxrate', '1M', '-bufsize', '2M', '-c:a', 'aac', '-b:a', '32k', ...out];
+      ...rates, '-bf', '0', '-c:a', 'aac', '-b:a', '32k', ...out];
     const gen = ++this.gen;
     this.ready = false;
     this.cfg = [];

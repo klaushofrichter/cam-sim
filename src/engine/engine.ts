@@ -109,7 +109,8 @@ export class Engine {
     readonly log: pino.Logger,
     public media: MediaSource,
   ) {
-    this.profile = profileFor(config.model);
+    const profile = profileFor(config.model);
+    this.profile = config.encRange ? { ...profile, encRange: config.encRange } : profile;
     if (ptzEnabled(this.profile.ability) && !this.profile.ptz) throw new Error(`profile ${this.profile.model} permits PTZ but has no ptz spec`);
     this.ptz = ptzEnabled(this.profile.ability) ? new Ptz(this.profile.ptz!, clock) : null;
     this.rng = createRng(config.seed);
@@ -224,19 +225,20 @@ export class Engine {
     });
   }
 
-  // Snap: the picture at the main stream's size as GetEnc reports it (the
+  // Snap: the picture at the main stream's size as GetEnc reports it (SetEnc
+  // changes it; the
   // camera's Snap is the main stream's; #126), with the PTZ position on PTZ
   // models. One ffmpeg run per video and position, cached; when ffmpeg
   // fails, the fixture picture as it is.
   async snapMain(): Promise<Buffer> {
     const plain = await this.media.snapshot();
-    const { width, height } = this.profile.enc.mainStream;
+    const { width, height } = this.settings.running.Enc.mainStream;
     if (this.ptz && this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
     const font = this.ptz && this.ptzFont ? this.ptzFont : undefined;
     const ptz = this.ptz;
     return this.rendered('snap', async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.videoId}|${text ?? ''}`;
+      const key = `${this.videoId}|${text ?? ''}|${width}x${height}`;
       if (this.mainSnap?.key === key) return this.mainSnap.jpeg;
       try {
         const jpeg = await renderJpeg(plain, { text, font, size: `${width}x${height}` }, this.ffmpeg);

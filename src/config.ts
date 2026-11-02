@@ -48,6 +48,9 @@ export interface CamSimConfig {
   pipelineMaxMin: number; // CAMSIM_PIPELINE_MAX_MIN: the longest SD pipeline switch-on (minutes)
   fontDir?: string; // CAMSIM_FONT_DIR: a folder with DejaVuSans.ttf and DejaVuSans-Bold.ttf
   // CAMSIM_FTP_*: FTP upload configured and enabled at start.
+  // Programmatic only (tests): GetEnc's range in place of the model's, e.g.
+  // small sizes that encode quickly. Never set from the environment.
+  encRange?: Array<Record<string, any>>;
   ftp?: { server: string; port: number; userName: string; password: string; remoteDir: string; onlyFtps: 0 | 1; streamType: 0 | 1 };
 }
 

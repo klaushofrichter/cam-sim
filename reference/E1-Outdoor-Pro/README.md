@@ -49,7 +49,12 @@ the probe.
   `wifi` 1, itemNo `E560`, hardVer `IPC_560SD88MPW`, detail
   `IPC_560SD88MPWS38A9T460E1W13110`, cfgVer `v3.1.0.0`. Same keys.
 - `GetEnc`: main H.265 3840×2160 at 20 fps, 4096 kbps; sub H.264 640×360 at
-  10 fps, 256 kbps; audio 1.
+  10 fps, 256 kbps; audio 1. With action 1, its `range` (the only GetEnc range
+  captured, the source of `src/profile/e1-enc-range.json`): three entries,
+  main 3840×2160, 2560×1440 or 2304×1296, each paired with sub 640×360 (the
+  only sub size); main H.264 or H.265, sub H.264 only. The sub stream is coded
+  640×368 with `frame_crop_bottom_offset` 4 and has no `aspect_ratio_info` in
+  its VUI (measured).
 - `GetMdAlarm`: the area grid is 60×33.
 - `GetIsp`: with `bd_night`, `encType` `CBR`, `dayNight` `Auto`.
 - `GetIrLights`: range `Auto`/`Off`.

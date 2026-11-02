@@ -55,6 +55,8 @@ export interface CamSimOptions {
   pipelineMaxMin?: number; // the longest SD pipeline switch-on (minutes, default 1440)
   fontDir?: string; // fonts for the SD pipeline (default: system DejaVu, or Arial on a Mac)
   mainSize?: string;
+  // GetEnc's range in place of the model's (tests: small sizes encode quickly).
+  encRange?: Array<Record<string, any>>;
   maxVideoS?: number;
   logLevel?: string;
   log?: pino.Logger;
@@ -113,6 +115,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     video: o.video,
     pipelineMaxMin: o.pipelineMaxMin ?? CONFIG_DEFAULTS.pipelineMaxMin,
     fontDir: o.fontDir,
+    ...(o.encRange ? { encRange: o.encRange } : {}),
   };
 }
 
