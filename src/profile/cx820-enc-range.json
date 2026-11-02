@@ -1,0 +1,230 @@
+[
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        2048,
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192
+      ],
+      "frameRate": [
+        25,
+        22,
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 2160,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "3840*2160",
+      "vType": [
+        "h265"
+      ],
+      "width": 3840
+    },
+    "subStream": {
+      "bitRate": [
+        64,
+        128,
+        160,
+        192,
+        256,
+        384,
+        512
+      ],
+      "frameRate": [
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 360,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "640*360",
+      "vType": [
+        "h264"
+      ],
+      "width": 640
+    }
+  },
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        2048,
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192
+      ],
+      "frameRate": [
+        25,
+        22,
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 1440,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "2560*1440",
+      "vType": [
+        "h264"
+      ],
+      "width": 2560
+    },
+    "subStream": {
+      "bitRate": [
+        64,
+        128,
+        160,
+        192,
+        256,
+        384,
+        512
+      ],
+      "frameRate": [
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 360,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "640*360",
+      "vType": [
+        "h264"
+      ],
+      "width": 640
+    }
+  },
+  {
+    "audio": "boolean",
+    "chnBit": 1,
+    "mainStream": {
+      "bitRate": [
+        2048,
+        3072,
+        4096,
+        5120,
+        6144,
+        7168,
+        8192
+      ],
+      "frameRate": [
+        25,
+        22,
+        20,
+        18,
+        16,
+        15,
+        12,
+        10,
+        8,
+        6,
+        4,
+        2
+      ],
+      "gop": {
+        "max": 2,
+        "min": 1
+      },
+      "height": 1296,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "2304*1296",
+      "vType": [
+        "h264"
+      ],
+      "width": 2304
+    },
+    "subStream": {
+      "bitRate": [
+        64,
+        128,
+        160,
+        192,
+        256,
+        384,
+        512
+      ],
+      "frameRate": [
+        15,
+        10,
+        7,
+        4
+      ],
+      "gop": {
+        "max": 4,
+        "min": 1
+      },
+      "height": 360,
+      "profile": [
+        "Base",
+        "Main",
+        "High"
+      ],
+      "size": "640*360",
+      "vType": [
+        "h264"
+      ],
+      "width": 640
+    }
+  }
+]

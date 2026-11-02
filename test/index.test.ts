@@ -67,6 +67,12 @@ describe('createCamSim', () => {
     expect(c.baichuan).toEqual({ idleMs: 32_000, firstMessageMs: 12_500 });
     expect(configFromOptions({ users: [], baichuan: { idleMs: 500 } }).baichuan).toEqual({ idleMs: 500, firstMessageMs: 12_500 });
   });
+
+  it('in process: encRestartMs sets the restart after SetEnc (0: none), unset the speed\'s', () => {
+    expect(configFromOptions({ users: [], encRestartMs: 250 }).encRestartMs).toBe(250);
+    expect(configFromOptions({ users: [], encRestartMs: 0 }).encRestartMs).toBe(0);
+    expect(configFromOptions({ users: [] })).not.toHaveProperty('encRestartMs');
+  });
 });
 
 describe('control port TLS', () => {

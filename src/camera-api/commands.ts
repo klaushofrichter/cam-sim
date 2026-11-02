@@ -217,10 +217,20 @@ function setCommand(c: Ctx): Entry {
   const failing = e.faults.consume('settings.fail', c.cmd);
   if (failing) return fail(c.cmd, failing.rspCode ?? -67);
   if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
+  const encBefore = c.cmd === 'SetEnc' ? JSON.stringify(e.settings.running.Enc) : undefined;
   const r = c.cmd === 'SetDevName'
     ? e.settings.setName(c.param?.DevName?.name)
     : e.settings.set(c.cmd, c.param, { strictPartial: !!e.faults.active('settings.strictPartial') });
   if (!r) e.bus.emit('settings', { cmd: c.cmd });
+  // A SetEnc that changed the streams: the camera answers, then restarts
+  // (measured 2026-11-02 on the RLC-1224A, CX820 and E1 Outdoor Pro: offline,
+  // back after 40–75 s with the new streams). Like a reboot: sessions end.
+  if (!r && encBefore !== undefined && encBefore !== JSON.stringify(e.settings.running.Enc) && e.encRestartMs > 0) {
+    const ms = e.encRestartMs;
+    c.res.on('finish', () => {
+      if (!e.down()) void e.reboot({ ms });
+    });
+  }
   return r ? fail(c.cmd, r.rspCode) : ok(c.cmd, { rspCode: 200 });
 }
 

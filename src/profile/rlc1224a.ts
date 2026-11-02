@@ -8,7 +8,7 @@ import { LOGIN_REPLY_LINES } from '../baichuan/device-info';
 import { PUSHES, RLC_AUTH_TYPES } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 import { deepMerge } from '../util/json-file';
-import { derivedRange } from './enc';
+import { RLC_ENC_RANGE } from './enc';
 
 export const FIRMWARE = {
   model: 'RLC-1224A',
@@ -226,7 +226,7 @@ export const RLC1224A: CameraProfile = {
   firmware: FIRMWARE,
   devInfo,
   enc: ENC,
-  encRange: derivedRange(ENC),
+  encRange: RLC_ENC_RANGE,
   ability: ABILITY,
   extras: { IrLights: IR_LIGHTS_EXTRA },
   getUserCurUser: true,
@@ -237,4 +237,6 @@ export const RLC1224A: CameraProfile = {
   fileFlags: FILE_FLAGS,
   baichuan: { authTypes: RLC_AUTH_TYPES, loginReplyLines: LOGIN_REPLY_LINES, pushes: PUSHES },
   media: { sub: '896x512', subFps: 10, mainFps: 20, mainSize: '4512x2512' },
+  // No sprop-parameter-sets in its SDP (measured 2026-11-02, as the E1's).
+  rtsp: { sprop: false },
 };

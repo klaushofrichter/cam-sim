@@ -55,9 +55,12 @@ api.cgi:
   (empty on the RLC-1224A). Same keys.
 - `GetEnc`: audio 0; main H.265 3840×2160, 25 fps, 6144 kbps; sub H.264
   640×360, 10 fps, 256 kbps (RLC-1224A: audio 1, 4512×2512 at 20 fps 8192,
-  896×512 at 10 fps 1024). Captured with action 0 only: neither model's
-  `range` is captured. The simulator offers each model's own sizes only, with
-  the E1 Outdoor Pro's frame rate and bit rate lists (`src/profile/enc.ts`).
+  896×512 at 10 fps 1024). Captured with action 0 only. The `range` of both
+  was measured on 2026-11-02 through cam-proxy's GET
+  `/api/cameras/:cam/settings/encoding` (its answer as it came:
+  `GetEnc-range-proxy.json` here and in `reference/rlc-1224a/`; no secrets),
+  the source of `src/profile/cx820-enc-range.json` and `rlc-enc-range.json`.
+  The proxy's answer has no per-entry `default`, so those entries have none.
 - `GetAbility`: `supportAllColors`, `supportIspHdr`,
   `supportLightAutoBrightness`, `supportWLLightAlarm`, `videoClip` (ver 2) and
   `ftpExtStream` on; `ispDayNight`, `ledControl` (both levels),

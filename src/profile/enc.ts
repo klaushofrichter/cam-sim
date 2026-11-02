@@ -3,6 +3,8 @@
 // codecs, frame rates, bit rates, profiles and GOP the camera offers with
 // that size (as the E1 Outdoor Pro answers, reference/E1-Outdoor-Pro/GetEnc.json).
 import e1Range from './e1-enc-range.json';
+import rlcRange from './rlc-enc-range.json';
+import cx820Range from './cx820-enc-range.json';
 
 type Obj = Record<string, any>;
 
@@ -23,30 +25,12 @@ export type StreamKey = (typeof STREAM_KEYS)[number];
 
 // The E1 Outdoor Pro's range, measured 2026-10-30.
 export const E1_ENC_RANGE: Obj[] = e1Range;
-
-// A model whose range was not captured (the RLC-1224A, the CX820): one entry
-// with the model's own sizes, and per stream the E1's lists (its first entry,
-// the closest captured data) with the model's own current values added, so
-// the factory state is in range. Not measured: such a camera may offer more
-// sizes than this.
-export function derivedRange(enc: Enc, base: Obj = E1_ENC_RANGE[0]): Obj[] {
-  const merge = (list: unknown, v: unknown, order: 1 | -1): unknown[] => {
-    const all = [...new Set([...(Array.isArray(list) ? list : []), v])];
-    return typeof v === 'number' ? (all as number[]).sort((a, b) => order * (a - b)) : all;
-  };
-  const stream = (s: EncStream, b: Obj): Obj => ({
-    bitRate: merge(b.bitRate, s.bitRate, 1),
-    default: { bitRate: s.bitRate, frameRate: s.frameRate, gop: s.gop },
-    frameRate: merge(b.frameRate, s.frameRate, -1),
-    gop: { max: Math.max(b.gop?.max ?? s.gop, s.gop), min: Math.min(b.gop?.min ?? s.gop, s.gop) },
-    height: s.height,
-    profile: merge(b.profile, s.profile, 1),
-    size: s.size,
-    vType: merge(b.vType, s.vType, 1),
-    width: s.width,
-  });
-  return [{ audio: 'boolean', chnBit: 1, mainStream: stream(enc.mainStream, base.mainStream), subStream: stream(enc.subStream, base.subStream) }];
-}
+// The RLC-1224A's and CX820's, measured 2026-11-02 through cam-proxy's
+// GET /settings/encoding (reference/<model>/GetEnc-range-proxy.json): its
+// options in the camera's form. That answer carries no per-entry `default`,
+// so these entries have none (the E1's capture does).
+export const RLC_ENC_RANGE: Obj[] = rlcRange;
+export const CX820_ENC_RANGE: Obj[] = cx820Range;
 
 // "W*H" as numbers, or undefined.
 export function sizeOf(size: unknown): { width: number; height: number } | undefined {
