@@ -45,20 +45,31 @@ export const DEMO_CLIPS: SeedClip[] = [
 ];
 
 const ROOT = '/mnt/sda/Mp4Record';
-// Trigger bit positions (reolink_aio layout, name versions 9 and 10): bit 55 − pos.
+// Trigger bit positions (reolink_aio layout), from the flags' top bit.
 const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20, motion: 24 };
 
+// How a model writes its record file names: the name version, whether the
+// animal-type field (`0_`) is there, and the flags' hex digits. Name version
+// 0A (RLC-1224A, CX820): `RecS0A_[DST]<date>_<start>_<end>_0_<14 digits>_<size>`;
+// 03 (the E1 Outdoor Pro, measured 2026-11-02): no animal-type field and 7
+// digits, the 14-digit field without its trailing zeros.
+export interface NameFormat { version: string; animalField: boolean; flagDigits: 7 | 14 }
+export const V0A_NAMES: NameFormat = { version: '0A', animalField: true, flagDigits: 14 };
+export const V03_NAMES: NameFormat = { version: '03', animalField: false, flagDigits: 7 };
+
 // `base`: the flags of a real clip without trigger bits, the model's (profile
-// fileFlags), the RLC-1224A's by default.
-export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = FILE_FLAGS): string {
+// fileFlags), the RLC-1224A's by default. Trigger positions count from the
+// field's top bit: bit 55 − pos for 14 digits, 27 − pos for 7.
+export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = FILE_FLAGS, digits: 7 | 14 = 14): string {
   let v = base[stream];
-  for (const t of triggers) v |= 1n << BigInt(55 - TRIGGER_POS[t]);
-  return v.toString(16).toUpperCase().padStart(14, '0');
+  for (const t of triggers) v |= 1n << BigInt(digits * 4 - 1 - TRIGGER_POS[t]);
+  return v.toString(16).toUpperCase().padStart(digits, '0');
 }
 
-export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = FILE_FLAGS): string {
+export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = FILE_FLAGS, format: NameFormat = V0A_NAMES): string {
   const ymd = date.replaceAll('-', '');
-  const base = `Rec${stream === 'sub' ? 'S' : 'M'}0A_${dst ? 'DST' : ''}${ymd}_${start}_${end}_0_${flagsHex(stream, triggers, flags)}_${size.toString(16).toUpperCase()}.mp4`;
+  const animal = format.animalField ? '0_' : '';
+  const base = `Rec${stream === 'sub' ? 'S' : 'M'}${format.version}_${dst ? 'DST' : ''}${ymd}_${start}_${end}_${animal}${flagsHex(stream, triggers, flags, format.flagDigits)}_${size.toString(16).toUpperCase()}.mp4`;
   return `${ROOT}/${date}/${base}`;
 }
 
@@ -117,7 +128,7 @@ export class SdCard {
   private seq = 0;
   private readonly file?: string;
 
-  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string; fileFlags?: Record<Stream, bigint> }) {
+  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string; fileFlags?: Record<Stream, bigint>; nameFormat?: NameFormat }) {
     if (opts.dir) {
       this.file = join(opts.dir, 'index.json');
       try {
@@ -150,7 +161,7 @@ export class SdCard {
   private withFiles(r: Stored): Recording {
     const f = (s: Stream) => {
       const size = (r.sizes ?? this.currentSizes())[s];
-      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size, this.opts.fileFlags), size };
+      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size, this.opts.fileFlags, this.opts.nameFormat), size };
     };
     const { sizes: _sizes, ...rest } = r;
     void _sizes;
