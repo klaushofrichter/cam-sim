@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- E1 Outdoor Pro: recording file names now look like the real camera's (measured 2026-11-02): `RecS03_20261102_065854_065924_2B14808_B2B5F.mp4`, name version 03, no `0_` field and 7-digit flags (`2B14808` sub, `6728828` main for motion). The RLC-1224A and CX820 keep their names.
+
+## v2026.10.31.1
+
 - E1 Outdoor Pro: `SetPtzPreset` with a name that has a leading or trailing space or two spaces in a row answers 200 and changes nothing, like the real camera (measured 2026-10-31).
 
 ## v2026.10.30.4

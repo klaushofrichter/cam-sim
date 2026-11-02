@@ -211,6 +211,11 @@ from read-only captures of a real camera in `reference/<model>/`.
   - Settings: motion and AI areas on a 60×33 grid; `GetIsp` with
     `bd_night`, `CBR`, day/night `Auto`; `GetWhiteLed` mode 1, bright 85.
   - The pan/tilt/zoom commands: see [PTZ](#ptz-pantilt-models).
+  - Recording file names (measured 2026-11-02): name version `03`, no `0_`
+    field, 7 hex digits of flags, e.g.
+    `RecS03_20261102_065854_065924_2B14808_B2B5F.mp4` (sub) and
+    `RecM03_…_6728828_…` (main) for a motion clip; see
+    [Recording file names](#recording-file-names).
 
 ### Video library
 
@@ -538,7 +543,20 @@ The name is made of, in order:
 - the size in hex.
 
 Trigger bits are bit `55 − pos`: person 17, vehicle 19, pet 20, motion 24. AI
-events also set the motion bit.
+events also set the motion bit. Main and sub carry different flags (their
+resolution, frame rate and encoder are in the field too), as on the cameras.
+
+The `E1-Outdoor-Pro` writes name version `03`, without the `0` field and with
+7 hex digits of flags, the 14-digit field without its 7 trailing zeros
+(measured 2026-11-02; the CX820's sub `2B148080000000` is the E1's `2B14808`).
+Trigger bits there are bit `27 − pos`:
+
+```
+/mnt/sda/Mp4Record/2026-11-02/RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
+```
+
+`DST` appears on every model for a recording made during daylight saving
+time.
 
 ### Recordings: Download
 

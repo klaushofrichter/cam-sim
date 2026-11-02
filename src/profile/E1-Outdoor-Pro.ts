@@ -10,7 +10,7 @@
 //
 // The CX820's (not measured on the E1): the AiAlarm values (grid 60 x 33,
 // like MdAlarm), GetUser without CurUser, the FTP masks, the WhiteLed modes,
-// Rec overwrite 1, the record file flags, and the Baichuan auth types, login
+// Rec overwrite 1, and the Baichuan auth types, login
 // reply and pushes. The PTZ movement model below is the simulator's own where
 // the camera was not measured (README, "Not measured").
 import ability from './e1-ability.json';
@@ -19,6 +19,7 @@ import { CX820 } from './cx820';
 import { IR_LIGHTS_EXTRA, devInfoFor, resetDefaultsFor, type Settings } from './rlc1224a';
 import type { CameraProfile } from './profile';
 import type { PtzSpec } from '../engine/ptz';
+import { V03_NAMES } from '../engine/sdcard';
 
 export const E1_FIRMWARE = {
   model: 'E1 Outdoor Pro',
@@ -113,4 +114,9 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   resetDefaults: () => resetDefaultsFor(factorySettings('')),
   media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160' },
   ptz: PTZ,
+  // Record file names as measured 2026-11-02: RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
+  // and RecM03_…_6728828_…: name version 03, no animal-type field, 7-digit
+  // flags (here without the motion bit).
+  fileFlags: { sub: 0x2b14800n, main: 0x6728820n },
+  nameFormat: V03_NAMES,
 };
