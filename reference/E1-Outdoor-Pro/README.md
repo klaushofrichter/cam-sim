@@ -113,6 +113,10 @@ the probe.
 - The PTZ Get commands answer with `initial` and `range` for any `action`
   (captured with action 1).
 - Reboot and power-on stop a move and keep the presets.
+- The third live stream (`ext`, the app's *Balanced*): the E1's ability
+  (`live` ver 1) says it has one, but it was not measured; the simulator
+  assumes the CX820's: FLV `channel0_ext` at 896×512, 15 fps, no RTSP ext
+  path (404 Stream Not Found), and `/flv` with RTMP off.
 - Everything else about the model that was not captured is the CX820's: the
   AiAlarm grid (60×33, like MdAlarm), GetUser, the FTP masks, the WhiteLed
   modes, the record file flags, and the Baichuan auth types, login reply and

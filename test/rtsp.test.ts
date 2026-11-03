@@ -37,19 +37,33 @@ async function probe(url: string): Promise<{ codec?: string; width?: number; err
   }
 }
 
+// One raw DESCRIBE (no sign-in): the status line and headers that come back.
+function describe404(port: number, path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const s = net.connect(port, '127.0.0.1', () => s.write(`DESCRIBE rtsp://127.0.0.1:${port}/${path} RTSP/1.0\r\nCSeq: 2\r\nAccept: application/sdp\r\n\r\n`));
+    let got = '';
+    s.on('data', (d) => {
+      got += d.toString('latin1');
+      if (got.includes('\r\n\r\n')) (s.destroy(), resolve(got));
+    });
+    s.on('error', reject);
+    setTimeout(() => (s.destroy(), resolve(got)), 5000).unref();
+  });
+}
+
 const services: RtspService[] = [];
 afterEach(async () => {
   while (services.length) await services.pop()!.stop();
 });
 
 describe.skipIf(!mediamtx)('RTSP', () => {
-  async function start() {
-    const engine = await makeEngine();
+  async function start(env: Record<string, string> = {}) {
+    const engine = await makeEngine(env);
     const port = await freePort();
     const svc = new RtspService(engine, { port, host: '127.0.0.1', mediamtx: mediamtx! });
     services.push(svc);
     await svc.start();
-    return { engine, svc, url: (path: string, user = 'cams', pw = 'cams-pw') => `rtsp://${user}:${pw}@127.0.0.1:${port}/${path}` };
+    return { engine, svc, port, url: (path: string, user = 'cams', pw = 'cams-pw') => `rtsp://${user}:${pw}@127.0.0.1:${port}/${path}` };
   }
 
   it('serves the camera paths: sub is H.264, main is H.265', async () => {
@@ -57,6 +71,20 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     expect(await probe(url('h264Preview_01_sub'))).toMatchObject({ codec: 'h264', width: 896 });
     expect(await probe(url('h264Preview_01_main'))).toMatchObject({ codec: 'hevc' });
   }, 60_000);
+
+  // Measured on the CX820 (2026-11-03): its ext stream is FLV only; every
+  // RTSP ext path answers DESCRIBE with 404 Stream Not Found.
+  it('the ext paths answer DESCRIBE 404 Stream Not Found (CX820 as measured, and every model); main and sub play', async () => {
+    const cx = await start({ CAMSIM_MODEL: 'CX820' });
+    expect(await probe(cx.url('h264Preview_01_sub'))).toMatchObject({ codec: 'h264', width: 640 });
+    for (const path of ['h264Preview_01_ext', 'Preview_01_ext', 'h265Preview_01_ext']) {
+      expect((await probe(cx.url(path))).error).toMatch(/404 Not Found|Stream Not Found/);
+      expect(await describe404(cx.port, path)).toMatch(/^RTSP\/1\.0 404 Stream Not Found\r\nCSeq: 2\r\n/);
+    }
+    expect(cx.svc.publishing()).toBe(2);
+    const rlc = await start();
+    expect(await describe404(rlc.port, 'h264Preview_01_ext')).toMatch(/^RTSP\/1\.0 404 Stream Not Found/);
+  }, 90_000);
 
   it('switches both paths to a newly selected video', async () => {
     const { engine, url } = await start();

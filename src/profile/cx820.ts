@@ -135,7 +135,11 @@ export const CX820: CameraProfile = {
     loginReplyLines: CX820_LOGIN_REPLY_LINES,
     pushes: PUSHES,
   },
-  media: { sub: '640x360', subFps: 10, mainFps: 25, mainSize: '3840x2160' },
+  // ext: 896x512 H.264 at about 15 fps on FLV only (probe, 2026-11-03); RTSP
+  // has no ext path (DESCRIBE 404 Stream Not Found, src/rtsp/rtsp.ts).
+  media: { sub: '640x360', subFps: 10, mainFps: 25, mainSize: '3840x2160', ext: { size: '896x512', fps: 15 } },
   // Its SDP carries sprop-parameter-sets (measured 2026-11-02).
   rtsp: { sprop: true },
+  // /flv answers with RTMP off (measured 2026-11-03: rtmpEnable 0, port 1935 refused).
+  flvWithoutRtmp: true,
 };

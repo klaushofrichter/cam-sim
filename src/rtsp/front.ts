@@ -55,12 +55,22 @@ export function shapeMessage(m: Message, shape: SdpShape): Buffer {
 }
 
 const PUBLISHING = /^(ANNOUNCE|RECORD) /;
+// A request URL's path, decoded, without a trailing slash ('' when malformed).
+function pathOf(raw: string): string {
+  try {
+    return decodeURIComponent(raw).replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
 
 export class RtspFront {
   private server?: net.Server;
   private readonly sockets = new Set<net.Socket>();
 
-  constructor(private readonly o: { upstreamPort: () => number; shape: () => SdpShape }) {}
+  // notFound: a path the camera has no stream for: its DESCRIBE answers
+  // "404 Stream Not Found" here, before MediaMTX (and before any sign-in).
+  constructor(private readonly o: { upstreamPort: () => number; shape: () => SdpShape; notFound?: (path: string) => boolean }) {}
 
   // Listens on `port` (0: a free one) at `host` (undefined: every
   // interface, as MediaMTX did); rejects when the port is taken.
@@ -98,6 +108,14 @@ export class RtspFront {
       if (!ms) return end();
       for (const m of ms) {
         if (m.kind === 'text' && PUBLISHING.test(m.head)) return end();
+        if (m.kind === 'text' && this.o.notFound) {
+          const req = /^DESCRIBE\s+rtsp:\/\/[^/\s]+\/([^\s?]*)/.exec(m.head);
+          if (req && this.o.notFound(pathOf(req[1]))) {
+            const cseq = /^cseq:\s*(\d+)/im.exec(m.head)?.[1] ?? '0';
+            client.write(`RTSP/1.0 404 Stream Not Found\r\nCSeq: ${cseq}\r\n\r\n`);
+            continue;
+          }
+        }
         up.write(m.kind === 'frame' ? m.bytes : Buffer.concat([Buffer.from(m.head, 'latin1'), m.body]));
       }
     });

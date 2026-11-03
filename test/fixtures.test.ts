@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -129,16 +129,19 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
 describe.skipIf(!hasFfmpeg)('fixtures per model', () => {
   const probe = (file: string) => execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'csv=p=0', file]).toString().trim();
 
-  it('the CX820 test pattern: sub 640x360 at 10 fps, main at 25 fps, in its own folder', async () => {
+  it('the CX820 test pattern: sub 640x360 at 10 fps, main at 25 fps, ext 896x512 at 15 fps, in its own folder', async () => {
     const cx = profileFor('CX820');
     expect(defaultFixtureDir(cx)).toBe(`${defaultFixtureDir()}-cx820`);
     const p = await ensureFixtures(defaultFixtureDir(cx), createLogger('silent'), cx);
     expect(probe(p.clipSub)).toBe('640,360,10/1');
     expect(probe(p.clipMain)).toBe('1280,720,25/1');
-    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 4, model: 'cx820' });
+    expect(probe(p.extFlv)).toBe('896,512,15/1');
+    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 6, model: 'cx820' });
     // The default model's fixtures stay as they were.
     const d = await ensureFixtures(defaultFixtureDir(), createLogger('silent'));
     expect(probe(d.clipSub)).toBe('896,512,10/1');
-    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 4 });
+    expect(existsSync(d.extFlv)).toBe(false); // no ext stream on the RLC-1224A
+    expect(existsSync(join(p.dir, 'clip-ext.mp4'))).toBe(false); // ext is live FLV only
+    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 6 });
   }, 120_000);
 });

@@ -128,6 +128,15 @@ Baichuan:
   request before login and a bad magic close the connection with no reply.
 - Throughput: sub 2–3 MB/s, main 4.6–5.5 MB/s (RLC-1224A main 10.8 MB/s).
 
+- The third live stream, `ext` (the app's *Balanced*; read-only FLV probe
+  of `channel0_ext`, 2026-11-03, not a file here): H.264 896×512, about
+  15 fps. `GetEnc` (value and range) lists only main and sub; `GetAbility`'s
+  `live` is ver 1 (main + ext + sub). RTSP has no ext: `h264Preview_01_ext`,
+  `Preview_01_ext` and `h265Preview_01_ext` answer DESCRIBE 404 Stream Not
+  Found, while `h264Preview_01_main` (HEVC 3840×2160), `h265Preview_01_main`
+  and `h264Preview_01_sub` (640×360, 10 fps) play. RTMP is off (port 1935
+  refused) and `/flv` answers anyway (all 2026-11-03, read-only).
+
 ## Not captured
 
 - Anything that needs a write: Set* replies, the partial-Set resets, valid

@@ -60,6 +60,19 @@ describe('video library', () => {
     expect(lib.select('nope')).toMatch(/unknown/);
   }, 180_000);
 
+  it('a CX820 library video has the ext stream\'s FLV too (896x512 H.264), copied pair or converted', async () => {
+    const engine = await makeEngine({ CAMSIM_MODEL: 'CX820', CAMSIM_MAIN_SIZE: '640x360' });
+    const lib = new Library(engine, { sourceDir: src, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-lib-cache-')) });
+    await lib.prepareAll();
+    for (const id of ['garden-walk', 'porch-person']) {
+      expect(lib.select(id)).toBeNull();
+      expect(engine.media.liveFlv('ext').tags.find((t) => t.type === 9)?.codecId).toBe(7);
+      const flv = engine.media.clipPath('main').replace('clip-main.mp4', 'ext.flv');
+      const size = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', flv]).toString().trim();
+      expect(size).toBe('896,512');
+    }
+  }, 180_000);
+
   it('a recording keeps the video it was made from', async () => {
     const engine = await makeEngine({ CAMSIM_MAIN_SIZE: '640x360' });
     const lib = new Library(engine, { sourceDir: src, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-lib-cache-')) });
