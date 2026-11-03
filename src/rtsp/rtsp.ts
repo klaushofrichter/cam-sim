@@ -14,10 +14,12 @@ import { encodingOf } from '../media/encoding';
 import { RtspFront } from './front';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
-// ext (the third stream, a model with one): h264Preview_01_ext, by the same
-// pattern; the real camera's RTSP ext path was not measured.
-const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub', ext: 'h264Preview_01_ext' } as const;
+const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
 type Stream = keyof typeof RTSP_PATHS;
+// The third stream (ext, the app's Balanced) is not on RTSP: the real CX820
+// answers DESCRIBE for these paths with 404 Stream Not Found (measured
+// 2026-11-03; its ext is on FLV only). Every model answers so here.
+export const NO_STREAM_PATHS: readonly string[] = ['h264Preview_01_ext', 'Preview_01_ext', 'h265Preview_01_ext'];
 
 // CAMSIM_MEDIAMTX, then `mediamtx` on PATH, then tools/mediamtx (development).
 export function findMediaMtx(): string | undefined {
@@ -131,7 +133,7 @@ export class RtspService {
       return;
     }
     // The camera's port first: a taken port fails before MediaMTX starts.
-    this.front = new RtspFront({ upstreamPort: () => this.mtxPort, shape: () => e.profile.rtsp });
+    this.front = new RtspFront({ upstreamPort: () => this.mtxPort, shape: () => e.profile.rtsp, notFound: (path) => NO_STREAM_PATHS.includes(path) });
     try {
       this.boundPort = await this.front.listen(this.opts.port, this.opts.host);
     } catch (err) {
@@ -173,7 +175,6 @@ export class RtspService {
       'paths:',
       `  ${RTSP_PATHS.main}:`,
       `  ${RTSP_PATHS.sub}:`,
-      ...(this.hasExt() ? [`  ${RTSP_PATHS.ext}:`] : []),
       '',
     ].join('\n'));
 
@@ -210,11 +211,10 @@ export class RtspService {
     this.check();
     if (!ok || this.mtxExited) throw new Error('MediaMTX did not start (port in use or binary not runnable?)');
 
-    const streams = this.streams();
-    for (const stream of streams) this.publish(stream);
-    // Readiness: every publisher announced its stream (seen by the auth
+    for (const stream of ['main', 'sub'] as const) this.publish(stream);
+    // Readiness: both publishers announced their stream (seen by the auth
     // callback), then a moment for MediaMTX to set the path up.
-    for (let i = 0; i < 150 && this.announced.size < streams.length; i++) {
+    for (let i = 0; i < 150 && this.announced.size < 2; i++) {
       await sleep(100);
       this.check();
       if (this.mtxExited) throw new Error('MediaMTX exited during start');
@@ -223,16 +223,7 @@ export class RtspService {
     this.check();
     for (const [topic, h] of this.subscriptions()) e.bus.on(topic, h);
     this.up = true;
-    e.log.info({ port: this.boundPort, ready: this.announced.size === streams.length }, 'rtsp_listening');
-  }
-
-  private hasExt(): boolean {
-    return !!this.engine.profile.media.ext;
-  }
-
-  // The streams it serves: main and sub, and ext on a model with one.
-  private streams(): Stream[] {
-    return this.hasExt() ? ['main', 'sub', 'ext'] : ['main', 'sub'];
+    e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
   }
 
   private accepts(): Promise<boolean> {
@@ -254,7 +245,7 @@ export class RtspService {
       return ok;
     }
     if (a.action !== 'read') return false;
-    if (!this.streams().some((s) => RTSP_PATHS[s] === a.path)) return false;
+    if (!Object.values(RTSP_PATHS).includes(a.path as never)) return false;
     if (!e.serving('rtsp') || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) return false;
     const u = e.config.users.find((x) => x.name === a.user);
     return !!u && same(a.password ?? '', u.password);

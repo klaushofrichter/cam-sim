@@ -8,9 +8,6 @@ import type { Engine } from '../engine/engine';
 import type { EncStream } from '../profile/enc';
 
 export type Stream = 'sub' | 'main';
-// ext has no Enc entry (the CX820's GetEnc lists only main and sub): always
-// the prepared copy.
-export type LiveStream = Stream | 'ext';
 
 const VIDEO_KEYS = ['size', 'frameRate', 'vType', 'bitRate', 'gop', 'profile'] as const;
 const H264_PROFILE: Record<string, string> = { Base: 'baseline', Main: 'main', High: 'high' };
@@ -21,8 +18,7 @@ export const encStream = (e: Engine, stream: Stream): EncStream => e.settings.ru
 // (measured); setsar=0 makes x264 leave it out.
 export const sarFilter = (e: Engine, stream: Stream): string[] => (stream === 'sub' && e.profile.media.noSar ? ['setsar=0'] : []);
 
-export function encodingOf(e: Engine, stream: LiveStream): { key: string; args: string[] } {
-  if (stream === 'ext') return { key: 'ext', args: ['-c', 'copy'] };
+export function encodingOf(e: Engine, stream: Stream): { key: string; args: string[] } {
   const s = encStream(e, stream);
   const factory = e.profile.enc[stream === 'main' ? 'mainStream' : 'subStream'];
   const key = JSON.stringify(VIDEO_KEYS.map((k) => s[k]));

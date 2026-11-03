@@ -116,11 +116,14 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   factorySettings,
   resetDefaults: () => resetDefaultsFor(factorySettings('')),
   // ext: its GetAbility says main + ext + sub (live ver 1), but the ext
-  // stream was NOT measured: 896x512 at 15 fps is the CX820's, assumed.
+  // stream was NOT measured: the CX820's is assumed (896x512 at 15 fps, FLV
+  // only, no RTSP ext path, FLV with RTMP off).
   media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true, ext: { size: '896x512', fps: 15 } },
   // Its SDP (measured 2026-11-02): a=tool, and the video track's rtpmap
   // (H264/90000) without an fmtp line.
   rtsp: { sprop: false, tool: 'Reolink Streaming Media 2024.12.11' },
+  // /flv with RTMP off: not measured on the E1, assumed like the CX820.
+  flvWithoutRtmp: true,
   ptz: PTZ,
   // Record file names as measured 2026-11-02: RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
   // and RecM03_…_6728828_…: name version 03, no animal-type field, 7-digit

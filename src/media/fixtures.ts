@@ -6,14 +6,14 @@ import { join } from 'path';
 import { promisify } from 'util';
 import type pino from 'pino';
 import { FlvWriter, readFlv, splitAnnexB, h265NalType, hvcc, parseAdts, type FlvTag } from './flv';
-import type { MediaSource, Stream } from './source';
+import type { LiveStream, MediaSource, Stream } from './source';
 import { sleep } from '../util/sleep';
 import { profileFor, type CameraProfile } from '../profile/profile';
 
 const run = promisify(execFile);
 
 // Bump when the generated files change, so caches are rebuilt.
-const FIXTURE_VERSION = 5;
+const FIXTURE_VERSION = 6;
 
 export interface FixturePaths {
   dir: string;
@@ -22,13 +22,12 @@ export interface FixturePaths {
   mainFlv: string;
   clipSub: string;
   clipMain: string;
-  // The third stream ("ext", the app's Balanced), for a model that has one.
+  // The third stream ("ext", the app's Balanced), live FLV only, for a model that has one.
   extFlv: string;
-  clipExt: string;
 }
 
 const FILES = { snapshot: 'snapshot.jpg', subFlv: 'sub.flv', mainFlv: 'main.flv', clipSub: 'clip-sub.mp4', clipMain: 'clip-main.mp4' };
-const EXT_FILES = { extFlv: 'ext.flv', clipExt: 'clip-ext.mp4' };
+const EXT_FILES = { extFlv: 'ext.flv' };
 
 // What the test pattern is generated as: the model's sub size and frame
 // rates (the RLC-1224A's 896x512 at 10 fps and main at 20 fps by default). The
@@ -62,7 +61,6 @@ export function fixturePaths(dir: string): FixturePaths {
     clipSub: join(dir, FILES.clipSub),
     clipMain: join(dir, FILES.clipMain),
     extFlv: join(dir, EXT_FILES.extFlv),
-    clipExt: join(dir, EXT_FILES.clipExt),
   };
 }
 
@@ -73,7 +71,7 @@ function manifest(spec: FixtureSpec): Record<string, unknown> {
 }
 
 // The five served files are all there (fixtures and library copies alike),
-// and the ext stream's two for a model with one.
+// and the ext stream's FLV for a model with one.
 export const fixtureFilesExist = (dir: string, ext = false): boolean =>
   [...Object.values(FILES), ...(ext ? Object.values(EXT_FILES) : [])].every((f) => existsSync(join(dir, f)));
 
@@ -180,8 +178,6 @@ async function generate(dir: string, spec: FixtureSpec): Promise<void> {
     await ffmpeg(['-f', 'lavfi', '-i', EXT, '-f', 'lavfi', '-i', TONE, '-t', '6',
       ...X264, '-profile:v', 'high', '-g', String(spec.ext.fps * 4), '-bf', '0',
       '-c:a', 'aac', '-f', 'flv', p.extFlv]);
-    await ffmpeg(['-f', 'lavfi', '-i', EXT, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
-      ...X264, '-g', String(spec.ext.fps * 4), '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipExt]);
   }
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest(spec)));
 }
@@ -247,7 +243,7 @@ async function build(dir: string, log: pino.Logger, spec: FixtureSpec): Promise<
 }
 
 export class FixtureMedia implements MediaSource {
-  private readonly flv = new Map<Stream, { header: Buffer; tags: FlvTag[] }>();
+  private readonly flv = new Map<LiveStream, { header: Buffer; tags: FlvTag[] }>();
 
   constructor(private readonly paths: FixturePaths) {}
 
@@ -255,7 +251,7 @@ export class FixtureMedia implements MediaSource {
     return readFileSync(this.paths.snapshot);
   }
 
-  liveFlv(stream: Stream) {
+  liveFlv(stream: LiveStream) {
     let f = this.flv.get(stream);
     if (!f) {
       f = readFlv(readFileSync(stream === 'main' ? this.paths.mainFlv : stream === 'ext' ? this.paths.extFlv : this.paths.subFlv));
@@ -264,13 +260,13 @@ export class FixtureMedia implements MediaSource {
     return f;
   }
 
-  durationMs(stream: Stream): number {
+  durationMs(stream: LiveStream): number {
     const tags = this.liveFlv(stream).tags;
     return tags.length ? tags[tags.length - 1].ms + 100 : 0;
   }
 
   clipPath(stream: Stream): string {
-    return stream === 'main' ? this.paths.clipMain : stream === 'ext' ? this.paths.clipExt : this.paths.clipSub;
+    return stream === 'main' ? this.paths.clipMain : this.paths.clipSub;
   }
 
   clipSize(stream: Stream): number {

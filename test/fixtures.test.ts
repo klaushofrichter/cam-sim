@@ -135,13 +135,13 @@ describe.skipIf(!hasFfmpeg)('fixtures per model', () => {
     const p = await ensureFixtures(defaultFixtureDir(cx), createLogger('silent'), cx);
     expect(probe(p.clipSub)).toBe('640,360,10/1');
     expect(probe(p.clipMain)).toBe('1280,720,25/1');
-    expect(probe(p.clipExt)).toBe('896,512,15/1');
     expect(probe(p.extFlv)).toBe('896,512,15/1');
-    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 5, model: 'cx820' });
+    expect(JSON.parse(readFileSync(join(p.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 6, model: 'cx820' });
     // The default model's fixtures stay as they were.
     const d = await ensureFixtures(defaultFixtureDir(), createLogger('silent'));
     expect(probe(d.clipSub)).toBe('896,512,10/1');
-    expect(existsSync(d.clipExt)).toBe(false); // no ext stream on the RLC-1224A
-    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 5 });
+    expect(existsSync(d.extFlv)).toBe(false); // no ext stream on the RLC-1224A
+    expect(existsSync(join(p.dir, 'clip-ext.mp4'))).toBe(false); // ext is live FLV only
+    expect(JSON.parse(readFileSync(join(d.dir, 'manifest.json'), 'utf8'))).toEqual({ version: 6 });
   }, 120_000);
 });

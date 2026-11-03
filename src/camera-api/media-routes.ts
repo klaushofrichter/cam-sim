@@ -105,7 +105,7 @@ const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 // The camera's /flv endpoint: token, fault and RTMP checks, then the stream.
 export async function flv(engine: Engine, req: Request, res: Response): Promise<void> {
   const e = engine;
-  if (!e.sessions.validate(tokenOf(req)) || e.faults.active('flv.reset') || e.settings.running.NetPort.rtmpEnable !== 1) {
+  if (!e.sessions.validate(tokenOf(req)) || e.faults.active('flv.reset') || (e.settings.running.NetPort.rtmpEnable !== 1 && !e.profile.flvWithoutRtmp)) {
     return void req.socket.destroy();
   }
   const delay = e.faults.active('flv.delayMs')?.ms;

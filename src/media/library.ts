@@ -161,10 +161,11 @@ export class Library {
     const media = this.engine.mediaFor({ video: id });
     try {
       // Loaded now, so missing files fail here and not in a live stream.
-      for (const s of this.engine.profile.media.ext ? (['sub', 'main', 'ext'] as const) : (['sub', 'main'] as const)) {
+      for (const s of ['sub', 'main'] as const) {
         media.liveFlv(s);
         media.clipSize(s);
       }
+      if (this.engine.profile.media.ext) media.liveFlv('ext');
     } catch (err) {
       return `video ${id} files are missing or unreadable (${(err as NodeJS.ErrnoException).code ?? 'error'})`;
     }
@@ -284,12 +285,11 @@ export class Library {
       await ffmpeg(['-i', out.clipMain, '-map', '0:a:0', '-c', 'copy', '-f', 'adts', aac], this.abort.signal);
       const info = await probe(out.clipMain);
       if (m.ext) {
-        // The ext stream (a model with one): H.264 at its size, from the main copy.
+        // The ext stream's live FLV (a model with one): H.264 at its size, from the main copy.
         const [ew, eh] = m.ext.size.split('x');
         const fitExt = `scale=${ew}:${eh}:force_original_aspect_ratio=decrease,pad=${ew}:${eh}:(ow-iw)/2:(oh-ih)/2`;
         await ffmpeg(['-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
-          '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', ...FRAG, '-f', 'mp4', out.clipExt], this.abort.signal);
-        await ffmpeg(['-i', out.clipExt, '-c', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
+          '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
       }
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);
       await ffmpeg(['-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);

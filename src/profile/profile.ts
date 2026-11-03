@@ -61,6 +61,10 @@ export interface CameraProfile {
   // in band only), as the E1 Outdoor Pro's and the RLC-1224A's (measured
   // 2026-11-02); the CX820 sends them. tool: the session's a=tool line.
   rtsp: { sprop: boolean; tool?: string };
+  // flvWithoutRtmp: HTTP(S) FLV works with NetPort.rtmpEnable 0 (the CX820,
+  // measured 2026-11-03: RTMP off, port 1935 refused, /flv answering; the E1
+  // assumed so). Absent: /flv needs RTMP on, as on the RLC-1224A (measured).
+  flvWithoutRtmp?: boolean;
   // Pan/tilt/zoom: set exactly when the ability grants ptzCtrl (ptzEnabled).
   ptz?: PtzSpec;
 }
