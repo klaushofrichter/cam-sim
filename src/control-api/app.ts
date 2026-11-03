@@ -219,7 +219,7 @@ export function createControlApp(engine: Engine): express.Express {
   api.get('/media/snapshot', async (_req, res) => void res.type('image/jpeg').send(await e.snapshot()));
   api.get('/media/live/:stream', (req, res) => {
     const stream = req.params.stream;
-    if (stream !== 'sub' && stream !== 'main') return void res.status(404).json({ error: 'not_found' });
+    if (stream !== 'sub' && stream !== 'main' && !(stream === 'ext' && e.profile.media.ext)) return void res.status(404).json({ error: 'not_found' });
     streamFlv(e, res, stream, { count: false });
   });
 

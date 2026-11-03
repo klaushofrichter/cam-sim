@@ -8,7 +8,7 @@ import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpe
 
 const run = promisify(execFile);
 // Bump when the prepared files change, so caches are rebuilt.
-const LIBRARY_VERSION = 3;
+const LIBRARY_VERSION = 4;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
 
 export interface VideoEntry {
@@ -87,7 +87,7 @@ export class Library {
     try {
       const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
       if (meta.version !== LIBRARY_VERSION || typeof meta.id !== 'string') return undefined;
-      if (!fixtureFilesExist(dir)) return undefined;
+      if (!fixtureFilesExist(dir, !!this.engine.profile.media.ext)) return undefined;
       return meta;
     } catch {
       return undefined;
@@ -161,7 +161,7 @@ export class Library {
     const media = this.engine.mediaFor({ video: id });
     try {
       // Loaded now, so missing files fail here and not in a live stream.
-      for (const s of ['sub', 'main'] as const) {
+      for (const s of this.engine.profile.media.ext ? (['sub', 'main', 'ext'] as const) : (['sub', 'main'] as const)) {
         media.liveFlv(s);
         media.clipSize(s);
       }
@@ -283,6 +283,14 @@ export class Library {
       await ffmpeg(['-i', out.clipMain, '-map', '0:v:0', '-c', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-f', 'hevc', h265], this.abort.signal);
       await ffmpeg(['-i', out.clipMain, '-map', '0:a:0', '-c', 'copy', '-f', 'adts', aac], this.abort.signal);
       const info = await probe(out.clipMain);
+      if (m.ext) {
+        // The ext stream (a model with one): H.264 at its size, from the main copy.
+        const [ew, eh] = m.ext.size.split('x');
+        const fitExt = `scale=${ew}:${eh}:force_original_aspect_ratio=decrease,pad=${ew}:${eh}:(ow-iw)/2:(oh-ih)/2`;
+        await ffmpeg(['-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
+          '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', ...FRAG, '-f', 'mp4', out.clipExt], this.abort.signal);
+        await ffmpeg(['-i', out.clipExt, '-c', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
+      }
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);
       await ffmpeg(['-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
       writeFileSync(join(tmp, 'manifest.json'), JSON.stringify({ version: 'library' }));

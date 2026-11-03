@@ -177,6 +177,11 @@ from read-only captures of a real camera in `reference/<model>/`.
   - `GetEnc`: main H.265 3840×2160 at 25 fps (6144 kbps), sub H.264 640×360
     at 10 fps (256 kbps), audio 0. The test pattern and converted videos
     follow: sub 640×360, main at 25 fps, `CAMSIM_MAIN_SIZE` 3840x2160.
+  - A third live stream, `ext` (the Reolink app's *Balanced*; measured
+    2026-11-03 over FLV): H.264 896×512 at about 15 fps, on FLV
+    `channel0_ext` and RTSP `h264Preview_01_ext` (the RTSP path is not
+    measured). `GetEnc` doesn't list it (as on the real CX820), so `SetEnc`
+    doesn't change it; `GetAbility`'s `live` ver 1 says main + ext + sub.
   - `GetAbility` is the CX820's: on are `supportAllColors`, `supportIspHdr`,
     `supportLightAutoBrightness`, `supportWLLightAlarm` and `videoClip`;
     off or missing are the cross-line, intrusion, loitering, legacy and loss
@@ -208,7 +213,9 @@ from read-only captures of a real camera in `reference/<model>/`.
     at 10 fps (256 kbps), audio 1. The test pattern and converted videos
     follow: sub 640×360, main at 20 fps, `CAMSIM_MAIN_SIZE` 3840x2160.
   - `GetAbility` is the E1's: `ptzCtrl`, `ptzPreset`, `ptzPatrol` and
-    `ptzTattern` permit 7, with speed, zoom, focus and the PTZ check.
+    `ptzTattern` permit 7, with speed, zoom, focus and the PTZ check. Its
+    `live` ver 1 says main + ext + sub, so the E1 serves the CX820's `ext`
+    stream too; its size (896×512 at 15 fps here) is **not measured**.
   - Settings: motion and AI areas on a 60×33 grid; `GetIsp` with
     `bd_night`, `CBR`, day/night `Auto`; `GetWhiteLed` mode 1, bright 85.
   - The pan/tilt/zoom commands: see [PTZ](#ptz-pantilt-models).
@@ -303,7 +310,7 @@ JSON commands are `POST /cgi-bin/api.cgi?cmd=<Cmd>&token=<token>` with a JSON
 | HTTPS | 8443 | 443 | the whole API |
 | HTTP | 8080 | 80 | the whole API |
 | RTMP | — | 1935 | behind `/flv`, as on the camera |
-| RTSP | 8554 | 554 | `h264Preview_01_main` / `_sub`, see [RTSP](#rtsp) |
+| RTSP | 8554 | 554 | `h264Preview_01_main` / `_sub` (and `_ext` on the CX820 and E1), see [RTSP](#rtsp) |
 | ONVIF | 8000 | 8000 | device and event services (PullPoint), see [ONVIF](#onvif) |
 | Baichuan | 9000 | 9000 (`mediaPort`) | login and recordings download, see [Baichuan](#baichuan-port-9000) |
 
@@ -460,12 +467,15 @@ Invalid values are rejected and the old value stays:
 ### Live video
 
 ```
-GET /flv?port=1935&app=bcs&stream=channel0_<sub|main>.bcs&token=<t>
+GET /flv?port=1935&app=bcs&stream=channel0_<sub|main|ext>.bcs&token=<t>
 ```
 
 This is an endless `video/x-flv` response, paced in real time.
 
 - **sub** is H.264 (codec id 7) + AAC.
+- **ext** (CX820 and E1-Outdoor-Pro only, the app's *Balanced*) is H.264 +
+  AAC at 896×512, 15 fps. The RLC-1224A has no ext stream (`live` ver 2):
+  the connection is closed (its real answer is not measured).
 - **main** is H.265 in FLV with the **legacy codec id 12**, the camera's
   vendor extension. mpegts.js 1.8+ plays it; ffmpeg can't read it.
 - A viewer that stops reading is dropped instead of being buffered for.
@@ -671,7 +681,9 @@ that. The measured history of the refusal:
 
 `rtsp://<user>:<password>@<host>:8554/h264Preview_01_main` (H.265) and
 `…/h264Preview_01_sub` (H.264): the camera's paths, including the `h264` in
-the main path. They're served by [MediaMTX](https://github.com/bluenviron/mediamtx),
+the main path. The CX820 and E1-Outdoor-Pro also serve
+`…/h264Preview_01_ext` (H.264 896×512, the third stream; the path follows
+the pattern, the real camera's was not measured). They're served by [MediaMTX](https://github.com/bluenviron/mediamtx),
 which the image includes; `scripts/install-mediamtx.sh` fetches it for local
 development.
 

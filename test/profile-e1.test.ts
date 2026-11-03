@@ -54,7 +54,8 @@ describe('E1 Outdoor Pro profile (reference/E1-Outdoor-Pro)', () => {
   it('GetEnc, GetAbility and the media are the captured ones', () => {
     expect(E1.enc).toEqual(ref('GetEnc').Enc);
     expect(E1.ability).toEqual(ref('GetAbility'));
-    expect(E1.media).toEqual({ sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true });
+    // ext: assumed (the CX820's), not measured on the E1.
+    expect(E1.media).toEqual({ sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true, ext: { size: '896x512', fps: 15 } });
   });
 
   it('GetIrLights and GetWhiteLed extras are the captured initial/range', () => {
@@ -116,7 +117,7 @@ describe('E1 Outdoor Pro profile (reference/E1-Outdoor-Pro)', () => {
   });
 
   it('test media: its own fixture folder', () => {
-    expect(fixtureSpec(E1)).toEqual({ sub: '640x360', subFps: 10, mainFps: 20, suffix: '-e1-outdoor-pro', noSar: true });
+    expect(fixtureSpec(E1)).toEqual({ sub: '640x360', subFps: 10, mainFps: 20, suffix: '-e1-outdoor-pro', noSar: true, ext: { size: '896x512', fps: 15 } });
   });
 });
 

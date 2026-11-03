@@ -43,8 +43,8 @@ afterEach(async () => {
 });
 
 describe.skipIf(!mediamtx)('RTSP', () => {
-  async function start() {
-    const engine = await makeEngine();
+  async function start(env: Record<string, string> = {}) {
+    const engine = await makeEngine(env);
     const port = await freePort();
     const svc = new RtspService(engine, { port, host: '127.0.0.1', mediamtx: mediamtx! });
     services.push(svc);
@@ -57,6 +57,16 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     expect(await probe(url('h264Preview_01_sub'))).toMatchObject({ codec: 'h264', width: 896 });
     expect(await probe(url('h264Preview_01_main'))).toMatchObject({ codec: 'hevc' });
   }, 60_000);
+
+  it('serves the ext path (Balanced) at 896x512 H.264 on the CX820; the RLC-1224A has none', async () => {
+    const cx = await start({ CAMSIM_MODEL: 'CX820' });
+    expect(await probe(cx.url('h264Preview_01_ext'))).toMatchObject({ codec: 'h264', width: 896 });
+    expect(await probe(cx.url('h264Preview_01_sub'))).toMatchObject({ codec: 'h264', width: 640 });
+    expect(cx.svc.publishing()).toBe(3);
+    const rlc = await start();
+    expect((await probe(rlc.url('h264Preview_01_ext'))).error).toBeDefined();
+    expect(rlc.svc.publishing()).toBe(2);
+  }, 90_000);
 
   it('switches both paths to a newly selected video', async () => {
     const { engine, url } = await start();

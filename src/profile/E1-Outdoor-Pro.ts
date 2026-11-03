@@ -115,7 +115,9 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   extras: { IrLights: IR_LIGHTS_EXTRA, WhiteLed: WHITE_LED_EXTRA },
   factorySettings,
   resetDefaults: () => resetDefaultsFor(factorySettings('')),
-  media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true },
+  // ext: its GetAbility says main + ext + sub (live ver 1), but the ext
+  // stream was NOT measured: 896x512 at 15 fps is the CX820's, assumed.
+  media: { sub: '640x360', subFps: 10, mainFps: 20, mainSize: '3840x2160', noSar: true, ext: { size: '896x512', fps: 15 } },
   // Its SDP (measured 2026-11-02): a=tool, and the video track's rtpmap
   // (H264/90000) without an fmtp line.
   rtsp: { sprop: false, tool: 'Reolink Streaming Media 2024.12.11' },

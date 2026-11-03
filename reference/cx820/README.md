@@ -128,6 +128,12 @@ Baichuan:
   request before login and a bad magic close the connection with no reply.
 - Throughput: sub 2–3 MB/s, main 4.6–5.5 MB/s (RLC-1224A main 10.8 MB/s).
 
+- The third live stream, `ext` (the app's *Balanced*; read-only FLV probe
+  of `channel0_ext`, 2026-11-03, not a file here): H.264 896×512, about
+  15 fps. `GetEnc` (value and range) lists only main and sub; `GetAbility`'s
+  `live` is ver 1 (main + ext + sub). The RTSP path `h264Preview_01_ext` is
+  the simulator's, by the main/sub pattern (not measured).
+
 ## Not captured
 
 - Anything that needs a write: Set* replies, the partial-Set resets, valid

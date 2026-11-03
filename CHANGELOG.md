@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The CX820 serves its third live stream, `ext` (the Reolink app's *Balanced*, measured 2026-11-03): H.264 896×512 at 15 fps on FLV `channel0_ext` and RTSP `h264Preview_01_ext`, for the test pattern and library videos. `GetEnc` still lists only main and sub, as the real camera's does. The E1 Outdoor Pro, whose ability also says main + ext + sub, serves the same stream (its real size is not measured). The RLC-1224A has none: FLV `channel0_ext` is closed, and there is no RTSP ext path.
+
+## v2026.11.02.5
+
+- Dependency updates only.
+
 ## v2026.11.02.4
 
 - The RLC-1224A's and CX820's encoding ranges are the real ones (measured 2026-11-02): RLC-1224A main 4512×2512, 3840×2160, 2560×1440 or 2304×1296 in H.265 or H.264, sub 896×512 only; CX820 main 3840×2160 in H.265 only, 2560×1440 and 2304×1296 in H.264 only, sub 640×360 only.

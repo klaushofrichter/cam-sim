@@ -13,7 +13,7 @@ import { profileFor, type CameraProfile } from '../profile/profile';
 const run = promisify(execFile);
 
 // Bump when the generated files change, so caches are rebuilt.
-const FIXTURE_VERSION = 4;
+const FIXTURE_VERSION = 5;
 
 export interface FixturePaths {
   dir: string;
@@ -22,9 +22,13 @@ export interface FixturePaths {
   mainFlv: string;
   clipSub: string;
   clipMain: string;
+  // The third stream ("ext", the app's Balanced), for a model that has one.
+  extFlv: string;
+  clipExt: string;
 }
 
 const FILES = { snapshot: 'snapshot.jpg', subFlv: 'sub.flv', mainFlv: 'main.flv', clipSub: 'clip-sub.mp4', clipMain: 'clip-main.mp4' };
+const EXT_FILES = { extFlv: 'ext.flv', clipExt: 'clip-ext.mp4' };
 
 // What the test pattern is generated as: the model's sub size and frame
 // rates (the RLC-1224A's 896x512 at 10 fps and main at 20 fps by default). The
@@ -36,12 +40,15 @@ export interface FixtureSpec {
   suffix: string;
   // The sub stream's VUI without aspect_ratio_info (the E1 Outdoor Pro's).
   noSar: boolean;
+  // The ext stream's size and frame rate; undefined for a model without one.
+  ext?: { size: string; fps: number };
 }
 
 export function fixtureSpec(profile: CameraProfile = profileFor(undefined)): FixtureSpec {
   const { sub, subFps, mainFps } = profile.media;
   const suffix = profile.model === profileFor(undefined).model ? '' : `-${profile.model.toLowerCase()}`;
-  return { sub, subFps, mainFps, suffix, noSar: !!profile.media.noSar };
+  const ext = profile.media.ext;
+  return { sub, subFps, mainFps, suffix, noSar: !!profile.media.noSar, ...(ext ? { ext: { size: ext.size, fps: ext.fps } } : {}) };
 }
 
 export const defaultFixtureDir = (profile?: CameraProfile) => join(tmpdir(), `cam-sim-fixtures-${FIXTURE_VERSION}${fixtureSpec(profile).suffix}`);
@@ -54,6 +61,8 @@ export function fixturePaths(dir: string): FixturePaths {
     mainFlv: join(dir, FILES.mainFlv),
     clipSub: join(dir, FILES.clipSub),
     clipMain: join(dir, FILES.clipMain),
+    extFlv: join(dir, EXT_FILES.extFlv),
+    clipExt: join(dir, EXT_FILES.clipExt),
   };
 }
 
@@ -63,13 +72,15 @@ function manifest(spec: FixtureSpec): Record<string, unknown> {
   return spec.suffix ? { version: FIXTURE_VERSION, model: spec.suffix.slice(1) } : { version: FIXTURE_VERSION };
 }
 
-// The five served files are all there (fixtures and library copies alike).
-export const fixtureFilesExist = (dir: string): boolean => Object.values(FILES).every((f) => existsSync(join(dir, f)));
+// The five served files are all there (fixtures and library copies alike),
+// and the ext stream's two for a model with one.
+export const fixtureFilesExist = (dir: string, ext = false): boolean =>
+  [...Object.values(FILES), ...(ext ? Object.values(EXT_FILES) : [])].every((f) => existsSync(join(dir, f)));
 
 function complete(dir: string, spec: FixtureSpec): boolean {
   try {
     const m = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
-    return m.version === FIXTURE_VERSION && m.model === manifest(spec).model && fixtureFilesExist(dir);
+    return m.version === FIXTURE_VERSION && m.model === manifest(spec).model && fixtureFilesExist(dir, !!spec.ext);
   } catch {
     return false;
   }
@@ -82,6 +93,7 @@ const sub = (s: FixtureSpec) => `testsrc2=size=${s.sub}:rate=${s.subFps}${s.noSa
 // the RLC-1224A) so the fixtures build in seconds; GetEnc still reports the
 // camera's real sizes.
 const main = (s: FixtureSpec) => `testsrc2=size=1280x720:rate=${s.mainFps}`;
+const ext = (e: { size: string; fps: number }) => `testsrc2=size=${e.size}:rate=${e.fps}`;
 const TONE = 'sine=frequency=440:sample_rate=16000';
 export const FRAG = ['-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-brand', 'mp42'];
 // Fast presets: fixtures build in seconds even on small CI runners.
@@ -162,6 +174,15 @@ async function generate(dir: string, spec: FixtureSpec): Promise<void> {
   await ffmpeg(['-f', 'lavfi', '-i', MAIN, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
     ...X265, '-tag:v', 'hvc1', '-x265-params', 'keyint=40:log-level=error',
     '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipMain]);
+  if (spec.ext) {
+    // The ext stream: H.264 like sub, at its own size and frame rate.
+    const EXT = ext(spec.ext);
+    await ffmpeg(['-f', 'lavfi', '-i', EXT, '-f', 'lavfi', '-i', TONE, '-t', '6',
+      ...X264, '-profile:v', 'high', '-g', String(spec.ext.fps * 4), '-bf', '0',
+      '-c:a', 'aac', '-f', 'flv', p.extFlv]);
+    await ffmpeg(['-f', 'lavfi', '-i', EXT, '-f', 'lavfi', '-i', TONE, '-t', CLIP_S,
+      ...X264, '-g', String(spec.ext.fps * 4), '-c:a', 'aac', ...FRAG, '-f', 'mp4', p.clipExt]);
+  }
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest(spec)));
 }
 
@@ -237,7 +258,7 @@ export class FixtureMedia implements MediaSource {
   liveFlv(stream: Stream) {
     let f = this.flv.get(stream);
     if (!f) {
-      f = readFlv(readFileSync(stream === 'main' ? this.paths.mainFlv : this.paths.subFlv));
+      f = readFlv(readFileSync(stream === 'main' ? this.paths.mainFlv : stream === 'ext' ? this.paths.extFlv : this.paths.subFlv));
       this.flv.set(stream, f);
     }
     return f;
@@ -249,7 +270,7 @@ export class FixtureMedia implements MediaSource {
   }
 
   clipPath(stream: Stream): string {
-    return stream === 'main' ? this.paths.clipMain : this.paths.clipSub;
+    return stream === 'main' ? this.paths.clipMain : stream === 'ext' ? this.paths.clipExt : this.paths.clipSub;
   }
 
   clipSize(stream: Stream): number {

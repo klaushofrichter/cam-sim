@@ -51,7 +51,11 @@ export interface CameraProfile {
   // the default CAMSIM_MAIN_SIZE (WxH).
   // noSar: the sub stream's H.264 VUI has no aspect_ratio_info, as the E1
   // Outdoor Pro's (measured); x264 writes a 1:1 SAR unless told otherwise.
-  media: { sub: string; subFps: number; mainFps: number; mainSize: string; noSar?: boolean };
+  // ext: the third live stream ("ext", the Reolink app's Balanced) for a
+  // model whose GetAbility live ver is 1 (main + ext + sub): its size and
+  // frame rate (WxH). GetEnc doesn't list it on the CX820, so it can't be
+  // read or changed there; a model without it refuses the ext stream.
+  media: { sub: string; subFps: number; mainFps: number; mainSize: string; noSar?: boolean; ext?: { size: string; fps: number } };
   // The RTSP DESCRIBE's SDP (src/rtsp/sdp.ts). sprop false: the video tracks
   // have no fmtp line, so no sprop-parameter-sets (the parameter sets come
   // in band only), as the E1 Outdoor Pro's and the RLC-1224A's (measured

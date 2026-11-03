@@ -1,6 +1,8 @@
 import type { FlvTag } from './flv';
 
-export type Stream = 'sub' | 'main';
+// ext: the third live stream (the app's Balanced), on models that have one.
+// Live only: the camera records main and sub.
+export type Stream = 'sub' | 'main' | 'ext';
 
 // Where the camera's pictures come from. Plan 1 has only fixture media;
 // Library videos (src/media/library.ts) are prepared into the same files.
