@@ -105,20 +105,24 @@ const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 // The camera's /flv endpoint: token, fault and RTMP checks, then the stream.
 export async function flv(engine: Engine, req: Request, res: Response): Promise<void> {
   const e = engine;
-  if (!e.sessions.validate(tokenOf(req)) || e.faults.active('flv.reset') || e.settings.running.NetPort.rtmpEnable !== 1) {
+  if (!e.sessions.validate(tokenOf(req)) || e.faults.active('flv.reset') || (e.settings.running.NetPort.rtmpEnable !== 1 && !e.profile.flvWithoutRtmp)) {
     return void req.socket.destroy();
   }
   const delay = e.faults.active('flv.delayMs')?.ms;
   if (delay) await sleep(delay);
   if (res.destroyed || res.writableEnded) return;
-  const stream = /channel0_main/.test(String(req.query.stream ?? '')) ? 'main' : 'sub';
+  const name = String(req.query.stream ?? '');
+  const stream = /channel0_main/.test(name) ? 'main' : /channel0_ext/.test(name) ? 'ext' : 'sub';
+  // The ext stream on a model without one: closed, like a reset (what the
+  // real RLC-1224A answers was not measured).
+  if (stream === 'ext' && !e.profile.media.ext) return void req.socket.destroy();
   streamFlv(e, res, stream, { count: true });
 }
 
 // Endless video/x-flv, paced by tag timestamps; the fixture loops with
 // increasing timestamps (a camera never ends a stream on its own). `count`
 // is false for the web UI's viewer, which isn't a camera client.
-export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main', opts: { count: boolean }): void {
+export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' | 'ext', opts: { count: boolean }): void {
   const e = engine;
   // The source can change mid-stream (a library video is selected): the
   // next pump sends the new video's config tags and continues from there,

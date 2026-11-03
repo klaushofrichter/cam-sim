@@ -16,6 +16,10 @@ import { RtspFront } from './front';
 // The camera's RTSP paths (the main path says h264 on this camera too).
 const RTSP_PATHS = { main: 'h264Preview_01_main', sub: 'h264Preview_01_sub' } as const;
 type Stream = keyof typeof RTSP_PATHS;
+// The third stream (ext, the app's Balanced) is not on RTSP: the real CX820
+// answers DESCRIBE for these paths with 404 Stream Not Found (measured
+// 2026-11-03; its ext is on FLV only). Every model answers so here.
+export const NO_STREAM_PATHS: readonly string[] = ['h264Preview_01_ext', 'Preview_01_ext', 'h265Preview_01_ext'];
 
 // CAMSIM_MEDIAMTX, then `mediamtx` on PATH, then tools/mediamtx (development).
 export function findMediaMtx(): string | undefined {
@@ -129,7 +133,7 @@ export class RtspService {
       return;
     }
     // The camera's port first: a taken port fails before MediaMTX starts.
-    this.front = new RtspFront({ upstreamPort: () => this.mtxPort, shape: () => e.profile.rtsp });
+    this.front = new RtspFront({ upstreamPort: () => this.mtxPort, shape: () => e.profile.rtsp, notFound: (path) => NO_STREAM_PATHS.includes(path) });
     try {
       this.boundPort = await this.front.listen(this.opts.port, this.opts.host);
     } catch (err) {

@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import http from 'http';
 import net from 'net';
+import { execFileSync } from 'child_process';
 import request from 'supertest';
 import { makeCamera, post, login, listen, rawGet } from '../helpers';
 import { readFlv } from '../../src/media/flv';
@@ -58,6 +59,26 @@ describe('camera API: FLV live', () => {
     }
     expect(engine.counters.streamsOpened).toBe(2);
   });
+
+  it('the ext stream (Balanced): 896x512 H.264 on the CX820, with a token, also with RTMP off; closed on the RLC-1224A, which has none', async () => {
+    const cx = await served({ CAMSIM_MODEL: 'CX820' });
+    expect(await rawGet(cx.flv('ext', 'deadbeefdeadbeef'))).toBe('reset'); // a token is needed, as for sub and main
+    // The real CX820 has RTMP off (port 1935 refused) and serves /flv anyway (measured 2026-11-03).
+    const np = (await post(cx.app, 'GetNetPort', {}, cx.t)).reply.value.NetPort;
+    await post(cx.app, 'SetNetPort', { NetPort: { ...np, rtmpEnable: 0 } }, cx.t);
+    const r = await rawGet(cx.flv('ext'), { maxBytes: 64 * 1024 });
+    if (r === 'reset') throw new Error('reset');
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toBe('video/x-flv');
+    expect(readFlv(r.body).tags.find((x) => x.type === 9)?.codecId).toBe(7);
+    const probed = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,width,height', '-of', 'json', '-f', 'flv', '-i', 'pipe:0'], { input: r.body }).toString()).streams[0];
+    expect(probed).toMatchObject({ codec_name: 'h264', width: 896, height: 512 });
+    expect(cx.engine.counters.streamsOpened).toBe(1);
+    expect(await rawGet(cx.flv('sub'), { maxBytes: 1024 })).not.toBe('reset');
+    const rlc = await served();
+    expect(await rawGet(rlc.flv('ext'))).toBe('reset');
+    expect(rlc.engine.counters.streamsOpened).toBe(0);
+  }, 60_000);
 
   it('resets on a bad token, flv.reset, or RTMP off', async () => {
     const { app, t, flv, engine } = await served();
