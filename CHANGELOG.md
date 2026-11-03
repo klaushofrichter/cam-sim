@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.11.02.4
+
 - The RLC-1224A's and CX820's encoding ranges are the real ones (measured 2026-11-02): RLC-1224A main 4512×2512, 3840×2160, 2560×1440 or 2304×1296 in H.265 or H.264, sub 896×512 only; CX820 main 3840×2160 in H.265 only, 2560×1440 and 2304×1296 in H.264 only, sub 640×360 only.
 - After a `SetEnc` that changed the streams, the camera restarts, as all three real models do (measured 2026-11-02: offline, back 40–75 s later with the change): 60 s with `CAMSIM_SPEED=real`, 1 s fast, `CAMSIM_ENC_RESTART_MS` (or `createCamSim({encRestartMs})`) sets it, `0` turns it off.
 - RTSP: the E1 Outdoor Pro's and RLC-1224A's DESCRIBE answers carry no `sprop-parameter-sets` (no fmtp line for video), as the real cameras' (measured 2026-11-02); the CX820's still do. The E1's SDP has its `a=tool` line.
