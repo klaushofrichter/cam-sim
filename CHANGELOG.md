@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.11.03.1
+
 - The CX820 serves its third live stream, `ext` (the Reolink app's *Balanced*, measured 2026-11-03): H.264 896×512 at 15 fps on FLV `channel0_ext` only (with a login token, like main and sub), for the test pattern and library videos. As on the real camera, RTSP has no ext stream: `h264Preview_01_ext`, `Preview_01_ext` and `h265Preview_01_ext` answer DESCRIBE with 404 Stream Not Found (on every model). `GetEnc` still lists only main and sub.
 - CX820: `/flv` answers with RTMP off (`rtmpEnable` 0), as the real camera does (measured 2026-11-03: port 1935 refused, FLV served). The RLC-1224A still needs RTMP on for `/flv` (measured earlier).
 - The E1 Outdoor Pro, whose ability also says main + ext + sub, is assumed to behave like the CX820 in all of the above (not measured). The RLC-1224A has no ext: FLV `channel0_ext` is closed.
