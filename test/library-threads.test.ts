@@ -4,14 +4,15 @@ import { mkdtempSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeEngine } from './helpers';
+import { Library } from '../src/media/library';
 
-// Records every ffmpeg call the library makes, and still runs it.
+// Records every ffmpeg call the library makes, and still runs it (vi.mock is
+// hoisted above the imports).
 const calls: string[][] = [];
 vi.mock('../src/media/fixtures', async (orig) => {
   const real = await orig<typeof import('../src/media/fixtures')>();
   return { ...real, ffmpeg: (args: string[], signal?: AbortSignal) => { calls.push(args); return real.ffmpeg(args, signal); } };
 });
-const { Library } = await import('../src/media/library');
 
 const ff = (args: string[]) => execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
