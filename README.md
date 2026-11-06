@@ -264,6 +264,15 @@ download stay the same.
 Library videos are yours: the folder is mounted, never built into the image
 or committed.
 
+**Third-party videos and credits.** Videos from other sources stay out of the
+repository like any other, but their credit is kept here and in
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES), and in a `CREDITS.txt` in the
+video's library folder:
+
+| Library video | Source | License |
+|---|---|---|
+| `meva-parking-g340` | [MEVA](https://mevadata.org/) (Multiview Extended Video with Activities), Kitware, Inc.: ground camera G340 (one fixed camera over a parking lot), file `2018-03-07.16-50-00.16-55-00.bus.G340.r13.avi`, 60 s from 16:50:41. Cut and re-encoded to the RLC-1224A's main and sub streams (H.265 4512×2512 at 20 fps, H.264 896×512 at 10 fps, silent AAC 16 kHz). | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
 **Capturing from the real camera:** `scripts/capture-clip.py <name> <seconds>`
 records main and sub over RTSP (no re-encode) into `library/<name>/`, with the
 camera's OSD switched off for the capture and restored afterwards.
