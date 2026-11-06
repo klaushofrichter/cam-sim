@@ -17,6 +17,7 @@ export interface SimState {
   counters: Record<string, number | string[]>;
   certificate: { source: string; enable: number };
   video: string;
+  sequence?: string[];
   pipeline: { on: false; error?: string } | { on: true; until: number; running: boolean };
   pipelineMaxMin: number;
 }
