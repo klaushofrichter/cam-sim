@@ -42,7 +42,8 @@ export interface CamSimConfig {
   mainSize: string;
   // Library sources are cut to this many seconds (a loop, not a movie).
   maxVideoS: number;
-  // The video library's source folder, and the video selected at start.
+  // The video library's source folder, and the video selected at start
+  // (CAMSIM_VIDEO: one id, or comma-separated ids played in sequence).
   libraryDir?: string;
   video?: string;
   pipelineMaxMin: number; // CAMSIM_PIPELINE_MAX_MIN: the longest SD pipeline switch-on (minutes)

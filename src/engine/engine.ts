@@ -49,6 +49,7 @@ export interface RequestRecord {
 // tests) works on this object.
 export class Engine {
   videoId = 'test-pattern';
+  sequence: string[] = ['test-pattern']; // the videos playing in turn; [videoId] for one
   library?: Library; // set by the Library itself
   private readonly mediaById = new Map<string, MediaSource>();
   private readonly missingVideos = new Set<string>();
@@ -127,7 +128,7 @@ export class Engine {
       tz: config.tz,
       log,
       fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
-      currentVideo: () => this.videoId,
+      currentVideo: () => this.media.currentId?.() ?? this.videoId,
       fileFlags: this.profile.fileFlags,
       nameFormat: this.profile.nameFormat,
     });
@@ -177,12 +178,19 @@ export class Engine {
   }
 
   // Switches what the camera shows (live, snapshots, RTSP, recordings).
-  setMedia(media: MediaSource, id: string): void {
-    if (this.media !== media) this.media.release?.();
+  // A sequence's media is not registered (its items are, under their own ids).
+  setMedia(media: MediaSource, id: string, sequence?: string[]): void {
+    // The old media and its videos go, except those the new one shows (a
+    // sequence references its videos' parsed tags; no second copy).
+    if (this.media !== media) {
+      const kept = new Set([media, ...(media.items?.() ?? [])]);
+      for (const m of [this.media, ...(this.media.items?.() ?? [])]) if (!kept.has(m)) m.release?.();
+    }
     this.media = media;
     this.videoId = id;
-    this.registerMedia(id, media);
-    this.bus.emit('video', { id, selected: true });
+    this.sequence = sequence ?? [id];
+    if (!sequence || sequence.length < 2) this.registerMedia(id, media);
+    this.bus.emit('video', { id, selected: true, sequence: this.sequence });
   }
 
   // Library videos by id, so a recording is served from the video it was
@@ -217,7 +225,7 @@ export class Engine {
     const ptz = this.ptz;
     return this.rendered('ptz', async () => {
       const text = ptzText(ptz.position());
-      const key = `${this.videoId}|${text}`;
+      const key = `${this.media.currentId?.() ?? this.videoId}|${text}`;
       if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
       try {
         const jpeg = await drawTextOnJpeg(plain, text, font, this.ffmpeg);
@@ -244,7 +252,7 @@ export class Engine {
     const ptz = this.ptz;
     return this.rendered('snap', async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.videoId}|${text ?? ''}|${width}x${height}`;
+      const key = `${this.media.currentId?.() ?? this.videoId}|${text ?? ''}|${width}x${height}`;
       if (this.mainSnap?.key === key) return this.mainSnap.jpeg;
       try {
         const jpeg = await renderJpeg(plain, { text, font, size: `${width}x${height}` }, this.ffmpeg);
@@ -439,6 +447,7 @@ export class Engine {
       offline: this.offline(),
       power: this.power,
       video: this.videoId,
+      sequence: this.sequence,
       rebooting: this.rebooting,
       faults: this.faults.list(),
       events: this.events.recent(20),

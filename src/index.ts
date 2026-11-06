@@ -51,7 +51,7 @@ export interface CamSimOptions {
   clock?: Clock;
   fixtureDir?: string;
   libraryDir?: string; // videos to offer besides the test pattern
-  video?: string; // selected once it is ready
+  video?: string; // selected once it is ready; a comma-separated list plays in sequence
   pipelineMaxMin?: number; // the longest SD pipeline switch-on (minutes, default 1440)
   fontDir?: string; // fonts for the SD pipeline (default: system DejaVu, or Arial on a Mac)
   mainSize?: string;
@@ -181,8 +181,9 @@ export async function createCamSim(opts: CamSimOptions, config: CamSimConfig = c
     rtsp.onDropReaders(() => pipeline?.restartNow());
     if (config.autoEvents.length) engine.events.startAuto(config.autoEvents);
     preparing ??= library.prepareAll().then(() => {
-      const why = config.video ? library.select(config.video) : null;
-      if (why) engine.log.warn({ video: config.video, why }, 'video_not_selected');
+      // CAMSIM_VIDEO: one id, or a comma-separated list played in sequence.
+      const refused = config.video ? library.selectSequence(config.video.split(',').map((x) => x.trim()).filter(Boolean)) : null;
+      if (refused) engine.log.warn({ video: config.video, why: refused.detail }, 'video_not_selected');
     });
     return { ...camera.ports, control: controlPort, rtsp: rtsp.port(), onvif: onvifPort, ...(baichuanPort === undefined ? {} : { baichuan: baichuanPort }) };
   }

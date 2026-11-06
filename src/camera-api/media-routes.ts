@@ -90,10 +90,13 @@ export async function snap(engine: Engine, req: Request, res: Response): Promise
 }
 
 // A tag with its timestamp moved by `offsetMs` (for looping the fixture).
+// The bytes can hold another timestamp than `tag.ms` (a sequence's later
+// videos keep their own bytes), so they are rewritten unless they match.
 function shifted(tag: FlvTag, offsetMs: number): Buffer {
-  if (!offsetMs) return tag.bytes;
-  const b = Buffer.from(tag.bytes);
   const ms = tag.ms + offsetMs;
+  const inBytes = (tag.bytes.readUIntBE(4, 3) | (tag.bytes[7] << 24)) >>> 0;
+  if (inBytes === ms >>> 0) return tag.bytes;
+  const b = Buffer.from(tag.bytes);
   b.writeUIntBE(ms & 0xffffff, 4, 3);
   b[7] = (ms >>> 24) & 0xff;
   return b;
@@ -127,14 +130,36 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
   // The source can change mid-stream (a library video is selected): the
   // next pump sends the new video's config tags and continues from there,
   // with timestamps still rising.
+  // A source with a clock (a sequence) is joined where the clock is: its
+  // script/config tags, then from the keyframe at `startAt` (earlier tags,
+  // audio included, are skipped); later passes loop it whole.
   const load = (media: typeof e.media, first: boolean) => {
     const { header, tags: all } = media.liveFlv(stream);
-    const tags = all.filter((t) => !isEndOfSequence(t) && (first || t.type !== 18));
+    let tags = all.filter((t) => !isEndOfSequence(t) && (first || t.type !== 18));
     const loopMs = media.durationMs(stream);
     const loopTags = tags.filter((t) => t.type !== 18 && !isConfigTag(t));
-    return { media, header, tags, loopMs, loopTags, canLoop: loopMs > 0 && loopTags.length > 0 };
+    let startAt = 0;
+    if (media.startMs) {
+      const at = media.startMs(stream);
+      const k = tags.findIndex((t) => isKeyframe(t) && !isConfigTag(t) && t.ms === at);
+      if (k >= 0) {
+        // The leading tags go out with the keyframe, at its time.
+        const head = tags.slice(0, k).filter((t) => t.type === 18 || isConfigTag(t)).map((t) => ({ ...t, ms: at }));
+        tags = [...head, ...tags.slice(k)];
+        startAt = at;
+      }
+    }
+    return { media, header, tags, loopMs, loopTags, startAt, canLoop: loopMs > 0 && loopTags.length > 0 };
   };
-  let src = load(e.media, true);
+  let src: ReturnType<typeof load>;
+  try {
+    src = load(e.media, true);
+  } catch (err) {
+    // The video's files are unreadable: end this stream, not the process.
+    e.log.warn({ err: (err as Error).message }, 'flv_source_failed');
+    res.destroy();
+    return;
+  }
   const { header } = src;
 
   if (opts.count) {
@@ -145,7 +170,8 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
   let began = Date.now();
   let pass = 0;
   let next = 0;
-  let base = 0;
+  // The joined keyframe goes out at 0.
+  let base = -src.startAt;
   // The highest timestamp sent so far: every switch (into the pipeline, a
   // pipeline restart, back to the loop) continues from at least here, so a
   // player never sees time go backwards. A replayed keyframe group puts the
@@ -156,10 +182,10 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
     res.write(shifted(t, offset));
   };
   const floor = (due: number) => Math.max(due, lastMs + 1);
-  // A new source, or the loop again after the pipeline: from its start, at
-  // `due` or after the last tag sent.
+  // A new source, or the loop again after the pipeline: from its start (or
+  // where its clock is), at `due` or after the last tag sent.
   const restartLoop = (due: number) => {
-    base = floor(due);
+    base = floor(due) - src.startAt;
     pass = 0;
     next = 0;
   };
@@ -203,7 +229,14 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
       if (ls?.active() && (!live || live.gen !== ls.generation())) enterLive(due);
       if (live && !ls?.active()) {
         leaveLive();
-        src = load(e.media, false);
+        try {
+          src = load(e.media, false);
+        } catch (err) {
+          // The video shown now is unreadable: end this stream, not the process.
+          e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
+          res.destroy();
+          return;
+        }
         // The live part ran ahead of the wall clock by its replayed keyframe
         // group: the loop keeps that lead and goes on at once, instead of
         // pausing until the clock catches up.
