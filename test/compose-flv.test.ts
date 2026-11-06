@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { composeMainFlv } from '../src/media/fixtures';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { composeMainFlv, writeMainFlv } from '../src/media/fixtures';
 import { readFlv } from '../src/media/flv';
 
 // Annex B pieces: 4-byte start code + NAL. H.265 NAL header is 2 bytes
@@ -27,5 +30,16 @@ describe('composeMainFlv', () => {
     expect(video).toHaveLength(4); // config + 3 pictures
     expect(video.map((t) => t.bytes[11])).toEqual([0x1c, 0x1c, 0x2c, 0x2c]);
     expect(video.map((t) => t.ms)).toEqual([0, 0, 50, 100]);
+  });
+
+  it('writeMainFlv writes the same file, tag by tag, and removes its inputs', () => {
+    const stream = Buffer.concat([sc, vps, sc, sps, sc, pps, sc, nal(19, true), sc, nal(1, true)]);
+    const dir = mkdtempSync(join(tmpdir(), 'camsim-flv-'));
+    const [h265, aac, out] = ['main.h265', 'main.aac', 'main.flv'].map((f) => join(dir, f));
+    writeFileSync(h265, stream);
+    writeFileSync(aac, adts);
+    writeMainFlv(out, h265, aac, 20);
+    expect(readFileSync(out).equals(composeMainFlv(stream, adts, 20))).toBe(true);
+    expect(existsSync(h265) || existsSync(aac)).toBe(false);
   });
 });

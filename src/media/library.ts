@@ -7,6 +7,11 @@ import type { Engine } from '../engine/engine';
 import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpec, writeMainFlv } from './fixtures';
 
 const run = promisify(execFile);
+// Decoding the main copy (up to 4512x2512 H.265) with ffmpeg's default
+// threads (one per CPU, each holding frames) took over 512 MiB: the
+// cluster's cam2 (limit 512Mi) was OOM-killed preparing a camera-sized pair
+// (2026-11-06). One decoder thread is enough for one frame or a small stream.
+const ONE_DECODER_THREAD = ['-threads', '1'];
 // Bump when the prepared files change, so caches are rebuilt.
 const LIBRARY_VERSION = 4;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
@@ -288,11 +293,11 @@ export class Library {
         // The ext stream's live FLV (a model with one): H.264 at its size, from the main copy.
         const [ew, eh] = m.ext.size.split('x');
         const fitExt = `scale=${ew}:${eh}:force_original_aspect_ratio=decrease,pad=${ew}:${eh}:(ow-iw)/2:(oh-ih)/2`;
-        await ffmpeg(['-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
+        await ffmpeg([...ONE_DECODER_THREAD, '-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
           '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
       }
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);
-      await ffmpeg(['-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
+      await ffmpeg([...ONE_DECODER_THREAD, '-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
       writeFileSync(join(tmp, 'manifest.json'), JSON.stringify({ version: 'library' }));
       const meta = { version: LIBRARY_VERSION, id: s.id, key, converted, durationS: Math.round(info.duration * 10) / 10 };
       writeFileSync(join(tmp, 'meta.json'), JSON.stringify(meta));
