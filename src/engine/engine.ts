@@ -220,7 +220,7 @@ export class Engine {
     const ptz = this.ptz;
     return this.rendered('ptz', async () => {
       const text = ptzText(ptz.position());
-      const key = `${this.videoId}|${text}`;
+      const key = `${this.media.currentId?.() ?? this.videoId}|${text}`;
       if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
       try {
         const jpeg = await drawTextOnJpeg(plain, text, font, this.ffmpeg);
@@ -247,7 +247,7 @@ export class Engine {
     const ptz = this.ptz;
     return this.rendered('snap', async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.videoId}|${text ?? ''}|${width}x${height}`;
+      const key = `${this.media.currentId?.() ?? this.videoId}|${text ?? ''}|${width}x${height}`;
       if (this.mainSnap?.key === key) return this.mainSnap.jpeg;
       try {
         const jpeg = await renderJpeg(plain, { text, font, size: `${width}x${height}` }, this.ffmpeg);

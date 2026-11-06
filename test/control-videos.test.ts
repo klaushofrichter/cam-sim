@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { execFileSync } from 'child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -98,6 +98,7 @@ describe('control API: videos', () => {
 
     beforeAll(() => {
       seq = mkdtempSync(join(tmpdir(), 'camsim-ctlseq-src-'));
+      ff(['-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=15', '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(seq, 'C.mp4')]);
       for (const n of ['A', 'B']) ff(['-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=15', '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(seq, `${n}.mp4`)]);
       // A captured pair (copied) with another x265 preset than the sim's own conversion.
       mkdirSync(join(seq, 'odd'));
@@ -168,6 +169,19 @@ describe('control API: videos', () => {
       const r = await put(app, { id: 'test-pattern' });
       expect(r.body).toEqual({ selected: 'test-pattern', sequence: ['test-pattern'] });
       expect((await request(app).get('/sim/api/videos').set(auth)).body).toMatchObject({ sequence: ['test-pattern'], playing: 'test-pattern' });
+    }, 90_000);
+
+    afterEach(() => void vi.restoreAllMocks());
+
+    it('Snap shows the video playing now, not the first one', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { ids: ['a', 'c'] });
+      const t = Date.now();
+      const snap1 = await engine.snapMain();
+      expect(Buffer.compare(snap1, await engine.snapMain())).toBe(0); // cached while a plays
+      vi.spyOn(Date, 'now').mockReturnValue(t + 2500);
+      expect(engine.media.currentId?.()).toBe('c');
+      expect(Buffer.compare(await engine.snapMain(), snap1)).not.toBe(0);
     }, 90_000);
 
     it('a recording starts with the video playing', async () => {

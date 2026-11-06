@@ -208,7 +208,7 @@ export class Library {
     const differ = ids.filter((id) => this.entries.get(id)!.compat !== first || !first);
     if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
     const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
-    const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence') });
+    const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
     const why = this.preload(ids[0], media);
     if (why) return refuse(409, 'not_ready', why);
     this.engine.setMedia(media, ids[0], ids);
