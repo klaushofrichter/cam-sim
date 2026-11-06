@@ -6,6 +6,7 @@
 # video never goes into the repository.
 #
 #   scripts/library-meva.sh [name|all]      name: a preset below (default: meva-parking-g340)
+#   LIBRARY_OUT=<dir> changes the output folder (default: library).
 #
 # Presets: name | MEVA file key | start offset in seconds
 # Needs curl, ffmpeg with libx265 and libx264. Re-running rebuilds the folder.
@@ -34,35 +35,23 @@ case "$NAME" in
   *) echo "library-meva: unknown preset $NAME" >&2; exit 2 ;;
 esac
 
-# The RLC-1224A's streams (src/profile/rlc1224a.ts GetEnc): main H.265
-# 4512x2512 at 20 fps, 8 Mbit/s, keyframe every 2 s; sub H.264 896x512 at
-# 10 fps, 1 Mbit/s, keyframe every 4 s. Audio: AAC 16 kHz (silent here).
-MAIN_W=4512 MAIN_H=2512 MAIN_FPS=20
-SUB_W=896 SUB_H=512 SUB_FPS=10
+# The encode recipe (RLC-1224A formats) is shared with library-normalize.sh.
+source scripts/lib/recipe.sh
 SECONDS_LONG=60
 
 BUCKET=https://mevadata-public-01.s3.amazonaws.com
-OUT=library/$NAME
+OUT=${LIBRARY_OUT:-library}/$NAME
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
 echo "Downloading $KEY ..."
 curl -fsS --retry 3 -o "$WORK/source.avi" "$BUCKET/$KEY"
 
-fit() { echo "scale=$1:$2:force_original_aspect_ratio=decrease,pad=$1:$2:(ow-iw)/2:(oh-ih)/2"; }
 mkdir -p "$OUT"
 echo "Encoding main ..."
-ffmpeg -v error -y -ss "$START" -i "$WORK/source.avi" -f lavfi -i anullsrc=r=16000:cl=mono -t "$SECONDS_LONG" \
-  -map 0:v:0 -map 1:a:0 -vf "$(fit $MAIN_W $MAIN_H),fps=$MAIN_FPS" \
-  -c:v libx265 -preset medium -b:v 8M -maxrate 8M -bufsize 16M \
-  -x265-params keyint=$((MAIN_FPS * 2)):min-keyint=$((MAIN_FPS * 2)):bframes=0:log-level=error -tag:v hvc1 \
-  -pix_fmt yuv420p -c:a aac -b:a 32k -ar 16000 -shortest -movflags +faststart "$OUT/main.mp4"
+encode_main "$WORK/source.avi" "$OUT/main.mp4" "$START" "$SECONDS_LONG"
 echo "Encoding sub ..."
-ffmpeg -v error -y -ss "$START" -i "$WORK/source.avi" -f lavfi -i anullsrc=r=16000:cl=mono -t "$SECONDS_LONG" \
-  -map 0:v:0 -map 1:a:0 -vf "$(fit $SUB_W $SUB_H),fps=$SUB_FPS" \
-  -c:v libx264 -profile:v high -preset medium -b:v 1M -maxrate 1M -bufsize 2M \
-  -g $((SUB_FPS * 4)) -keyint_min $((SUB_FPS * 4)) -sc_threshold 0 \
-  -pix_fmt yuv420p -c:a aac -b:a 32k -ar 16000 -shortest -movflags +faststart "$OUT/sub.mp4"
+encode_sub "$WORK/source.avi" "$OUT/sub.mp4" "$START" "$SECONDS_LONG"
 
 cat > "$OUT/CREDITS.txt" <<EOF
 $NAME
