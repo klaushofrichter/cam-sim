@@ -272,11 +272,35 @@ video's library folder:
 | Library video | Source | License |
 |---|---|---|
 | `meva-parking-g340` | [MEVA](https://mevadata.org/) (Multiview Extended Video with Activities), Kitware, Inc.: ground camera G340 (one fixed camera over a parking lot), file `2018-03-07.16-50-00.16-55-00.bus.G340.r13.avi`, 60 s from 16:50:41. Cut and re-encoded to the RLC-1224A's main and sub streams (H.265 4512×2512 at 20 fps, H.264 896×512 at 10 fps, silent AAC 16 kHz). | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `meva-lot-g424` | MEVA, Kitware, Inc.: ground camera G424 (a parking lot: vans, pickups, people walking), file `2018-03-07.16-50-06.16-55-06.school.G424.r13.avi`, 60 s from offset 62 s. Cut and re-encoded like `meva-parking-g340`. | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `meva-transit-g341` | MEVA, Kitware, Inc.: ground camera G341 (a transit stop and a road: cars driving through), file `2018-03-07.16-50-05.16-55-05.hospital.G341.r13.avi`, 60 s from offset 0 s. Cut and re-encoded like `meva-parking-g340`. | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `meva-courtyard-g638` | MEVA, Kitware, Inc.: ground camera G638 (a building entrance and courtyard: people walking), file `2018-03-07.16-50-00.16-55-00.school.G638.r13.avi`, 60 s from offset 82 s. Cut and re-encoded like `meva-parking-g340`. | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
+**Getting and installing a third-party video.** `scripts/library-meva.sh
+[name|all]` builds a MEVA preset (`all`: every one in the table) into `library/<name>/`: it downloads the source
+file from MEVA's public S3 bucket (no account), cuts 60 s, encodes the main
+and sub pair in the RLC-1224A's formats, and writes `CREDITS.txt` (about
+140 MB of download and a few minutes of encoding for `meva-parking-g340`).
+
+- **Local Docker:** `compose.yaml` mounts `./library`; restart the camera
+  container, then select the video (web UI *Simulator* page or
+  `PUT /sim/api/video {"id":"meva-parking-g340"}`).
+- **Cluster (cam2):** copy the whole folder in through the loader, as in
+  [cam2 in the cluster](#cam2-in-the-cluster) *Video library*:
+  `kubectl -n cam-sim scale deploy/cam2-library-loader --replicas=1`,
+  `kubectl -n cam-sim cp library/meva-parking-g340 <loader-pod>:/library/meva-parking-g340`,
+  scale it back to 0, `kubectl -n cam-sim rollout restart deploy/cam2`, then
+  select the video. A main/sub pair is copied, not converted, so cam2 serves
+  it at the real camera's size even with `CAMSIM_MAIN_SIZE=1920x1080`.
 
 **Capturing from the real camera:** `scripts/capture-clip.py <name> <seconds>`
 records main and sub over RTSP (no re-encode) into `library/<name>/`, with the
 camera's OSD switched off for the capture and restored afterwards.
 `--check` only signs in and reads the OSD. It uses `~/Development/reolink/.env`.
+Cameras behind a proxy host (on its camera network, like een's since
+2026-11-02) are reached through an SSH tunnel: the script's header shows the
+`CAMERA_HOST`, `CAMERA_HTTPS_PORT`, `CAMERA_RTSP_PORT`, `CAMERA_TLS_NAME` and
+`CAMERA_CA_FILE` settings for that.
 
 ## Simulated camera API
 

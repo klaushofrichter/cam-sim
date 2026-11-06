@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Docs: credits for third-party library videos (README *Video library* and THIRD_PARTY_NOTICES), starting with `meva-parking-g340` from the MEVA dataset (CC BY 4.0). The videos themselves stay out of the repository.
+- Docs: credits for third-party library videos (README *Video library* and THIRD_PARTY_NOTICES), for four clips from the MEVA dataset (CC BY 4.0), and `scripts/library-meva.sh`, which downloads and builds them into `library/` in the RLC-1224A's formats. The videos themselves stay out of the repository.
+- `scripts/capture-clip.py` reaches cameras through an SSH tunnel: `CAMERA_HOST`, `CAMERA_HTTPS_PORT`, `CAMERA_RTSP_PORT` and `CAMERA_CA_FILE` (a site CA), besides `CAMERA_TLS_NAME`.
 
 ## v2026.11.03.1
 
