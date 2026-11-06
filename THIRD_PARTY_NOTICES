@@ -29,3 +29,19 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+------------------------------------------------------------------------------
+
+Library videos (not in this repository; credited here as their licenses ask)
+
+meva-parking-g340, meva-lot-g424, meva-transit-g341, meva-courtyard-g638
+  MEVA: Multiview Extended Video with Activities, Kitware, Inc.
+  https://mevadata.org/
+  K. Corona et al., "MEVA: A Large-Scale Multiview, Multimodal Video
+  Dataset for Activity Detection", WACV 2021.
+  Cameras G340, G424, G341 and G638, recorded 2018-03-07 16:50-16:55
+  (file names and offsets in README, Video library), 60 s each.
+  Changes: cut to 60 s, scaled from 1920x1080 to 4512x2512 (main) and
+  896x512 (sub), re-encoded to H.265/H.264 with silent audio.
+  License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+  https://creativecommons.org/licenses/by/4.0/

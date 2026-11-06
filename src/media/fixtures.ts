@@ -1,5 +1,5 @@
 import { execFile } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -107,7 +107,10 @@ export async function ffmpeg(args: string[], signal?: AbortSignal): Promise<void
 
 // The camera's main-stream FLV: H.265 with legacy codec id 12, plus AAC,
 // interleaved by timestamp.
-export function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
+const EMPTY = Buffer.alloc(0);
+
+// The FLV header and tags, in order, as separate buffers.
+function mainFlvParts(h265: Buffer, aac: Buffer, fps: number): Buffer[] {
   const w = new FlvWriter();
   const nalus = splitAnnexB(h265);
   const aus: Buffer[][] = [];
@@ -143,12 +146,29 @@ export function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
     tags.push({ ms, order: 3, buf: w.audio(f, ms) });
   });
   tags.sort((a, b) => a.ms - b.ms || a.order - b.order);
-  return Buffer.concat([w.header(true, true), ...tags.map((t) => t.buf)]);
+  return [w.header(true, true), ...tags.map((t) => t.buf)];
+}
+
+export function composeMainFlv(h265: Buffer, aac: Buffer, fps: number): Buffer {
+  return Buffer.concat(mainFlvParts(h265, aac, fps));
 }
 
 // main.flv from an H.265 elementary stream and ADTS AAC, which are then removed.
+// Written tag by tag: one buffer of the whole file next to the source and the
+// tags took about 180 MiB more for a 60 s camera-sized main, and with the
+// rest of the process that OOM-killed the cluster's cam2 (limit 512Mi,
+// 2026-11-06).
 export function writeMainFlv(out: string, h265: string, aac: string, fps: number): void {
-  writeFileSync(out, composeMainFlv(readFileSync(h265), readFileSync(aac), fps));
+  const parts = mainFlvParts(readFileSync(h265), readFileSync(aac), fps);
+  const fd = openSync(out, 'w');
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      writeSync(fd, parts[i]);
+      parts[i] = EMPTY;
+    }
+  } finally {
+    closeSync(fd);
+  }
   rmSync(h265);
   rmSync(aac);
 }

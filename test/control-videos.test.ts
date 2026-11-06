@@ -1,13 +1,14 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { execFileSync } from 'child_process';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import request from 'supertest';
 import { makeEngine } from './helpers';
 import { createControlApp } from '../src/control-api/app';
 import { Library } from '../src/media/library';
 import { createCamSim } from '../src';
+import pino from 'pino';
 
 const TOKEN = 'v'.repeat(32);
 const auth = { Authorization: `Bearer ${TOKEN}` };
@@ -90,4 +91,155 @@ describe('control API: videos', () => {
       await sim.close();
     }
   }, 60_000);
+
+  describe('sequences', () => {
+    let seq: string;
+    const ff = (args: string[]) => execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
+
+    beforeAll(() => {
+      seq = mkdtempSync(join(tmpdir(), 'camsim-ctlseq-src-'));
+      ff(['-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=15', '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(seq, 'C.mp4')]);
+      for (const n of ['A', 'B']) ff(['-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=15', '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(seq, `${n}.mp4`)]);
+      // A captured pair (copied) with another x265 preset than the sim's own conversion.
+      mkdirSync(join(seq, 'odd'));
+      ff(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=20', '-f', 'lavfi', '-i', 'sine=frequency=500:sample_rate=16000', '-t', '2', '-c:v', 'libx265', '-preset', 'medium', '-x265-params', 'keyint=30:bframes=0:log-level=error', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(seq, 'odd', 'main.mp4')]);
+      ff(['-f', 'lavfi', '-i', 'testsrc2=size=896x512:rate=10', '-f', 'lavfi', '-i', 'sine=frequency=500:sample_rate=16000', '-t', '2', '-c:v', 'libx264', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(seq, 'odd', 'sub.mp4')]);
+    }, 60_000);
+
+    async function setupSeq() {
+      const engine = await makeEngine({ CAMSIM_CONTROL_TOKEN: TOKEN, CAMSIM_MAIN_SIZE: '640x360' });
+      const lib = new Library(engine, { sourceDir: seq, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-ctlseq-cache-')) });
+      await lib.prepareAll();
+      return { engine, lib, app: createControlApp(engine) };
+    }
+    const put = (app: any, body: unknown) => request(app).put('/sim/api/video').set(auth).send(body as object);
+
+    it('PUT {ids:[a,b]} selects a sequence', async () => {
+      const { app, engine } = await setupSeq();
+      const r = await put(app, { ids: ['a', 'b'] });
+      expect(r.status).toBe(200);
+      expect(r.body).toEqual({ selected: 'a', sequence: ['a', 'b'] });
+      expect(engine.state()).toMatchObject({ video: 'a', sequence: ['a', 'b'] });
+      const g = (await request(app).get('/sim/api/videos').set(auth)).body;
+      expect(g).toMatchObject({ selected: 'a', sequence: ['a', 'b'], playing: 'a' });
+      expect(g.videos.find((v: { id: string }) => v.id === 'a').compat).toBeTruthy();
+    }, 90_000);
+
+    // Spec (Memory): no second copy of video data. The chain references the
+    // shown video's parsed tags, so the switch must not release them, and the
+    // sequence must not read an item's files again after preloading.
+    it('a shown video joining a sequence is not read again', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { id: 'a' });
+      expect((await put(app, { ids: ['a', 'b'] })).status).toBe(200);
+      const dir = dirname((engine.mediaFor({ video: 'a' }) as unknown as { paths: { mainFlv: string } }).paths.mainFlv);
+      rmSync(dir, { recursive: true, force: true });
+      expect(engine.media.currentId?.()).toBe('a');
+      expect(engine.media.inputArgs?.('sub')).toContain('-ss');
+      expect(engine.media.durationMs('main')).toBeGreaterThan(0);
+    }, 90_000);
+
+    it('leaving a sequence releases its videos, and keeps the ones still shown', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { ids: ['a', 'b'] });
+      const a = vi.spyOn(engine.mediaFor({ video: 'a' }), 'release' as never);
+      const b = vi.spyOn(engine.mediaFor({ video: 'b' }), 'release' as never);
+      await put(app, { id: 'b' });
+      expect(a).toHaveBeenCalledTimes(1);
+      expect(b).not.toHaveBeenCalled();
+      await put(app, { ids: ['a', 'b'] });
+      await put(app, { id: 'test-pattern' });
+      expect(a).toHaveBeenCalledTimes(2);
+      expect(b).toHaveBeenCalledTimes(1);
+    }, 90_000);
+
+    it('sequence refusals of the list use the shape error code', async () => {
+      const { app } = await setupSeq();
+      for (const ids of [['a', 'a'], [], ['test-pattern', 'a']]) expect((await put(app, { ids })).body.error).toBe('invalid');
+    }, 90_000);
+
+    it('refuses an incompatible video, naming it', async () => {
+      const { app, engine } = await setupSeq();
+      const r = await put(app, { ids: ['a', 'b', 'odd'] });
+      expect(r.status).toBe(409);
+      expect(r.body.error).toBe('incompatible');
+      expect(r.body.detail).toContain('odd');
+      expect(r.body.detail).not.toContain('b,');
+      expect(engine.videoId).toBe('test-pattern');
+    }, 90_000);
+
+    it('refuses the test pattern in a sequence', async () => {
+      const { app } = await setupSeq();
+      const r = await put(app, { ids: ['test-pattern', 'a'] });
+      expect(r.status).toBe(400);
+      expect(r.body.detail).toContain("test pattern can't be part of a sequence");
+    }, 90_000);
+
+    it('refuses duplicates, an empty list, bad ids and unknown or unready ones', async () => {
+      const { app } = await setupSeq();
+      expect((await put(app, { ids: ['a', 'a'] })).status).toBe(400);
+      expect((await put(app, { ids: [] })).status).toBe(400);
+      expect((await put(app, { ids: ['a', 3] })).status).toBe(400);
+      expect((await put(app, { ids: Array.from({ length: 33 }, (_, i) => `v${i}`) })).status).toBe(400);
+      expect((await put(app, { ids: ['a', 'zzz'] })).status).toBe(404);
+      expect((await put(app, { id: 'a', ids: ['a', 'b'] })).status).toBe(400);
+    }, 90_000);
+
+    it('one id behaves as before', async () => {
+      const { app, engine } = await setupSeq();
+      const one = await put(app, { ids: ['a'] });
+      const state = engine.state();
+      const old = await put(app, { id: 'a' });
+      expect(one.status).toBe(200);
+      expect(one.body).toEqual({ selected: 'a', sequence: ['a'] });
+      expect(old.body).toEqual(one.body);
+      expect(engine.state()).toEqual({ ...state, events: expect.anything() });
+    }, 90_000);
+
+    it('the test pattern after a sequence', async () => {
+      const { app } = await setupSeq();
+      await put(app, { ids: ['a', 'b'] });
+      const r = await put(app, { id: 'test-pattern' });
+      expect(r.body).toEqual({ selected: 'test-pattern', sequence: ['test-pattern'] });
+      expect((await request(app).get('/sim/api/videos').set(auth)).body).toMatchObject({ sequence: ['test-pattern'], playing: 'test-pattern' });
+    }, 90_000);
+
+    afterEach(() => void vi.restoreAllMocks());
+
+    it('Snap shows the video playing now, not the first one', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { ids: ['a', 'c'] });
+      const t = Date.now();
+      const snap1 = await engine.snapMain();
+      expect(Buffer.compare(snap1, await engine.snapMain())).toBe(0); // cached while a plays
+      vi.spyOn(Date, 'now').mockReturnValue(t + 2500);
+      expect(engine.media.currentId?.()).toBe('c');
+      expect(Buffer.compare(await engine.snapMain(), snap1)).not.toBe(0);
+    }, 90_000);
+
+    it('a recording starts with the video playing', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { ids: ['a', 'b'] });
+      engine.events.trigger('motion', 5);
+      expect(engine.sd.all().at(-1)?.video).toBe('a');
+    }, 90_000);
+
+    it('CAMSIM_VIDEO list selects the sequence after preparation; the test pattern in it is refused and logged', async () => {
+      for (const [video, ok] of [['a,b', true], ['a,test-pattern', false]] as const) {
+        const lines: string[] = [];
+        const log = pino({ level: 'warn' }, { write: (c: string) => void lines.push(c) });
+        const sim = await createCamSim({ users: [{ name: 'admin', password: 'pw', level: 'admin' }], libraryDir: seq, video, mainSize: '640x360', dataDir: mkdtempSync(join(tmpdir(), 'camsim-ctlseq-data-')), log });
+        try {
+          await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');
+          if (ok) await expect.poll(() => sim.engine.sequence, { timeout: 60_000 }).toEqual(['a', 'b']);
+          else {
+            await expect.poll(() => lines.join(''), { timeout: 60_000 }).toContain('video_not_selected');
+            expect(sim.engine.videoId).toBe('test-pattern');
+          }
+        } finally {
+          await sim.close();
+        }
+      }
+    }, 150_000);
+  });
 });

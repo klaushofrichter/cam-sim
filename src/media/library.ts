@@ -3,12 +3,20 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
+import { compatKey } from './compat';
+import { SequenceMedia } from './sequence';
 import type { Engine } from '../engine/engine';
+import type { MediaSource } from './source';
 import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpec, writeMainFlv } from './fixtures';
 
 const run = promisify(execFile);
+// Decoding the main copy (up to 4512x2512 H.265) with ffmpeg's default
+// threads (one per CPU, each holding frames) took over 512 MiB: the
+// cluster's cam2 (limit 512Mi) was OOM-killed preparing a camera-sized pair
+// (2026-11-06). One decoder thread is enough for one frame or a small stream.
+const ONE_DECODER_THREAD = ['-threads', '1'];
 // Bump when the prepared files change, so caches are rebuilt.
-const LIBRARY_VERSION = 4;
+const LIBRARY_VERSION = 5;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
 
 export interface VideoEntry {
@@ -17,6 +25,7 @@ export interface VideoEntry {
   state: 'pending' | 'preparing' | 'ready' | 'failed';
   converted?: boolean; // false: a captured pair in the camera's formats, copied
   durationS?: number;
+  compat?: string; // equal keys: same codec setup, so the videos can be played in sequence
   error?: string;
 }
 
@@ -69,7 +78,7 @@ export class Library {
         const dir = this.dirFor(s);
         const meta = this.readMeta(dir);
         if (meta) {
-          Object.assign(e, { state: 'ready', converted: meta.converted, durationS: meta.durationS });
+          Object.assign(e, { state: 'ready', converted: meta.converted, durationS: meta.durationS, compat: meta.compat });
           this.adopt(s.id, dir);
         }
       } catch {
@@ -83,7 +92,7 @@ export class Library {
     this.engine.registerMedia(id, new FixtureMedia(fixturePaths(dir)));
   }
 
-  private readMeta(dir: string): { id: string; key: string; converted: boolean; durationS: number } | undefined {
+  private readMeta(dir: string): { id: string; key: string; converted: boolean; durationS: number; compat?: string } | undefined {
     try {
       const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
       if (meta.version !== LIBRARY_VERSION || typeof meta.id !== 'string') return undefined;
@@ -153,14 +162,9 @@ export class Library {
     return [all[0], ...all.slice(1).sort((a, b) => a.id.localeCompare(b.id))].map((e) => ({ ...e }));
   }
 
-  // null on success, or why not.
-  select(id: string): string | null {
-    const entry = this.entries.get(id);
-    if (!entry) return `unknown video: ${id}`;
-    if (entry.state !== 'ready') return `video ${id} is not ready (${entry.state})`;
-    const media = this.engine.mediaFor({ video: id });
+  // Loaded now, so missing files fail here and not in a live stream.
+  private preload(id: string, media: MediaSource): string | null {
     try {
-      // Loaded now, so missing files fail here and not in a live stream.
       for (const s of ['sub', 'main'] as const) {
         media.liveFlv(s);
         media.clipSize(s);
@@ -169,7 +173,45 @@ export class Library {
     } catch (err) {
       return `video ${id} files are missing or unreadable (${(err as NodeJS.ErrnoException).code ?? 'error'})`;
     }
+    return null;
+  }
+
+  // null on success, or why not.
+  select(id: string): string | null {
+    const entry = this.entries.get(id);
+    if (!entry) return `unknown video: ${id}`;
+    if (entry.state !== 'ready') return `video ${id} is not ready (${entry.state})`;
+    const media = this.engine.mediaFor({ video: id });
+    const why = this.preload(id, media);
+    if (why) return why;
     this.engine.setMedia(media, id);
+    return null;
+  }
+
+  // Several compatible videos played one after another; one id is select().
+  // null on success, or the refusal (status, error code, detail).
+  selectSequence(ids: string[]): { status: 400 | 404 | 409; error: string; detail: string } | null {
+    const refuse = (status: 400 | 404 | 409, error: string, detail: string) => ({ status, error, detail });
+    if (ids.length === 0) return refuse(400, 'invalid', 'a sequence needs at least one video');
+    if (new Set(ids).size !== ids.length) return refuse(400, 'invalid', 'a video can be in a sequence only once');
+    if (ids.length > 1 && ids.includes('test-pattern')) return refuse(400, 'invalid', "the test pattern can't be part of a sequence");
+    for (const id of ids) {
+      if (!this.entries.has(id)) return refuse(404, 'not_found', `unknown video: ${id}`);
+      const state = this.entries.get(id)!.state;
+      if (state !== 'ready') return refuse(409, 'not_ready', `video ${id} is not ready (${state})`);
+    }
+    if (ids.length === 1) {
+      const why = this.select(ids[0]);
+      return why ? refuse(why.startsWith('unknown') ? 404 : 409, why.startsWith('unknown') ? 'not_found' : 'not_ready', why) : null;
+    }
+    const first = this.entries.get(ids[0])!.compat;
+    const differ = ids.filter((id) => this.entries.get(id)!.compat !== first || !first);
+    if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
+    const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
+    const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
+    const why = this.preload(ids[0], media);
+    if (why) return refuse(409, 'not_ready', why);
+    this.engine.setMedia(media, ids[0], ids);
     return null;
   }
 
@@ -225,11 +267,11 @@ export class Library {
 
   // Answers the folder it is in, so it is the one adopted even if the
   // source changes meanwhile.
-  private async prepare(s: Source): Promise<{ dir: string; converted: boolean; durationS: number }> {
+  private async prepare(s: Source): Promise<{ dir: string; converted: boolean; durationS: number; compat?: string }> {
     const key = this.sourceKey(s);
     const dir = this.dirFor(s, key);
     const cached = this.readMeta(dir);
-    if (cached) return { dir, converted: cached.converted, durationS: cached.durationS };
+    if (cached) return { dir, converted: cached.converted, durationS: cached.durationS, compat: cached.compat };
     mkdirSync(this.opts.cacheDir, { recursive: true });
     const tmp = join(this.opts.cacheDir, `.${s.id}.tmp-${randomBytes(4).toString('hex')}`);
     mkdirSync(tmp);
@@ -288,13 +330,14 @@ export class Library {
         // The ext stream's live FLV (a model with one): H.264 at its size, from the main copy.
         const [ew, eh] = m.ext.size.split('x');
         const fitExt = `scale=${ew}:${eh}:force_original_aspect_ratio=decrease,pad=${ew}:${eh}:(ow-iw)/2:(oh-ih)/2`;
-        await ffmpeg(['-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
+        await ffmpeg([...ONE_DECODER_THREAD, '-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
           '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
       }
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);
-      await ffmpeg(['-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
+      await ffmpeg([...ONE_DECODER_THREAD, '-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
       writeFileSync(join(tmp, 'manifest.json'), JSON.stringify({ version: 'library' }));
-      const meta = { version: LIBRARY_VERSION, id: s.id, key, converted, durationS: Math.round(info.duration * 10) / 10 };
+      const compat = await compatKey(out.clipMain, out.clipSub);
+      const meta = { version: LIBRARY_VERSION, id: s.id, key, converted, durationS: Math.round(info.duration * 10) / 10, compat };
       writeFileSync(join(tmp, 'meta.json'), JSON.stringify(meta));
       // The folder is this exact version's; an incomplete one is replaced.
       rmSync(dir, { recursive: true, force: true });
@@ -304,7 +347,7 @@ export class Library {
         // Another instance made the same version first: use its copy.
         if (!this.readMeta(dir)) throw err;
       }
-      return { dir, converted, durationS: meta.durationS };
+      return { dir, converted, durationS: meta.durationS, compat };
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

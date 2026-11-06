@@ -11,6 +11,7 @@ import { text } from 'stream/consumers';
 import { sleep } from '../util/sleep';
 import { listen as listenOn } from '../util/net';
 import { encodingOf } from '../media/encoding';
+import { inputArgsOf } from '../media/source';
 import { RtspFront } from './front';
 
 // The camera's RTSP paths (the main path says h264 on this camera too).
@@ -274,7 +275,7 @@ export class RtspService {
     if (stream === 'sub' && this.subMode === 'pipeline') return;
     const enc = encodingOf(e, stream);
     this.published.set(stream, enc.key);
-    const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', '-i', e.media.clipPath(stream),
+    const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', ...inputArgsOf(e.media, stream),
       ...enc.args, '-f', 'rtsp', '-rtsp_transport', 'tcp', this.pubUrl(stream)], { stdio: ['ignore', 'ignore', 'pipe'] });
     p.stderr?.on('data', (d) => e.log.debug({ ffmpeg: String(d).trim().replaceAll(this.pubPassword, '***') }, 'rtsp_publisher'));
     p.on('error', (err) => e.log.error({ err: err.message }, 'rtsp_publisher_spawn_failed'));

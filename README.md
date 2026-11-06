@@ -152,7 +152,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_FTP_SERVER`, `_PORT`, `_USER`, `_PASSWORD` / `_FILE`, `_DIR`, `_TLS`, `_STREAM` | — | [FTP upload](#ftp-upload) configured and switched on at start: port default 21, `_TLS` `true` (FTPS, the camera's default) or `false`, `_STREAM` `main` (default) or `sub` |
 | `CAMSIM_FIXTURE_DIR` | temp dir | where the test-pattern media is built |
 | `CAMSIM_LIBRARY_DIR` | — | a folder of videos to offer besides the test pattern (see [Video library](#video-library)) |
-| `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready |
+| `CAMSIM_VIDEO` | `test-pattern` | the library video to show once it is ready; a comma-separated list (`a,b,c`) plays them as a [sequence](#video-library) (refused with a warning, and the test pattern, when they are incompatible) |
 | `CAMSIM_MAIN_SIZE` | the model's: `4512x2512` (RLC-1224A), `3840x2160` (CX820, E1-Outdoor-Pro) | main-stream size of converted videos; smaller (e.g. `1280x720`) prepares much faster |
 | `CAMSIM_ENC_RESTART_MS` | `60000` with `CAMSIM_SPEED=real`, else `1000` | how long the camera is offline after a `SetEnc` that changed the streams (0–600000; `0`: no restart). In process: `createCamSim({encRestartMs})` |
 | `CAMSIM_MAX_VIDEO_S` | `60` | library sources are cut to this many seconds |
@@ -261,13 +261,83 @@ live FLV at once, RTSP within a second (readers reconnect), snapshots, and new
 recordings. A recording keeps the video it was made from, so its size and
 download stay the same.
 
+**Video sequences.** The camera shows the test pattern or a sequence of one or
+more library videos: they play one after another, looped, with no break in
+live view, the way a camera shows one scene that changes over time. Every
+viewer sees the same moment (one clock for the sequence). Choose them with
+the checkmarks on the web UI's *Simulator* page, `CAMSIM_VIDEO=a,b,c`, or
+`PUT /sim/api/video {"ids":["a","b","c"]}`; the order is the order given.
+`GET /sim/api/videos` shows the `sequence` and which video is `playing` now.
+A recording made during a sequence is made from the video playing when it
+starts.
+
+Videos can be combined only when their encoder parameter sets are identical
+(H.265 VPS/SPS/PPS on main, H.264 SPS/PPS on sub, and the audio format), so
+the stream goes on without a decoder reset. Each video has a `compat` key in
+`GET /sim/api/videos`; equal keys combine. The test pattern can't be part of
+a sequence. Incompatible ids are refused with 409 `incompatible`, and the
+web UI greys such videos out ("Different encoding: run
+scripts/library-normalize.sh to combine it").
+
+- The MEVA clips from `scripts/library-meva.sh` and anything made by
+  `scripts/library-normalize.sh` (below) share one key. A video the
+  simulator converts itself, or a captured pair, usually has another one: check
+  `compat` in `GET /sim/api/videos`.
+- **Making a video compatible:** `scripts/library-normalize.sh <library-folder>
+  [--seconds N]` re-encodes `<folder>/main.mp4` (with its audio, or silent
+  AAC) with the same recipe as `library-meva.sh` (`scripts/lib/recipe.sh`:
+  H.265 4512×2512 at 20 fps, sub H.264 896×512 at 10 fps made from the main,
+  AAC 16 kHz) into `<folder>-normalized/`, copying `CREDITS.txt`. It refuses
+  to overwrite. Do it on a bigger machine than a small container, as H.265 at
+  that size takes a few minutes and about 1 GB.
+- **Memory:** the live FLV of every video that has been watched stays in
+  memory (about 60 MB per minute of main at 8 Mbit/s, plus sub and ext;
+  [issue #152](https://github.com/klaushofrichter/cam-sim/issues/152)), so a sequence of N videos holds N
+  of them. cam2 (1 GiB) fits four 60 s clips.
+- **ffmpeg:** RTSP and the SD pipeline play a sequence through ffmpeg's concat
+  demuxer with `-readrate_initial_burst`, which needs ffmpeg 6.1 or newer
+  (check `ffmpeg -version`; the image installs Alpine's ffmpeg).
+
 Library videos are yours: the folder is mounted, never built into the image
 or committed.
+
+**Third-party videos and credits.** Videos from other sources stay out of the
+repository like any other, but their credit is kept here and in
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES), and in a `CREDITS.txt` in the
+video's library folder:
+
+| Library video | Source | License |
+|---|---|---|
+| `meva-parking-g340` | [MEVA](https://mevadata.org/) (Multiview Extended Video with Activities), Kitware, Inc.: ground camera G340 (one fixed camera over a parking lot), file `2018-03-07.16-50-00.16-55-00.bus.G340.r13.avi`, 60 s from 16:50:41. Cut and re-encoded to the RLC-1224A's main and sub streams (H.265 4512×2512 at 20 fps, H.264 896×512 at 10 fps, silent AAC 16 kHz). | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `meva-lot-g424` | MEVA, Kitware, Inc.: ground camera G424 (a parking lot: vans, pickups, people walking), file `2018-03-07.16-50-06.16-55-06.school.G424.r13.avi`, 60 s from offset 62 s. Cut and re-encoded like `meva-parking-g340`. | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `meva-transit-g341` | MEVA, Kitware, Inc.: ground camera G341 (a transit stop and a road: cars driving through), file `2018-03-07.16-50-05.16-55-05.hospital.G341.r13.avi`, 60 s from offset 0 s. Cut and re-encoded like `meva-parking-g340`. | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `meva-courtyard-g638` | MEVA, Kitware, Inc.: ground camera G638 (a building entrance and courtyard: people walking), file `2018-03-07.16-50-00.16-55-00.school.G638.r13.avi`, 60 s from offset 82 s. Cut and re-encoded like `meva-parking-g340`. | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
+**Getting and installing a third-party video.** `scripts/library-meva.sh
+[name|all]` builds a MEVA preset (`all`: every one in the table) into `library/<name>/`: it downloads the source
+file from MEVA's public S3 bucket (no account), cuts 60 s, encodes the main
+and sub pair in the RLC-1224A's formats, and writes `CREDITS.txt` (about
+140 MB of download and a few minutes of encoding for `meva-parking-g340`).
+
+- **Local Docker:** `compose.yaml` mounts `./library`; restart the camera
+  container, then select the video (web UI *Simulator* page or
+  `PUT /sim/api/video {"id":"meva-parking-g340"}`).
+- **Cluster (cam2):** copy the whole folder in through the loader, as in
+  [cam2 in the cluster](#cam2-in-the-cluster) *Video library*:
+  `kubectl -n cam-sim scale deploy/cam2-library-loader --replicas=1`,
+  `kubectl -n cam-sim cp library/meva-parking-g340 <loader-pod>:/library/meva-parking-g340`,
+  scale it back to 0, `kubectl -n cam-sim rollout restart deploy/cam2`, then
+  select the video. A main/sub pair is copied, not converted, so cam2 serves
+  it at the real camera's size even with `CAMSIM_MAIN_SIZE=1920x1080`.
 
 **Capturing from the real camera:** `scripts/capture-clip.py <name> <seconds>`
 records main and sub over RTSP (no re-encode) into `library/<name>/`, with the
 camera's OSD switched off for the capture and restored afterwards.
 `--check` only signs in and reads the OSD. It uses `~/Development/reolink/.env`.
+Cameras behind a proxy host (on its camera network, like een's since
+2026-11-02) are reached through an SSH tunnel: the script's header shows the
+`CAMERA_HOST`, `CAMERA_HTTPS_PORT`, `CAMERA_RTSP_PORT`, `CAMERA_TLS_NAME` and
+`CAMERA_CA_FILE` settings for that.
 
 ## Simulated camera API
 
@@ -1028,11 +1098,16 @@ ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
 ### Videos
 
 - `GET /sim/api/videos` →
-  `{"selected":"test-pattern","videos":[{"id":"test-pattern","name":"Test pattern","state":"ready","converted":true}, {"id":"garden-walk","name":"Garden Walk","state":"ready","converted":true,"durationS":12}]}`.
+  `{"selected":"test-pattern","sequence":["test-pattern"],"playing":"test-pattern","videos":[{"id":"test-pattern","name":"Test pattern","state":"ready","converted":true}, {"id":"garden-walk","name":"Garden Walk","state":"ready","converted":true,"durationS":12}]}`.
   `state` is `pending`, `preparing`, `ready` or `failed` (with `error`);
-  `converted` is false for a captured pair.
-- `PUT /sim/api/video` with `{"id":"garden-walk"}` → 200 `{"selected":"garden-walk"}`;
+  `converted` is false for a captured pair. `compat` (ready videos) is the key
+  that decides which videos can be combined in a sequence; `playing` is the
+  video on air now.
+- `PUT /sim/api/video` with `{"id":"garden-walk"}` → 200 `{"selected":"garden-walk","sequence":["garden-walk"]}`;
   404 for an unknown id, 409 while it isn't ready.
+  With `{"ids":["a","b"]}` (up to 32) the videos play as a [sequence](#video-library)
+  (`selected` is the first): 409 `incompatible` when their `compat` keys differ,
+  400 for a repeated id or the test pattern in a list of more than one.
 - `GET /sim/api/videos/{id}/poster` → a JPEG still of a ready video.
 
 ```sh

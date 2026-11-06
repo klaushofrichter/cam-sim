@@ -88,13 +88,18 @@ export function createControlApp(engine: Engine): express.Express {
 
   // Without a library folder the test pattern is the only video.
   const library = () => e.library ?? new Library(e, { cacheDir: '' });
-  api.get('/videos', (_req, res) => void res.json({ selected: e.videoId, videos: library().list() }));
+  api.get('/videos', (_req, res) => void res.json({ selected: e.videoId, sequence: e.sequence, playing: e.media.currentId?.() ?? e.videoId, videos: library().list() }));
   api.put('/video', (req, res) => {
-    const id = req.body?.id;
-    if (typeof id !== 'string' || !id || id.length > 64) return bad(res, 'id must be a video id from GET /sim/api/videos');
-    const why = library().select(id);
-    if (why) return void res.status(why.startsWith('unknown') ? 404 : 409).json({ error: why.startsWith('unknown') ? 'not_found' : 'not_ready', detail: why });
-    res.json({ selected: e.videoId });
+    const { id, ids } = req.body ?? {};
+    let list: string[];
+    if (ids !== undefined && id === undefined) {
+      if (!Array.isArray(ids) || ids.length > 32 || !ids.every((x) => typeof x === 'string' && x && x.length <= 64)) return bad(res, 'ids must be a list of up to 32 video ids from GET /sim/api/videos');
+      list = ids;
+    } else if (typeof id === 'string' && id && id.length <= 64 && ids === undefined) list = [id];
+    else return bad(res, 'send id (one video id) or ids (a list of video ids) from GET /sim/api/videos');
+    const refused = library().selectSequence(list);
+    if (refused) return void res.status(refused.status).json({ error: refused.error, detail: refused.detail });
+    res.json({ selected: e.videoId, sequence: e.sequence });
   });
   api.get('/videos/:id/poster', async (req, res) => {
     const jpeg = await library().poster(req.params.id);

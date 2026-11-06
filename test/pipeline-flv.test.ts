@@ -1,4 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import pino from 'pino';
+import { FixtureMedia, fixturePaths } from '../src/media/fixtures';
 import http from 'http';
 import { makeEngine, listen, login } from './helpers';
 import { createCameraApp } from '../src/camera-api/app';
@@ -6,6 +10,7 @@ import { SdPipeline } from '../src/pipeline/sd-pipeline';
 import { findFonts } from '../src/pipeline/fonts';
 import { FlvStreamParser, isKeyframe, isConfigTag } from '../src/media/flv-stream';
 import type { FlvTag } from '../src/media/flv';
+import type { LiveSubSource } from '../src/pipeline/live-sub';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
@@ -108,5 +113,32 @@ describe('FLV sub with the SD pipeline', () => {
     for (let i = 0; i < 200 && !loop.length; i++) await wait(20);
     expect(loop.length).toBeGreaterThan(0);
     expect(loop[0] - offAt).toBeLessThan(1000);
+  }, 45_000);
+
+  // Final review: going back to the loop when the pipeline exits loads the
+  // video shown now; unreadable files end this stream, not the process.
+  it('ends the stream when the video to go back to is unreadable', async () => {
+    const lines: string[] = [];
+    const e = await makeEngine({}, { log: pino({ level: 'warn' }, { write: (c: string) => void lines.push(c) }) });
+    const app = createCameraApp(e, { port: 'http' });
+    const srv = await listen(app);
+    cleanups.push(srv.close);
+    const t = await login(app);
+    let running = true;
+    const fake: LiveSubSource = { active: () => running, generation: () => 1, configTags: () => [], subscribe: () => () => {} };
+    e.liveSub = fake;
+    let closed = false;
+    const req = http.get(`${srv.url}/flv?port=1935&app=bcs&stream=channel0_sub.bcs&token=${t}`, (res) => {
+      res.on('data', () => {});
+      res.on('close', () => (closed = true));
+    });
+    req.on('error', () => (closed = true));
+    cleanups.push(async () => void req.destroy());
+    await wait(300);
+    e.setMedia(new FixtureMedia(fixturePaths(join(tmpdir(), 'camsim-no-such-video'))), 'gone');
+    running = false;
+    for (let i = 0; i < 100 && !closed; i++) await wait(20);
+    expect(closed).toBe(true);
+    expect(lines.some((l) => l.includes('flv_switch_failed'))).toBe(true);
   }, 45_000);
 });

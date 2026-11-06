@@ -11,8 +11,19 @@ capture (a whole-object SetOsd) and restored afterwards, also on Ctrl-C.
 
 Reads REOLINK_IP and REOLINK_PASSWORD from ~/Development/reolink/.env
 (CAMERA_USER, default admin). Never prints them. The camera certificate is
-issued for its DNS name, so TLS is verified against cam1.skylar.technology
-while connecting to the IP. Note: ffmpeg takes the RTSP credentials in its
+issued for its DNS name, so TLS is verified against CAMERA_TLS_NAME
+(default cam1.skylar.technology) while connecting to the IP.
+
+Behind a proxy host (cameras on its camera network, e.g. een since
+2026-11-02), tunnel the ports and point the script at the tunnel:
+
+    ssh -fN -L 18443:<camera-ip>:443 -L 18554:<camera-ip>:554 <user>@<proxy-host>
+    CAMERA_HOST=127.0.0.1 CAMERA_HTTPS_PORT=18443 CAMERA_RTSP_PORT=18554 \
+    CAMERA_TLS_NAME=cam1.een.internal CAMERA_CA_FILE=<site-ca.pem> \
+    scripts/capture-clip.py <name> 60
+
+CAMERA_CA_FILE is the proxy's public site CA (data/tls/ca.pem) when the
+camera's certificate comes from it. Note: ffmpeg takes the RTSP credentials in its
 URL, so they are visible in this Mac's process list while it runs; its error output is shown with them masked.
 """
 import http.client, json, os, re, signal, socket, ssl, subprocess, sys
@@ -21,6 +32,9 @@ from urllib.parse import quote
 
 ENV = Path.home() / "Development/reolink/.env"
 TLS_NAME = os.environ.get("CAMERA_TLS_NAME", "cam1.skylar.technology")
+HTTPS_PORT = int(os.environ.get("CAMERA_HTTPS_PORT", "443"))
+RTSP_PORT = int(os.environ.get("CAMERA_RTSP_PORT", "554"))
+CA_FILE = os.environ.get("CAMERA_CA_FILE")
 OUT = Path(__file__).resolve().parent.parent / "library"
 
 
@@ -37,7 +51,7 @@ class _VerifiedConnection(http.client.HTTPSConnection):
     """Connects to the camera's IP, verifies the certificate against its DNS name."""
 
     def __init__(self, ip, ctx):
-        super().__init__(ip, 443, timeout=15, context=ctx)
+        super().__init__(ip, HTTPS_PORT, timeout=15, context=ctx)
         self._ctx = ctx
 
     def connect(self):
@@ -48,7 +62,7 @@ class _VerifiedConnection(http.client.HTTPSConnection):
 class Camera:
     def __init__(self, host, user, password):
         self.host, self.user, self.password, self.token = host, user, password, None
-        self.ctx = ssl.create_default_context()
+        self.ctx = ssl.create_default_context(cafile=CA_FILE) if CA_FILE else ssl.create_default_context()
 
     def api(self, cmd, param=None):
         path = f"/cgi-bin/api.cgi?cmd={cmd}" + (f"&token={self.token}" if self.token else "")
@@ -82,7 +96,7 @@ def _interrupt(*_):
 
 def check():
     env = load_env()
-    cam = Camera(env["REOLINK_IP"], os.environ.get("CAMERA_USER", "admin"), env["REOLINK_PASSWORD"])
+    cam = Camera(os.environ.get("CAMERA_HOST", env["REOLINK_IP"]), os.environ.get("CAMERA_USER", "admin"), env["REOLINK_PASSWORD"])
     cam.login()
     try:
         osd = cam.api("GetOsd")["Osd"]
@@ -101,7 +115,7 @@ def main():
     if not 5 <= seconds <= 120:
         sys.exit("seconds must be 5 to 120")
     env = load_env()
-    host, password = env["REOLINK_IP"], env["REOLINK_PASSWORD"]
+    host, password = os.environ.get("CAMERA_HOST", env["REOLINK_IP"]), env["REOLINK_PASSWORD"]
     user = os.environ.get("CAMERA_USER", "admin")
     out = OUT / name
     if out.exists() and any(out.iterdir()):
@@ -119,7 +133,7 @@ def main():
         off["watermark"] = 0
         cam.api("SetOsd", {"Osd": off})
         print(f"OSD off; capturing {seconds} s of main and sub into library/{name}/", flush=True)
-        base = f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{host}:554"
+        base = f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{host}:{RTSP_PORT}"
         procs = [
             subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-i", f"{base}/{path}",
                               "-t", str(seconds), "-c", "copy", *tag, "-movflags", "+faststart", str(out / f"{stream}.mp4")],

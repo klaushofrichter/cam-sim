@@ -11,6 +11,7 @@ import { join } from 'path';
 import { Library } from '../src/media/library';
 import { SdPipeline } from '../src/pipeline/sd-pipeline';
 import { findFonts } from '../src/pipeline/fonts';
+import type { SequenceMedia } from '../src/media/sequence';
 
 const run = promisify(execFile);
 const mediamtx = findMediaMtx();
@@ -280,4 +281,103 @@ describe('RTSP availability', () => {
       await p.stop();
     }
   }, 60_000);
+});
+
+// A sequence plays as one RTSP stream: one publisher reads the concat of the
+// clips, looped, starting at the sequence clock (spec 2026-11-06, Playing).
+describe.skipIf(!mediamtx)('RTSP: a sequence', () => {
+  // Two compatible 2 s videos: a dark one and a bright one, told apart by luma.
+  async function startSeq() {
+    const engine = await makeEngine();
+    engine.config.mainSize = '640x360';
+    const src = mkdtempSync(join(tmpdir(), 'camsim-rtsp-seq-src-'));
+    for (const [n, c] of [['a', 'black'], ['b', 'white']]) {
+      await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${c}:size=320x240:rate=15`, '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(src, `${n}.mp4`)]);
+    }
+    const lib = new Library(engine, { sourceDir: src, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-rtsp-seq-cache-')) });
+    await lib.prepareAll();
+    const port = await freePort();
+    const svc = new RtspService(engine, { port, host: '127.0.0.1', mediamtx: mediamtx! });
+    services.push(svc);
+    await svc.start();
+    expect(lib.selectSequence(['a', 'b'])).toBeNull();
+    return { engine, svc, url: (path: string) => `rtsp://cams:cams-pw@127.0.0.1:${port}/${path}` };
+  }
+
+  // This process's ffmpeg children whose command line passes `match`.
+  async function ffmpegs(match: (args: string) => boolean): Promise<Array<{ pid: number; args: string }>> {
+    const { stdout } = await run('ps', ['-A', '-o', 'pid=,ppid=,args=']);
+    return stdout.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter((m): m is RegExpMatchArray => !!m)
+      .filter((m) => Number(m[2]) === process.pid && m[3].includes('ffmpeg') && match(m[3]))
+      .map((m) => ({ pid: Number(m[1]), args: m[3] }));
+  }
+  const publishers = (path: string) => ffmpegs((args) => args.endsWith(`/${path}`));
+
+  it('plays a sequence without a reconnect', async () => {
+    const { url } = await startSeq();
+    const out = join(mkdtempSync(join(tmpdir(), 'camsim-rtsp-seq-out-')), 'main.mkv');
+    // The selection restarts the publishers; read once the sequence is on.
+    await expect.poll(async () => (await publishers('h264Preview_01_main')).some((p) => p.args.includes(' concat ')), { timeout: 10_000 }).toBe(true);
+    await expect.poll(async () => (await probe(url('h264Preview_01_main'))).width, { timeout: 20_000, interval: 500 }).toBe(640);
+    // ffmpeg exits 0 after 6 s of the stream: no cut on the way.
+    await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-i', url('h264Preview_01_main'), '-t', '6', '-map', '0:v', '-c', 'copy', '-y', out], { timeout: 30_000 });
+    const { stdout: pkts } = await run('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', out]);
+    const pts = pkts.trim().split('\n').map(Number);
+    expect(pts.length).toBeGreaterThan(60);
+    // An RTSP reader gives the first packets of a session one time until the
+    // sender's clock is known (the single-video paths too); from then on the
+    // times rise without a step back, across every switch.
+    const from = pts.findIndex((t) => t > pts[0]);
+    expect(from).toBeLessThanOrEqual(3);
+    for (let i = from + 1; i < pts.length; i++) expect(pts[i]).toBeGreaterThan(pts[i - 1]);
+    // Dark and bright frames alternate every 2 s: at least two switches.
+    const { stdout: lumas } = await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', out, '-vf', 'signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-', '-f', 'null', '-']);
+    const bright = [...lumas.matchAll(/YAVG=([\d.]+)/g)].map((m) => Number(m[1]) > 128);
+    expect(bright.length).toBeGreaterThan(60);
+    const switches = bright.filter((b, i) => i > 0 && b !== bright[i - 1]).length;
+    expect(switches).toBeGreaterThanOrEqual(2);
+  }, 120_000);
+
+  it('a restarted publisher starts at the clock', async () => {
+    const { engine } = await startSeq();
+    const seq = engine.media as SequenceMedia;
+    const calls: Array<{ at: number; args: string[] }> = [];
+    const inputArgs = seq.inputArgs.bind(seq);
+    seq.inputArgs = (stream) => {
+      const args = inputArgs(stream);
+      if (stream === 'main') calls.push({ at: Date.now(), args });
+      return args;
+    };
+    let first: { pid: number; args: string } | undefined;
+    await expect.poll(async () => (first = (await publishers('h264Preview_01_main')).find((p) => p.args.includes(' concat '))), { timeout: 10_000 }).toBeTruthy();
+    // Long enough that the clock is well past the start.
+    await new Promise((r) => setTimeout(r, 1500));
+    const before = calls.length;
+    process.kill(first!.pid, 'SIGTERM');
+    let again: { pid: number; args: string } | undefined;
+    await expect.poll(async () => (again = (await publishers('h264Preview_01_main')).find((p) => p.pid !== first!.pid && p.args.includes(' concat '))), { timeout: 10_000 }).toBeTruthy();
+    expect(calls.length).toBe(before + 1);
+    const { at, args } = calls.at(-1)!;
+    const ss = Number(args[args.indexOf('-ss') + 1]);
+    const { index, offsetMs } = seq.position(at);
+    let expected = offsetMs;
+    for (const id of seq.ids().slice(0, index)) expected += engine.mediaFor({ video: id }).durationMs('main');
+    expect(expected).toBeGreaterThan(1000); // the restart did not start the sequence over
+    expect(Math.abs(ss * 1000 - expected)).toBeLessThanOrEqual(100);
+    expect(again!.args).toContain(` -ss ${args[args.indexOf('-ss') + 1]} `);
+  }, 120_000);
+
+  it('the SD pipeline reads the sequence too', async () => {
+    const { engine, svc } = await startSeq();
+    const p = new SdPipeline(engine, { fonts: findFonts(), rtspUrl: () => svc.publisherUrl('sub'), onProcess: (up: boolean) => svc.setSubSource(up ? 'pipeline' : 'copy') });
+    try {
+      engine.pipelineOn(5);
+      await expect.poll(() => p.active(), { timeout: 20_000 }).toBe(true);
+      const [pipe] = await ffmpegs((args) => args.includes(' -vf ') && args.includes('pipe:1'));
+      expect(pipe.args).toMatch(/ -f concat -safe 0 -i \S+\/\.sequence\/sub-[0-9a-f]+\.txt -ss \d+\.\d{3} /);
+    } finally {
+      engine.pipelineOff();
+      await p.stop();
+    }
+  }, 120_000);
 });
