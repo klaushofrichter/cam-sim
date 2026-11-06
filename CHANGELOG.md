@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Library videos use less memory while they are prepared: the main copy is decoded with one ffmpeg thread (snapshot, ext stream), and `main.flv` is written tag by tag instead of from one buffer of the whole file. A camera-sized 60 s pair (4512×2512 H.265) OOM-killed cam2 at its 512Mi limit; preparing one still peaks around 400 MB, so cam2's limit goes to 1Gi.
+
 - Docs: credits for third-party library videos (README *Video library* and THIRD_PARTY_NOTICES), for four clips from the MEVA dataset (CC BY 4.0), and `scripts/library-meva.sh`, which downloads and builds them into `library/` in the RLC-1224A's formats. The videos themselves stay out of the repository.
 - `scripts/capture-clip.py` reaches cameras through an SSH tunnel: `CAMERA_HOST`, `CAMERA_HTTPS_PORT`, `CAMERA_RTSP_PORT` and `CAMERA_CA_FILE` (a site CA), besides `CAMERA_TLS_NAME`.
 
