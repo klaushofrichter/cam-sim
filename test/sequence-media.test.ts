@@ -9,7 +9,7 @@ import { SequenceMedia } from '../src/media/sequence';
 const w = new FlvWriter();
 const tag = (type: 8 | 9 | 18, ms: number, bytes: Buffer): FlvTag => ({ type, ms, bytes });
 
-function fake(id: string, durMs: number): MediaSource {
+function fake(id: string, durMs: number, subDurMs = durMs): MediaSource {
   const header = w.header(false, true);
   const tags: FlvTag[] = [
     tag(18, 0, w.tag(18, 0, Buffer.from([2, 0, 0]))),
@@ -22,7 +22,7 @@ function fake(id: string, durMs: number): MediaSource {
   return {
     snapshot: async () => Buffer.from(id),
     liveFlv: (_s: LiveStream) => ({ header, tags }),
-    durationMs: () => durMs,
+    durationMs: (s: LiveStream) => (s === 'sub' ? subDurMs : durMs),
     clipPath: (s: Stream) => `/clips/it's-${id}-${s}.mp4`,
     clipSize: () => id.length,
   };
@@ -91,5 +91,24 @@ describe('SequenceMedia', () => {
     const file = join(dir, 'main.txt');
     expect(readFileSync(file, 'utf8')).toBe(`file '/clips/it'\\''s-a-main.mp4'\nfile '/clips/it'\\''s-b-main.mp4'\n`);
     expect(args).toEqual(['-ss', '1.200', '-f', 'concat', '-safe', '0', '-i', file]);
+  });
+
+  it('startMs past a full loop snaps on the main timeline', () => {
+    const c = { t: 0 };
+    const s = make(c);
+    c.t = 3500 + 600;
+    expect(s.startMs('main')).toBe(500);
+  });
+
+  it('sub follows the main clock although its durations differ', () => {
+    const c = { t: 0 };
+    const s = new SequenceMedia([{ id: 'a', media: fake('a', 1000, 950) }, { id: 'b', media: fake('b', 2500, 2450) }], { now: () => c.t, listDir: dir });
+    c.t = 3500 * 40 + 1200; // many loops, 200 ms into item b on main
+    expect(s.currentId()).toBe('b');
+    expect(s.startMs('sub')).toBe(950); // sub item b starts at 950, keyframe at 950? snapped below
+    expect(s.inputArgs('sub')[1]).toBe('1.150');
+    c.t = 3500 * 40 + 970; // item a's sub is over (950) while main is still in a
+    expect(s.currentId()).toBe('a');
+    expect(s.inputArgs('sub')[1]).toBe('0.950');
   });
 });

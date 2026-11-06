@@ -73,9 +73,16 @@ export class SequenceMedia implements MediaSource {
     return this.items.reduce((sum, i) => sum + i.media.durationMs(stream), 0);
   }
 
+  // The main clock's position mapped into `stream`'s own chained timeline.
+  private streamPosition(stream: LiveStream): number {
+    const { index, offsetMs } = this.position();
+    let at = 0;
+    for (let i = 0; i < index; i++) at += this.items[i].media.durationMs(stream);
+    return at + Math.min(offsetMs, this.items[index].media.durationMs(stream));
+  }
+
   startMs(stream: LiveStream): number {
-    const total = this.durationMs(stream);
-    const at = total > 0 ? (((this.now() - this.t0) % total) + total) % total : 0;
+    const at = this.streamPosition(stream);
     let start = 0;
     for (const t of this.liveFlv(stream).tags) {
       if (t.type !== 9 || isConfigTag(t) || !isKeyframe(t)) continue;
@@ -106,7 +113,7 @@ export class SequenceMedia implements MediaSource {
       writeFileSync(file, this.items.map((i) => `file '${esc(i.media.clipPath(stream))}'\n`).join(''));
       this.lists.set(stream, file);
     }
-    const sec = (this.position().offsetMs + this.items.slice(0, this.position().index).reduce((s, i) => s + i.media.durationMs(stream), 0)) / 1000;
+    const sec = this.streamPosition(stream) / 1000;
     return ['-ss', sec.toFixed(3), '-f', 'concat', '-safe', '0', '-i', file];
   }
 
