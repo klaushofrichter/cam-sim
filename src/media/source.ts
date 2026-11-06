@@ -15,4 +15,11 @@ export interface MediaSource {
   clipSize(stream: Stream): number;
   // Drops parsed data kept for live streams (the video is no longer shown).
   release?(): void;
+  // A sequence of videos: the id of the video playing now.
+  currentId?(): string;
+  // Where a new live reader joins: the clock position snapped down to the
+  // last keyframe at or before it, in the live FLV's timeline.
+  startMs?(stream: LiveStream): number;
+  // ffmpeg input arguments replacing ['-i', clipPath(stream)].
+  inputArgs?(stream: Stream): string[];
 }
