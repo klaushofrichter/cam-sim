@@ -10,6 +10,7 @@ import { FlvStreamParser, isConfigTag, isKeyframe } from '../media/flv-stream';
 import { clockText, filterChain, overlayOf, ptzText } from './overlay';
 import type { LiveSubSource } from './live-sub';
 import { encStream, sarFilter } from '../media/encoding';
+import { inputArgsOf } from '../media/source';
 
 type Fonts = { regular: string; bold: string };
 
@@ -181,7 +182,7 @@ export class SdPipeline implements LiveSubSource {
     const out = rtsp
       ? ['-f', 'tee', '-map', '0:v', '-map', '0:a?', `[f=rtsp:rtsp_transport=tcp:onfail=abort]${rtsp}|[f=flv]pipe:1`]
       : ['-map', '0:v', '-map', '0:a?', '-f', 'flv', 'pipe:1'];
-    const args = ['-hide_banner', '-loglevel', 'warning', '-re', '-stream_loop', '-1', '-i', e.media.clipPath('sub'),
+    const args = ['-hide_banner', '-loglevel', 'warning', '-re', '-stream_loop', '-1', ...inputArgsOf(e.media, 'sub'),
       '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
       ...rates, '-bf', '0', '-c:a', 'aac', '-b:a', '32k', ...out];
     const gen = ++this.gen;

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { FlvWriter, type FlvTag } from '../src/media/flv';
-import type { LiveStream, MediaSource, Stream } from '../src/media/source';
+import { inputArgsOf, type LiveStream, type MediaSource, type Stream } from '../src/media/source';
+import { FixtureMedia, fixturePaths } from '../src/media/fixtures';
 import { SequenceMedia } from '../src/media/sequence';
 
 const w = new FlvWriter();
@@ -83,14 +84,38 @@ describe('SequenceMedia', () => {
     expect(s.clipSize('main')).toBe(1);
   });
 
-  it('inputArgs writes a concat list and seeks to the position', () => {
+  // The position is an output -ss after the -i: an input -ss on a looped
+  // concat makes every later loop's timestamps go backwards (measured,
+  // ffmpeg 7.1). The burst reads up to the position without waiting for -re.
+  it('inputArgs writes a concat list and starts at the position', () => {
     const c = { t: 0 };
     const s = make(c);
     c.t = 1200;
     const args = s.inputArgs('main');
-    const file = join(dir, 'main.txt');
+    const file = args[args.indexOf('-i') + 1];
+    expect(file.startsWith(join(dir, 'main-'))).toBe(true);
     expect(readFileSync(file, 'utf8')).toBe(`file '/clips/it'\\''s-a-main.mp4'\nfile '/clips/it'\\''s-b-main.mp4'\n`);
-    expect(args).toEqual(['-ss', '1.200', '-f', 'concat', '-safe', '0', '-i', file]);
+    expect(args).toEqual(['-readrate_initial_burst', '1.200', '-f', 'concat', '-safe', '0', '-i', file, '-ss', '1.200']);
+  });
+
+  it('each sequence has its own list files, removed on release', () => {
+    const one = make({ t: 0 });
+    const two = make({ t: 0 });
+    const f1 = one.inputArgs('main').at(-3)!;
+    const f2 = two.inputArgs('main').at(-3)!;
+    expect(f1).not.toBe(f2);
+    expect(one.inputArgs('main').at(-3)).toBe(f1);
+    expect(one.inputArgs('sub').at(-3)).not.toBe(f1);
+    one.release();
+    expect(existsSync(f1)).toBe(false);
+    expect(existsSync(f2)).toBe(true);
+  });
+
+  it('inputArgsOf falls back to -i clipPath', () => {
+    const m = new FixtureMedia(fixturePaths(join(tmpdir(), 'camsim-no-fixtures')));
+    expect(inputArgsOf(m, 'sub')).toEqual(['-i', m.clipPath('sub')]);
+    const s = make({ t: 0 });
+    expect(inputArgsOf(s, 'main')).toEqual(s.inputArgs('main'));
   });
 
   it('startMs past a full loop snaps on the main timeline', () => {
@@ -106,9 +131,9 @@ describe('SequenceMedia', () => {
     c.t = 3500 * 40 + 1200; // many loops, 200 ms into item b on main
     expect(s.currentId()).toBe('b');
     expect(s.startMs('sub')).toBe(950); // sub item b starts at 950, keyframe at 950? snapped below
-    expect(s.inputArgs('sub')[1]).toBe('1.150');
+    expect(s.inputArgs('sub').at(-1)).toBe('1.150');
     c.t = 3500 * 40 + 970; // item a's sub is over (950) while main is still in a
     expect(s.currentId()).toBe('a');
-    expect(s.inputArgs('sub')[1]).toBe('0.950');
+    expect(s.inputArgs('sub').at(-1)).toBe('0.950');
   });
 });

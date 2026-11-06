@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from 'fs';
+import { randomBytes } from 'crypto';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { FlvTag } from './flv';
 import { isConfigTag, isKeyframe } from './flv-stream';
@@ -19,6 +20,9 @@ export class SequenceMedia implements MediaSource {
   private readonly listDir: string;
   private readonly flv = new Map<LiveStream, { header: Buffer; tags: FlvTag[] }>();
   private readonly lists = new Map<Stream, string>();
+  // Names this sequence's list files: a publisher restarting during a switch
+  // must not read another sequence's list.
+  private readonly listId = randomBytes(6).toString('hex');
 
   constructor(private readonly items: SequenceItem[], opts: { now?: () => number; listDir: string }) {
     this.now = opts.now ?? Date.now;
@@ -104,19 +108,27 @@ export class SequenceMedia implements MediaSource {
     return this.current().media.clipSize(stream);
   }
 
+  // The concat of the clips, started at the clock's position. The position
+  // is an output -ss: an input -ss on a looped concat sends every later
+  // loop's timestamps backwards, and a first-entry inpoint is lost on the
+  // loop (both measured with ffmpeg 7.1). With -c copy the stream starts at
+  // the next keyframe; the burst reads up to it without waiting for -re.
   inputArgs(stream: Stream): string[] {
     let file = this.lists.get(stream);
     if (!file) {
       mkdirSync(this.listDir, { recursive: true });
-      file = join(this.listDir, `${stream}.txt`);
+      file = join(this.listDir, `${stream}-${this.listId}.txt`);
       const esc = (p: string) => p.replace(/'/g, "'\\''");
       writeFileSync(file, this.items.map((i) => `file '${esc(i.media.clipPath(stream))}'\n`).join(''));
       this.lists.set(stream, file);
     }
-    const sec = this.streamPosition(stream) / 1000;
-    return ['-ss', sec.toFixed(3), '-f', 'concat', '-safe', '0', '-i', file];
+    const sec = (this.streamPosition(stream) / 1000).toFixed(3);
+    return ['-readrate_initial_burst', sec, '-f', 'concat', '-safe', '0', '-i', file, '-ss', sec];
   }
 
-  // The items stay registered; nothing to release.
-  release(): void {}
+  // The items stay registered; only the list files go (ffmpeg has read them).
+  release(): void {
+    for (const file of this.lists.values()) rmSync(file, { force: true });
+    this.lists.clear();
+  }
 }
