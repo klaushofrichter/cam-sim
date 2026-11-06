@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Docs: credits for third-party library videos (README *Video library* and THIRD_PARTY_NOTICES), for four clips from the MEVA dataset (CC BY 4.0), and `scripts/library-meva.sh`, which downloads and builds them into `library/` in the RLC-1224A's formats. The videos themselves stay out of the repository.
+- `scripts/capture-clip.py` reaches cameras through an SSH tunnel: `CAMERA_HOST`, `CAMERA_HTTPS_PORT`, `CAMERA_RTSP_PORT` and `CAMERA_CA_FILE` (a site CA), besides `CAMERA_TLS_NAME`.
+
 ## v2026.11.03.1
 
 - The CX820 serves its third live stream, `ext` (the Reolink app's *Balanced*, measured 2026-11-03): H.264 896×512 at 15 fps on FLV `channel0_ext` only (with a login token, like main and sub), for the test pattern and library videos. As on the real camera, RTSP has no ext stream: `h264Preview_01_ext`, `Preview_01_ext` and `h265Preview_01_ext` answer DESCRIBE with 404 Stream Not Found (on every model). `GetEnc` still lists only main and sub.
