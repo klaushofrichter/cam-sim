@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.11.06.1
+
 - Video sequences: several compatible library videos play one after another, looped, seamlessly in live view (FLV, RTSP, snapshots, SD recordings). Choose them with the Simulator page's checkmarks, `PUT /sim/api/video {"ids":[...]}` or `CAMSIM_VIDEO=a,b,c`; `GET /sim/api/videos` adds `sequence`, `playing` and a `compat` key per video. Only videos with identical encoder parameter sets combine (409 `incompatible` otherwise). RTSP and SD need ffmpeg 6.1 or newer.
 - Scripts: the encode recipe moved to `scripts/lib/recipe.sh` (same output as before) and `scripts/library-normalize.sh <folder>` re-encodes a video with it so it combines with the MEVA clips. `library-meva.sh` honours `LIBRARY_OUT`.
 
