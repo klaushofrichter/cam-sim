@@ -180,7 +180,12 @@ export class Engine {
   // Switches what the camera shows (live, snapshots, RTSP, recordings).
   // A sequence's media is not registered (its items are, under their own ids).
   setMedia(media: MediaSource, id: string, sequence?: string[]): void {
-    if (this.media !== media) this.media.release?.();
+    // The old media and its videos go, except those the new one shows (a
+    // sequence references its videos' parsed tags; no second copy).
+    if (this.media !== media) {
+      const kept = new Set([media, ...(media.items?.() ?? [])]);
+      for (const m of [this.media, ...(this.media.items?.() ?? [])]) if (!kept.has(m)) m.release?.();
+    }
     this.media = media;
     this.videoId = id;
     this.sequence = sequence ?? [id];

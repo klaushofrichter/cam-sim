@@ -19,27 +19,41 @@ export class SequenceMedia implements MediaSource {
   private readonly now: () => number;
   private readonly listDir: string;
   private readonly flv = new Map<LiveStream, { header: Buffer; tags: FlvTag[] }>();
+  // Each item's length per stream, taken once while chaining: the sequence
+  // never asks an item again (a released item would parse its files anew).
+  private readonly durations = new Map<LiveStream, number[]>();
   private readonly lists = new Map<Stream, string>();
   // Names this sequence's list files: a publisher restarting during a switch
   // must not read another sequence's list.
   private readonly listId = randomBytes(6).toString('hex');
 
-  constructor(private readonly items: SequenceItem[], opts: { now?: () => number; listDir: string }) {
+  constructor(private readonly entries: SequenceItem[], opts: { now?: () => number; listDir: string }) {
     this.now = opts.now ?? Date.now;
     this.listDir = opts.listDir;
     this.t0 = this.now();
   }
 
   ids(): string[] {
-    return this.items.map((i) => i.id);
+    return this.entries.map((i) => i.id);
+  }
+
+  // The videos it plays, so a switch away can release them.
+  items(): MediaSource[] {
+    return this.entries.map((i) => i.media);
+  }
+
+  private lengths(stream: LiveStream): number[] {
+    this.liveFlv(stream);
+    return this.durations.get(stream)!;
   }
 
   // Where the clock is on the main stream's total length.
   position(now: number = this.now()): { index: number; offsetMs: number } {
     const total = this.durationMs('main');
     let at = total > 0 ? (((now - this.t0) % total) + total) % total : 0;
-    for (let index = 0; index < this.items.length; index++) {
-      const d = this.items[index].media.durationMs('main');
+    const lengths = this.lengths('main');
+    for (let index = 0; index < lengths.length; index++) {
+      const d = lengths[index];
       if (at < d) return { index, offsetMs: at };
       at -= d;
     }
@@ -47,7 +61,7 @@ export class SequenceMedia implements MediaSource {
   }
 
   private current(): SequenceItem {
-    return this.items[this.position().index];
+    return this.entries[this.position().index];
   }
 
   currentId(): string {
@@ -57,32 +71,37 @@ export class SequenceMedia implements MediaSource {
   liveFlv(stream: LiveStream): { header: Buffer; tags: FlvTag[] } {
     let r = this.flv.get(stream);
     if (!r) {
-      const first = this.items[0].media.liveFlv(stream);
+      const first = this.entries[0].media.liveFlv(stream);
       const tags = first.tags.filter((t) => t.type === 18 || isConfigTag(t));
+      const lengths: number[] = [];
       let offset = 0;
-      for (const item of this.items) {
+      for (const item of this.entries) {
         for (const t of item.media.liveFlv(stream).tags) {
           if (t.type === 18 || isConfigTag(t) || isEndOfSequence(t)) continue;
           tags.push({ ...t, ms: t.ms + offset });
         }
-        offset += item.media.durationMs(stream);
+        const d = item.media.durationMs(stream);
+        lengths.push(d);
+        offset += d;
       }
       r = { header: first.header, tags };
+      this.durations.set(stream, lengths);
       this.flv.set(stream, r);
     }
     return r;
   }
 
   durationMs(stream: LiveStream): number {
-    return this.items.reduce((sum, i) => sum + i.media.durationMs(stream), 0);
+    return this.lengths(stream).reduce((sum, d) => sum + d, 0);
   }
 
   // The main clock's position mapped into `stream`'s own chained timeline.
   private streamPosition(stream: LiveStream): number {
     const { index, offsetMs } = this.position();
+    const lengths = this.lengths(stream);
     let at = 0;
-    for (let i = 0; i < index; i++) at += this.items[i].media.durationMs(stream);
-    return at + Math.min(offsetMs, this.items[index].media.durationMs(stream));
+    for (let i = 0; i < index; i++) at += lengths[i];
+    return at + Math.min(offsetMs, lengths[index]);
   }
 
   startMs(stream: LiveStream): number {
@@ -119,7 +138,7 @@ export class SequenceMedia implements MediaSource {
       mkdirSync(this.listDir, { recursive: true });
       file = join(this.listDir, `${stream}-${this.listId}.txt`);
       const esc = (p: string) => p.replace(/'/g, "'\\''");
-      writeFileSync(file, this.items.map((i) => `file '${esc(i.media.clipPath(stream))}'\n`).join(''));
+      writeFileSync(file, this.entries.map((i) => `file '${esc(i.media.clipPath(stream))}'\n`).join(''));
       this.lists.set(stream, file);
     }
     const sec = (this.streamPosition(stream) / 1000).toFixed(3);

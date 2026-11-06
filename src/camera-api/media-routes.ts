@@ -229,7 +229,14 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
       if (ls?.active() && (!live || live.gen !== ls.generation())) enterLive(due);
       if (live && !ls?.active()) {
         leaveLive();
-        src = load(e.media, false);
+        try {
+          src = load(e.media, false);
+        } catch (err) {
+          // The video shown now is unreadable: end this stream, not the process.
+          e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
+          res.destroy();
+          return;
+        }
         // The live part ran ahead of the wall clock by its replayed keyframe
         // group: the loop keeps that lead and goes on at once, instead of
         // pausing until the clock catches up.

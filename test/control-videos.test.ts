@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { execFileSync } from 'child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import request from 'supertest';
 import { makeEngine } from './helpers';
 import { createControlApp } from '../src/control-api/app';
@@ -123,6 +123,39 @@ describe('control API: videos', () => {
       const g = (await request(app).get('/sim/api/videos').set(auth)).body;
       expect(g).toMatchObject({ selected: 'a', sequence: ['a', 'b'], playing: 'a' });
       expect(g.videos.find((v: { id: string }) => v.id === 'a').compat).toBeTruthy();
+    }, 90_000);
+
+    // Spec (Memory): no second copy of video data. The chain references the
+    // shown video's parsed tags, so the switch must not release them, and the
+    // sequence must not read an item's files again after preloading.
+    it('a shown video joining a sequence is not read again', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { id: 'a' });
+      expect((await put(app, { ids: ['a', 'b'] })).status).toBe(200);
+      const dir = dirname((engine.mediaFor({ video: 'a' }) as unknown as { paths: { mainFlv: string } }).paths.mainFlv);
+      rmSync(dir, { recursive: true, force: true });
+      expect(engine.media.currentId?.()).toBe('a');
+      expect(engine.media.inputArgs?.('sub')).toContain('-ss');
+      expect(engine.media.durationMs('main')).toBeGreaterThan(0);
+    }, 90_000);
+
+    it('leaving a sequence releases its videos, and keeps the ones still shown', async () => {
+      const { app, engine } = await setupSeq();
+      await put(app, { ids: ['a', 'b'] });
+      const a = vi.spyOn(engine.mediaFor({ video: 'a' }), 'release' as never);
+      const b = vi.spyOn(engine.mediaFor({ video: 'b' }), 'release' as never);
+      await put(app, { id: 'b' });
+      expect(a).toHaveBeenCalledTimes(1);
+      expect(b).not.toHaveBeenCalled();
+      await put(app, { ids: ['a', 'b'] });
+      await put(app, { id: 'test-pattern' });
+      expect(a).toHaveBeenCalledTimes(2);
+      expect(b).toHaveBeenCalledTimes(1);
+    }, 90_000);
+
+    it('sequence refusals of the list use the shape error code', async () => {
+      const { app } = await setupSeq();
+      for (const ids of [['a', 'a'], [], ['test-pattern', 'a']]) expect((await put(app, { ids })).body.error).toBe('invalid');
     }, 90_000);
 
     it('refuses an incompatible video, naming it', async () => {

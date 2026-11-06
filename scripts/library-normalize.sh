@@ -10,12 +10,14 @@
 # overwrite. --seconds N cuts the video to N seconds (default: the whole video).
 # Smaller or different-shaped sources are scaled to fit and padded.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-source scripts/lib/recipe.sh
 
 usage() { echo "usage: $0 <library-folder> [--seconds N]" >&2; exit 2; }
 [ $# -ge 1 ] || usage
-SRC=${1%/}; shift
+# Absolute before the cd below, so a folder relative to the caller works.
+[ -d "$1" ] || { echo "library-normalize: $1 is not a folder" >&2; exit 1; }
+SRC=$(cd "${1%/}" && pwd); shift
+cd "$(dirname "$0")/.."
+source scripts/lib/recipe.sh
 SECONDS_LONG=
 while [ $# -gt 0 ]; do
   case "$1" in

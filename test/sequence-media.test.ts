@@ -49,6 +49,30 @@ describe('SequenceMedia', () => {
     expect(video[0].bytes).toBe(a.liveFlv('main').tags[2].bytes);
   });
 
+  it('reads each item\'s durations once, at preload', () => {
+    const calls = { flv: 0, dur: 0 };
+    const counted = (m: MediaSource): MediaSource => ({
+      ...m,
+      liveFlv: (s) => (calls.flv++, m.liveFlv(s)),
+      durationMs: (s) => (calls.dur++, m.durationMs(s)),
+    });
+    const c = { t: 0 };
+    const s = new SequenceMedia([{ id: 'a', media: counted(a) }, { id: 'b', media: counted(b) }], { now: () => c.t, listDir: dir });
+    for (const st of ['sub', 'main'] as const) s.liveFlv(st);
+    const after = { ...calls };
+    c.t = 1200;
+    s.currentId();
+    s.position();
+    s.durationMs('main');
+    s.startMs('sub');
+    s.inputArgs('sub');
+    expect(calls).toEqual(after);
+  });
+
+  it('items lists the videos it plays', () => {
+    expect(make({ t: 0 }).items()).toEqual([a, b]);
+  });
+
   it('durationMs is the sum', () => {
     expect(make({ t: 0 }).durationMs('main')).toBe(3500);
   });

@@ -15,6 +15,8 @@ export interface MediaSource {
   clipSize(stream: Stream): number;
   // Drops parsed data kept for live streams (the video is no longer shown).
   release?(): void;
+  // A sequence of videos: the videos it plays (released with it).
+  items?(): MediaSource[];
   // A sequence of videos: the id of the video playing now.
   currentId?(): string;
   // Where a new live reader joins: the clock position snapped down to the

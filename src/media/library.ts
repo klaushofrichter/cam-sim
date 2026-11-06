@@ -192,9 +192,9 @@ export class Library {
   // null on success, or the refusal (status, error code, detail).
   selectSequence(ids: string[]): { status: 400 | 404 | 409; error: string; detail: string } | null {
     const refuse = (status: 400 | 404 | 409, error: string, detail: string) => ({ status, error, detail });
-    if (ids.length === 0) return refuse(400, 'bad_request', 'a sequence needs at least one video');
-    if (new Set(ids).size !== ids.length) return refuse(400, 'bad_request', 'a video can be in a sequence only once');
-    if (ids.length > 1 && ids.includes('test-pattern')) return refuse(400, 'bad_request', "the test pattern can't be part of a sequence");
+    if (ids.length === 0) return refuse(400, 'invalid', 'a sequence needs at least one video');
+    if (new Set(ids).size !== ids.length) return refuse(400, 'invalid', 'a video can be in a sequence only once');
+    if (ids.length > 1 && ids.includes('test-pattern')) return refuse(400, 'invalid', "the test pattern can't be part of a sequence");
     for (const id of ids) {
       if (!this.entries.has(id)) return refuse(404, 'not_found', `unknown video: ${id}`);
       const state = this.entries.get(id)!.state;
