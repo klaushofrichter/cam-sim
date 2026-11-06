@@ -4,7 +4,9 @@ import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
 import { compatKey } from './compat';
+import { SequenceMedia } from './sequence';
 import type { Engine } from '../engine/engine';
+import type { MediaSource } from './source';
 import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpec, writeMainFlv } from './fixtures';
 
 const run = promisify(execFile);
@@ -160,14 +162,9 @@ export class Library {
     return [all[0], ...all.slice(1).sort((a, b) => a.id.localeCompare(b.id))].map((e) => ({ ...e }));
   }
 
-  // null on success, or why not.
-  select(id: string): string | null {
-    const entry = this.entries.get(id);
-    if (!entry) return `unknown video: ${id}`;
-    if (entry.state !== 'ready') return `video ${id} is not ready (${entry.state})`;
-    const media = this.engine.mediaFor({ video: id });
+  // Loaded now, so missing files fail here and not in a live stream.
+  private preload(id: string, media: MediaSource): string | null {
     try {
-      // Loaded now, so missing files fail here and not in a live stream.
       for (const s of ['sub', 'main'] as const) {
         media.liveFlv(s);
         media.clipSize(s);
@@ -176,7 +173,45 @@ export class Library {
     } catch (err) {
       return `video ${id} files are missing or unreadable (${(err as NodeJS.ErrnoException).code ?? 'error'})`;
     }
+    return null;
+  }
+
+  // null on success, or why not.
+  select(id: string): string | null {
+    const entry = this.entries.get(id);
+    if (!entry) return `unknown video: ${id}`;
+    if (entry.state !== 'ready') return `video ${id} is not ready (${entry.state})`;
+    const media = this.engine.mediaFor({ video: id });
+    const why = this.preload(id, media);
+    if (why) return why;
     this.engine.setMedia(media, id);
+    return null;
+  }
+
+  // Several compatible videos played one after another; one id is select().
+  // null on success, or the refusal (status, error code, detail).
+  selectSequence(ids: string[]): { status: 400 | 404 | 409; error: string; detail: string } | null {
+    const refuse = (status: 400 | 404 | 409, error: string, detail: string) => ({ status, error, detail });
+    if (ids.length === 0) return refuse(400, 'bad_request', 'a sequence needs at least one video');
+    if (new Set(ids).size !== ids.length) return refuse(400, 'bad_request', 'a video can be in a sequence only once');
+    if (ids.length > 1 && ids.includes('test-pattern')) return refuse(400, 'bad_request', "the test pattern can't be part of a sequence");
+    for (const id of ids) {
+      if (!this.entries.has(id)) return refuse(404, 'not_found', `unknown video: ${id}`);
+      const state = this.entries.get(id)!.state;
+      if (state !== 'ready') return refuse(409, 'not_ready', `video ${id} is not ready (${state})`);
+    }
+    if (ids.length === 1) {
+      const why = this.select(ids[0]);
+      return why ? refuse(why.startsWith('unknown') ? 404 : 409, why.startsWith('unknown') ? 'not_found' : 'not_ready', why) : null;
+    }
+    const first = this.entries.get(ids[0])!.compat;
+    const differ = ids.filter((id) => this.entries.get(id)!.compat !== first || !first);
+    if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
+    const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
+    const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence') });
+    const why = this.preload(ids[0], media);
+    if (why) return refuse(409, 'not_ready', why);
+    this.engine.setMedia(media, ids[0], ids);
     return null;
   }
 

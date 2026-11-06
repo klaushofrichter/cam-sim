@@ -127,7 +127,9 @@ paths:
     get:
       summary: The video library and the selected video
       description: >
-        `{ selected, videos: [{ id, name, state, converted, durationS, error }] }`.
+        `{ selected, sequence, playing, videos: [{ id, name, state, converted, durationS, compat, error }] }`.
+        `sequence` lists the videos playing in turn (`[selected]` for one); `playing` is the one on screen now.
+        Videos with an equal `compat` can be played in sequence.
         `test-pattern` is always there; the rest come from CAMSIM_LIBRARY_DIR and are
         prepared one at a time after start (state pending → preparing → ready or failed).
       responses:
@@ -137,16 +139,22 @@ paths:
       summary: Select the video the camera shows
       description: >
         Live (FLV and RTSP), snapshots and new recordings switch to it. Recordings
-        made earlier keep their own video.
+        made earlier keep their own video. `{ id }` selects one video; `{ ids: [a, b, ...] }`
+        (up to 32) plays several compatible videos one after another, looped, from `ids[0]`
+        at the moment of selection. The test pattern can't be part of a sequence.
       requestBody:
         content:
           application/json:
-            schema: { type: object, required: [id], properties: { id: { type: string } } }
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                ids: { type: array, maxItems: 32, items: { type: string, maxLength: 64 } }
       responses:
-        '200': { description: '{ selected }' }
-        '400': { description: invalid id }
+        '200': { description: '{ selected, sequence }' }
+        '400': { description: 'invalid id or ids, duplicates, an empty list, or the test pattern in a sequence' }
         '404': { description: unknown video }
-        '409': { description: video not ready (still preparing, or failed) }
+        '409': { description: 'video not ready (still preparing, or failed), or incompatible (error: incompatible; detail names the videos that differ from the first)' }
   /sim/api/videos/{id}/poster:
     get:
       summary: A still of a ready video (JPEG)

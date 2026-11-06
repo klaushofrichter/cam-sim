@@ -49,6 +49,7 @@ export interface RequestRecord {
 // tests) works on this object.
 export class Engine {
   videoId = 'test-pattern';
+  sequence: string[] = ['test-pattern']; // the videos playing in turn; [videoId] for one
   library?: Library; // set by the Library itself
   private readonly mediaById = new Map<string, MediaSource>();
   private readonly missingVideos = new Set<string>();
@@ -127,7 +128,7 @@ export class Engine {
       tz: config.tz,
       log,
       fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
-      currentVideo: () => this.videoId,
+      currentVideo: () => this.media.currentId?.() ?? this.videoId,
       fileFlags: this.profile.fileFlags,
       nameFormat: this.profile.nameFormat,
     });
@@ -177,12 +178,14 @@ export class Engine {
   }
 
   // Switches what the camera shows (live, snapshots, RTSP, recordings).
-  setMedia(media: MediaSource, id: string): void {
+  // A sequence's media is not registered (its items are, under their own ids).
+  setMedia(media: MediaSource, id: string, sequence?: string[]): void {
     if (this.media !== media) this.media.release?.();
     this.media = media;
     this.videoId = id;
-    this.registerMedia(id, media);
-    this.bus.emit('video', { id, selected: true });
+    this.sequence = sequence ?? [id];
+    if (!sequence || sequence.length < 2) this.registerMedia(id, media);
+    this.bus.emit('video', { id, selected: true, sequence: this.sequence });
   }
 
   // Library videos by id, so a recording is served from the video it was
@@ -439,6 +442,7 @@ export class Engine {
       offline: this.offline(),
       power: this.power,
       video: this.videoId,
+      sequence: this.sequence,
       rebooting: this.rebooting,
       faults: this.faults.list(),
       events: this.events.recent(20),
