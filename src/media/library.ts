@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { createHash, randomBytes } from 'crypto';
 import { basename, extname, join, resolve } from 'path';
 import { promisify } from 'util';
+import { compatKey } from './compat';
 import type { Engine } from '../engine/engine';
 import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpec, writeMainFlv } from './fixtures';
 
@@ -13,7 +14,7 @@ const run = promisify(execFile);
 // (2026-11-06). One decoder thread is enough for one frame or a small stream.
 const ONE_DECODER_THREAD = ['-threads', '1'];
 // Bump when the prepared files change, so caches are rebuilt.
-const LIBRARY_VERSION = 4;
+const LIBRARY_VERSION = 5;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
 
 export interface VideoEntry {
@@ -22,6 +23,7 @@ export interface VideoEntry {
   state: 'pending' | 'preparing' | 'ready' | 'failed';
   converted?: boolean; // false: a captured pair in the camera's formats, copied
   durationS?: number;
+  compat?: string; // equal keys: same codec setup, so the videos can be played in sequence
   error?: string;
 }
 
@@ -74,7 +76,7 @@ export class Library {
         const dir = this.dirFor(s);
         const meta = this.readMeta(dir);
         if (meta) {
-          Object.assign(e, { state: 'ready', converted: meta.converted, durationS: meta.durationS });
+          Object.assign(e, { state: 'ready', converted: meta.converted, durationS: meta.durationS, compat: meta.compat });
           this.adopt(s.id, dir);
         }
       } catch {
@@ -88,7 +90,7 @@ export class Library {
     this.engine.registerMedia(id, new FixtureMedia(fixturePaths(dir)));
   }
 
-  private readMeta(dir: string): { id: string; key: string; converted: boolean; durationS: number } | undefined {
+  private readMeta(dir: string): { id: string; key: string; converted: boolean; durationS: number; compat?: string } | undefined {
     try {
       const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
       if (meta.version !== LIBRARY_VERSION || typeof meta.id !== 'string') return undefined;
@@ -230,11 +232,11 @@ export class Library {
 
   // Answers the folder it is in, so it is the one adopted even if the
   // source changes meanwhile.
-  private async prepare(s: Source): Promise<{ dir: string; converted: boolean; durationS: number }> {
+  private async prepare(s: Source): Promise<{ dir: string; converted: boolean; durationS: number; compat?: string }> {
     const key = this.sourceKey(s);
     const dir = this.dirFor(s, key);
     const cached = this.readMeta(dir);
-    if (cached) return { dir, converted: cached.converted, durationS: cached.durationS };
+    if (cached) return { dir, converted: cached.converted, durationS: cached.durationS, compat: cached.compat };
     mkdirSync(this.opts.cacheDir, { recursive: true });
     const tmp = join(this.opts.cacheDir, `.${s.id}.tmp-${randomBytes(4).toString('hex')}`);
     mkdirSync(tmp);
@@ -299,7 +301,8 @@ export class Library {
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);
       await ffmpeg([...ONE_DECODER_THREAD, '-ss', String(Math.min(1, info.duration / 2)), '-i', out.clipMain, '-frames:v', '1', '-q:v', '3', out.snapshot], this.abort.signal);
       writeFileSync(join(tmp, 'manifest.json'), JSON.stringify({ version: 'library' }));
-      const meta = { version: LIBRARY_VERSION, id: s.id, key, converted, durationS: Math.round(info.duration * 10) / 10 };
+      const compat = await compatKey(out.clipMain, out.clipSub);
+      const meta = { version: LIBRARY_VERSION, id: s.id, key, converted, durationS: Math.round(info.duration * 10) / 10, compat };
       writeFileSync(join(tmp, 'meta.json'), JSON.stringify(meta));
       // The folder is this exact version's; an incomplete one is replaced.
       rmSync(dir, { recursive: true, force: true });
@@ -309,7 +312,7 @@ export class Library {
         // Another instance made the same version first: use its copy.
         if (!this.readMeta(dir)) throw err;
       }
-      return { dir, converted, durationS: meta.durationS };
+      return { dir, converted, durationS: meta.durationS, compat };
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
