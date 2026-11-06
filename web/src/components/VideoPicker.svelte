@@ -45,7 +45,7 @@
 
   const checked = (id: string) => sequence.includes(id);
   const firstCompat = $derived(videos.find((v) => v.id !== TEST && checked(v.id))?.compat);
-  const incompatible = (v: Video) => firstCompat !== undefined && !checked(v.id) && v.compat !== firstCompat;
+  const incompatible = (v: Video) => v.id !== TEST && firstCompat !== undefined && !checked(v.id) && v.compat !== firstCompat;
   const several = $derived(sequence.length > 1);
 
   onMount(() => void load());

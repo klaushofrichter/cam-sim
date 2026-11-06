@@ -35,6 +35,10 @@ test('checking two videos plays them as a sequence', async ({ page, request }) =
     await expect(yard.getByTestId('video-state')).toContainText('converted', { timeout: 60_000 });
     await expect(lane.getByTestId('video-state')).toContainText('converted', { timeout: 60_000 });
     await yard.getByRole('checkbox').check();
+    const tp = page.getByTestId('video-test-pattern');
+    await expect(tp.getByRole('radio')).toBeEnabled();
+    await expect(tp).not.toContainText('Different encoding');
+    await expect(tp.locator('label.off')).toHaveCount(0);
     await lane.getByRole('checkbox').check();
     await expect.poll(async () => (await videos()).sequence).toEqual(['lane', 'yard']);
     await expect(page.getByText('playing now')).toHaveCount(1);
