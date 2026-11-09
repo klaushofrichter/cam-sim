@@ -9,7 +9,10 @@
   let selected = $state('');
   let sequence = $state<string[]>([]);
   let playing = $state('');
+  // A refused change (stays until the next change) and a failed list load
+  // (gone with the next good one), apart so a reload can't hide a refusal.
   let message = $state('');
+  let loadError = $state(false);
   let busy = $state(false);
 
   async function load() {
@@ -19,12 +22,14 @@
       selected = r.selected;
       sequence = r.sequence;
       playing = r.playing;
+      loadError = false;
     } catch {
-      message = 'The video list could not be loaded.';
+      loadError = true;
     }
   }
 
   async function put(body: { id: string } | { ids: string[] }) {
+    if (busy) return; // a second click builds on the list the first one changes
     busy = true;
     try {
       await api('PUT', '/video', body);
@@ -80,13 +85,13 @@
 <ul class="videos" data-testid="videos">
   {#each videos as v (v.id)}
     {@const isTest = v.id === TEST}
-    {@const off = busy || v.state !== 'ready' || incompatible(v)}
+    {@const off = v.state !== 'ready' || incompatible(v)}
     <li class:selected={checked(v.id)} data-testid="video-{v.id}">
       <label class:off>
         {#if isTest}
           <input type="radio" name="video-choice" checked={checked(v.id)} disabled={busy || v.state !== 'ready'} onchange={() => void put({ id: TEST })} />
         {:else}
-          <input type="checkbox" checked={checked(v.id)} disabled={off} onchange={(e) => void toggle(v.id, e.currentTarget.checked)} />
+          <input type="checkbox" checked={checked(v.id)} disabled={busy || off} onchange={(e) => void toggle(v.id, e.currentTarget.checked)} />
         {/if}
         {#if v.state === 'ready'}
           <img src="/sim/api/videos/{encodeURIComponent(v.id)}/poster" alt="" loading="lazy" />
@@ -95,7 +100,7 @@
         {/if}
         <span class="text">
           <span class="name">{v.name}</span>
-          <span class="desc" data-testid="video-state">{#if several && checked(v.id)}{v.id === playing ? 'playing now' : 'in sequence'} · {:else if checked(v.id)}showing · {/if}{describe(v)}</span>
+          <span class="desc" data-testid="video-state">{#if checked(v.id)}{several && v.id !== playing ? 'in sequence' : 'playing now'} · {/if}{describe(v)}</span>
           {#if incompatible(v)}<span class="desc">Different encoding: run scripts/library-normalize.sh to combine it</span>{/if}
         </span>
       </label>
@@ -103,6 +108,7 @@
   {/each}
 </ul>
 {#if message}<p class="msg">{message}</p>{/if}
+{#if loadError}<p class="msg">The video list could not be loaded.</p>{/if}
 <p class="muted">Live video, RTSP, snapshots and new recordings show the test pattern or the checked videos, played one after another. Earlier recordings keep theirs. Add videos to the library folder (<span class="mono">CAMSIM_LIBRARY_DIR</span>); they are prepared after start.</p>
 
 <style>
