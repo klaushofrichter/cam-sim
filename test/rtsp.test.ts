@@ -5,7 +5,7 @@ import net from 'net';
 import { spawn } from 'child_process';
 import { makeEngine } from './helpers';
 import { RtspService, findMediaMtx } from '../src/rtsp/rtsp';
-import { mkdtempSync } from 'fs';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir, networkInterfaces } from 'os';
 import { join } from 'path';
 import { Library } from '../src/media/library';
@@ -76,6 +76,49 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     services.push(svc);
     await svc.start();
     expect(await probe(`rtsp://cams:cams-pw@${lan}:${svc.port()}/h264Preview_01_sub`)).toMatchObject({ codec: 'h264', width: 896 });
+  }, 60_000);
+
+  // #70: a process that exits without stop() (a vitest worker's
+  // process.exit, an uncaught error) takes MediaMTX and the publishers along.
+  it('MediaMTX and the publishers end when the process exits without stop()', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'camsim-exit-'));
+    const script = join(dir, 'exit.mts');
+    writeFileSync(script, [
+      `import { createCamSim } from ${JSON.stringify(join(__dirname, '..', 'src', 'index.ts'))};`,
+      `const sim = await createCamSim({ users: [{ name: 'u', level: 'admin', password: 'p' }] });`,
+      `await sim.listen({ http: 0, https: 0, control: 0, rtsp: 0, onvif: 0 }, '127.0.0.1');`,
+      `console.log('UP');`,
+      `process.stdin.once('data', () => process.exit(0));`,
+    ].join('\n'));
+    const child = spawn(process.execPath, ['--import', 'tsx', script], { env: { ...process.env, CAMSIM_MEDIAMTX: mediamtx! }, stdio: ['pipe', 'pipe', 'inherit'] });
+    const exited = new Promise((r) => child.once('exit', r));
+    let out = '';
+    await new Promise<void>((resolve, reject) => {
+      child.stdout!.on('data', (d) => {
+        out += String(d);
+        if (out.includes('UP\n')) resolve();
+      });
+      void exited.then(() => reject(new Error(`exited before it was up: ${out.slice(-500)}`)));
+    });
+    // The children, then the exit (the script waits for our line).
+    const { stdout } = await run('ps', ['-axo', 'pid=,ppid=,command=']);
+    const kids = stdout.split('\n').map((l) => l.trim().split(/\s+/)).filter((f) => Number(f[1]) === child.pid && /mediamtx|ffmpeg/.test(f.slice(2).join(' '))).map((f) => Number(f[0]));
+    child.stdin!.write('exit\n');
+    await exited;
+    expect(kids.length).toBeGreaterThanOrEqual(3); // MediaMTX, main and sub publishers
+    const alive = () => kids.filter((pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    try {
+      await expect.poll(alive, { timeout: 3000 }).toEqual([]);
+    } finally {
+      for (const pid of alive()) process.kill(pid, 'SIGKILL');
+    }
   }, 60_000);
 
   it('serves the camera paths: sub is H.264, main is H.265', async () => {
