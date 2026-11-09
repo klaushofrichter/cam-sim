@@ -116,6 +116,25 @@ describe('Events', () => {
     expect(sd.all()[0].end).toBe('065225');
   });
 
+  it('dispose() clears the detection timers, so nothing fires after it (#106)', () => {
+    const { events } = setup('2026-09-26T11:52:21Z');
+    const seen: string[] = [];
+    events.on('detect', (d: { type: string; state: boolean }) => seen.push(`${d.type}:${d.state}`));
+    events.trigger('person', 5);
+    events.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(10_000);
+    expect(seen).toEqual(['person:true', 'motion:true']);
+  });
+
+  it('stop() (power-off) keeps the detection timers, so the state still clears', () => {
+    const { events } = setup('2026-09-26T11:52:21Z');
+    events.trigger('motion', 5);
+    events.stop();
+    vi.advanceTimersByTime(5_000);
+    expect(events.mdState()).toEqual({ state: 0 });
+  });
+
   it('emits detection state changes, once per type', () => {
     const { events } = setup('2026-09-26T11:52:21Z');
     const seen: string[] = [];
