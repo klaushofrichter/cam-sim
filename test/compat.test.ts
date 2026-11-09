@@ -57,7 +57,7 @@ describe('compatibility key', () => {
     const lib = new Library(await makeEngine({ CAMSIM_MAIN_SIZE: '640x360' }), { sourceDir: src, cacheDir: tmp('camsim-compat-c-') });
     await lib.prepareAll();
     const list = lib.list();
-    expect(list.find((v) => v.id === 'pair')!.compat).toMatch(/^[0-9a-f]{12,}$/);
+    expect(list.find((v) => v.id === 'pair')!.compat).toMatch(/^[0-9a-f]{16}$/);
     expect(list.find((v) => v.id === 'test-pattern')!.compat).toBeUndefined();
   }, 120_000);
 });

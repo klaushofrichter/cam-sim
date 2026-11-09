@@ -4,14 +4,14 @@
 
 - Stopping the simulator (`createCamSim().stop()`) also clears the timers that end a detection, so no detection event fires after it (cam-sim#106).
 - A process that exits without stopping the simulator (`process.exit`, an uncaught error, a test worker ending) now kills MediaMTX and the RTSP publishers instead of leaving them running (cam-sim#70). The unit tests' global setup also kills MediaMTX/ffmpeg publishers orphaned by an earlier aborted run (killed by a signal).
+- Video sequences: when the first video has no codec key, the refusal names it once (`a can't be played in a sequence: its codec setup is unknown`), not as incompatible with itself. A library video whose first frame lacks a parameter set now fails its preparation instead of getting a key built from an empty one.
+- Scripts: `library-normalize.sh` pads the source's audio, so a source whose audio ends before its video is no longer cut short, and it works with `CDPATH` set.
 
 ## v2026.11.06.1
 
 - Video sequences: several compatible library videos play one after another, looped, seamlessly in live view (FLV, RTSP, snapshots, SD recordings). Choose them with the Simulator page's checkmarks, `PUT /sim/api/video {"ids":[...]}` or `CAMSIM_VIDEO=a,b,c`; `GET /sim/api/videos` adds `sequence`, `playing` and a `compat` key per video. Only videos with identical encoder parameter sets combine (409 `incompatible` otherwise). RTSP and SD need ffmpeg 6.1 or newer.
 - Scripts: the encode recipe moved to `scripts/lib/recipe.sh` (same output as before) and `scripts/library-normalize.sh <folder>` re-encodes a video with it so it combines with the MEVA clips. `library-meva.sh` honours `LIBRARY_OUT`.
-
 - Library videos use less memory while they are prepared: the main copy is decoded with one ffmpeg thread (snapshot, ext stream), and `main.flv` is written tag by tag instead of from one buffer of the whole file. A camera-sized 60 s pair (4512×2512 H.265) OOM-killed cam2 at its 512Mi limit; preparing one still peaks around 400 MB, so cam2's limit goes to 1Gi.
-
 - Docs: credits for third-party library videos (README *Video library* and THIRD_PARTY_NOTICES), for four clips from the MEVA dataset (CC BY 4.0), and `scripts/library-meva.sh`, which downloads and builds them into `library/` in the RLC-1224A's formats. The videos themselves stay out of the repository.
 - `scripts/capture-clip.py` reaches cameras through an SSH tunnel: `CAMERA_HOST`, `CAMERA_HTTPS_PORT`, `CAMERA_RTSP_PORT` and `CAMERA_CA_FILE` (a site CA), besides `CAMERA_TLS_NAME`.
 

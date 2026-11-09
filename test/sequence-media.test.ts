@@ -154,7 +154,7 @@ describe('SequenceMedia', () => {
     const s = new SequenceMedia([{ id: 'a', media: fake('a', 1000, 950) }, { id: 'b', media: fake('b', 2500, 2450) }], { now: () => c.t, listDir: dir });
     c.t = 3500 * 40 + 1200; // many loops, 200 ms into item b on main
     expect(s.currentId()).toBe('b');
-    expect(s.startMs('sub')).toBe(950); // sub item b starts at 950, keyframe at 950? snapped below
+    expect(s.startMs('sub')).toBe(950); // on sub, item b starts after a's 950 ms
     expect(s.inputArgs('sub').at(-1)).toBe('1.150');
     c.t = 3500 * 40 + 970; // item a's sub is over (950) while main is still in a
     expect(s.currentId()).toBe('a');
