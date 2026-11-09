@@ -43,6 +43,21 @@ async function freePort(host: string): Promise<number> {
 
 class Stopped extends Error {}
 
+// A process that exits without stop() (process.exit, an uncaught error, a test
+// worker ended) must not leave MediaMTX and its publishers running (#70). One
+// 'exit' listener for all services; a signal without a handler ends the
+// process without it (the test setup sweeps those orphans).
+const live = new Set<RtspService>();
+let exitHooked = false;
+function track(s: RtspService): void {
+  live.add(s);
+  if (exitHooked) return;
+  exitHooked = true;
+  process.on('exit', () => {
+    for (const x of live) x.killChildren();
+  });
+}
+
 // RTSP like the camera: MediaMTX serves the two paths on the loopback behind
 // the camera's port (RtspFront, which shapes the DESCRIBE's SDP like the
 // model's), ffmpeg publishes the
@@ -182,6 +197,7 @@ export class RtspService {
     const exited = new Promise<void>((resolve) => {
       const m = spawn(this.opts.mediamtx!, [conf], { stdio: ['ignore', 'pipe', 'pipe'], cwd: this.dir });
       this.mtx = m;
+      track(this);
       m.stdout?.on('data', (d) => e.log.debug({ mediamtx: String(d).trim() }, 'mediamtx'));
       m.stderr?.on('data', (d) => e.log.warn({ mediamtx: String(d).trim() }, 'mediamtx'));
       m.on('error', (err) => {
@@ -309,7 +325,14 @@ export class RtspService {
     return [['state', this.onState], ['fault', this.onChange], ['settings', this.onChange], ['video', this.onVideo]];
   }
 
+  // At process exit: synchronous, SIGKILL (nothing runs after it to escalate).
+  killChildren(): void {
+    for (const p of this.publishers.values()) p.kill('SIGKILL');
+    if (this.mtx && this.mtx.exitCode === null && this.mtx.signalCode === null) this.mtx.kill('SIGKILL');
+  }
+
   private async teardown(): Promise<void> {
+    live.delete(this);
     this.up = false;
     for (const [topic, h] of this.subscriptions()) this.engine.bus.off(topic, h);
     this.stopPublishers();
