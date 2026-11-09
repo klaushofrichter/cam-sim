@@ -52,6 +52,21 @@ describe('ONVIF device service', () => {
     expect(res.text).toContain('<tt:UTCDateTime>');
   });
 
+  // cam-sim#105, measured on a CX820 2026-11-09: ONVIF uses the current
+  // users, so AddUser, ModifyUser and DelUser take effect at once.
+  it('authenticates against the current user list', async () => {
+    const { engine, app } = await setup();
+    const caps = '<GetCapabilities xmlns="http://www.onvif.org/ver10/device/wsdl"><Category>All</Category></GetCapabilities>';
+    const status = async (u: string, p: string) => (await soap(app, '/onvif/device_service', caps, [u, p])).status;
+    expect(engine.sessions.addUser({ name: 'g', password: 'gp', level: 'guest' })).toBeNull();
+    expect(await status('g', 'gp')).toBe(200);
+    expect(engine.sessions.modifyUser('g', { password: 'gp2' })).toBeNull();
+    expect(await status('g', 'gp')).toBe(400);
+    expect(await status('g', 'gp2')).toBe(200);
+    expect(engine.sessions.delUser('g')).toBeNull();
+    expect(await status('g', 'gp2')).toBe(400);
+  });
+
   it('requires a valid UsernameToken for everything else', async () => {
     const { app } = await setup();
     for (const auth of [null, ['admin', 'wrong'] as [string, string], ['nobody', 'x'] as [string, string]]) {

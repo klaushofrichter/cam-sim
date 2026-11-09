@@ -102,6 +102,12 @@ export class Sessions {
     return this.userList.map((u) => ({ level: u.level, userName: u.name }));
   }
 
+  // The current users (copies), for the RTSP and ONVIF sign-ins: AddUser,
+  // ModifyUser and DelUser apply there at once (measured on a CX820, #105).
+  current(): User[] {
+    return this.userList.map((u) => ({ ...u }));
+  }
+
   // Error codes: the firmware's generic -4 ("param error"); the camera's
   // specific codes for these cases were not measured.
   addUser(u: User): number | null {
@@ -119,7 +125,10 @@ export class Sessions {
     return null;
   }
 
-  modifyUser(name: string, patch: { password?: string; level?: string }): number | null {
+  // `unusable`: the camera's answer to a ModifyUser with `password` instead of
+  // newPassword (measured on a CX820, #105): success, but afterwards no
+  // password logs that user in, the old one included.
+  modifyUser(name: string, patch: { password?: string; level?: string; unusable?: boolean }): number | null {
     const u = this.userList.find((x) => x.name === name);
     if (!u) return -4;
     if (patch.level !== undefined) {
@@ -129,6 +138,9 @@ export class Sessions {
     if (patch.password !== undefined) {
       if (!patch.password) return -4;
       u.password = patch.password;
+      this.revokeUser(name);
+    } else if (patch.unusable) {
+      u.password = randomBytes(32).toString('hex');
       this.revokeUser(name);
     }
     return null;
