@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.11.09.1
+
 - Stopping the simulator (`createCamSim().stop()`) also clears the timers that end a detection, so no detection event fires after it (cam-sim#106).
 - A process that exits without stopping the simulator (`process.exit`, an uncaught error, a test worker ending) now kills MediaMTX and the RTSP publishers instead of leaving them running (cam-sim#70). The unit tests' global setup also kills MediaMTX/ffmpeg publishers orphaned by an earlier aborted run (killed by a signal).
 - Video sequences: when the first video has no codec key, the refusal names it once (`a can't be played in a sequence: its codec setup is unknown`), not as incompatible with itself. A library video whose first frame lacks a parameter set now fails its preparation instead of getting a key built from an empty one.
