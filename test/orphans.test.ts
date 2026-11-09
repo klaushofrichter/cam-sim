@@ -1,7 +1,7 @@
 // cam-sim#70: media children of an aborted run are found and killed; a running
 // simulator's children (node parent) and unrelated processes are left alone.
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -29,13 +29,16 @@ describe('orphaned media processes (#70)', () => {
 
   it.skipIf(process.platform === 'win32')('kills a real orphan', async () => {
     // A stand-in "mediamtx": tail following a mediamtx.yml in a camsim-rtsp-
-    // folder (a symlink; macOS kills a copied system binary), started in the
-    // background by a shell that exits at once: an orphan.
+    // folder (a symlink; macOS kills a copied system binary). Its parent is a
+    // shell that waits for it, not node: what a killed run leaves behind. (A
+    // truly orphaned child is reparented to whatever reaper the platform has,
+    // which on a CI runner can be a node process.)
     const dir = mkdtempSync(join(tmpdir(), 'camsim-rtsp-orphan-test-'));
     const bin = join(dir, 'mediamtx');
     symlinkSync(spawnSync('sh', ['-c', 'command -v tail']).stdout.toString().trim(), bin);
     writeFileSync(join(dir, 'mediamtx.yml'), '');
-    const pid = Number(spawnSync('sh', ['-c', `"${bin}" -f "${join(dir, 'mediamtx.yml')}" >/dev/null 2>&1 & echo $!`]).stdout.toString().trim());
+    const shell = spawn('sh', ['-c', `"${bin}" -f "${join(dir, 'mediamtx.yml')}" >/dev/null 2>&1 & echo $!; wait`], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const pid = await new Promise<number>((resolve) => shell.stdout!.once('data', (d) => resolve(Number(String(d).trim()))));
     const alive = () => {
       try {
         process.kill(pid, 0);
@@ -52,6 +55,7 @@ describe('orphaned media processes (#70)', () => {
       await expect.poll(alive).toBe(false);
     } finally {
       if (alive()) process.kill(pid, 'SIGKILL');
+      shell.kill('SIGKILL');
       rmSync(dir, { recursive: true, force: true });
     }
   });
