@@ -46,7 +46,9 @@ describe('orphaned media processes (#70)', () => {
     };
     try {
       expect(alive()).toBe(true);
-      expect(sweepOrphans()).toContain(pid);
+      // The background child may still be the forked shell for a moment
+      // before it execs the stand-in: retry until the sweep sees it.
+      await expect.poll(() => sweepOrphans(), { timeout: 5000 }).toContain(pid);
       await expect.poll(alive).toBe(false);
     } finally {
       if (alive()) process.kill(pid, 'SIGKILL');
