@@ -15,7 +15,9 @@ usage() { echo "usage: $0 <library-folder> [--seconds N]" >&2; exit 2; }
 [ $# -ge 1 ] || usage
 # Absolute before the cd below, so a folder relative to the caller works.
 [ -d "$1" ] || { echo "library-normalize: $1 is not a folder" >&2; exit 1; }
-SRC=$(cd "${1%/}" && pwd); shift
+# CDPATH unset: with it, cd prints the folder and SRC would get it twice.
+unset CDPATH
+SRC=$(cd -- "${1%/}" && pwd); shift
 cd "$(dirname "$0")/.."
 source scripts/lib/recipe.sh
 SECONDS_LONG=

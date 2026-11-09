@@ -27,7 +27,7 @@ recipe_fit() {
 recipe_inputs() { # <in> <start> <seconds>
   RECIPE_IN=(-ss "$2" -i "$1" -t "$3")
   if [ "${RECIPE_AUDIO:-silent}" = input ]; then
-    RECIPE_MAP=(-map 0:v:0 -map 0:a:0)
+    RECIPE_MAP=(-map 0:v:0 -map 0:a:0 -af apad) # padded: -shortest must not cut the video to a shorter audio
   else
     RECIPE_IN=(-ss "$2" -i "$1" -f lavfi -i anullsrc=r=16000:cl=mono -t "$3")
     RECIPE_MAP=(-map 0:v:0 -map 1:a:0)
