@@ -347,12 +347,13 @@ export class Engine {
   }
 
   // Power-off: every connection drops, sessions end, the recording in
-  // progress is closed and background events pause. False when not on.
+  // progress is closed, background events pause and the detection state
+  // ends without an event (cam-sim#83). False when not on.
   powerOff(): boolean {
     if (this.power !== 'on' || this.rebooting) return false;
     this.power = 'off';
     this.ptz?.stop();
-    this.events.stop();
+    this.events.dispose();
     this.sessions.revokeAll();
     this.dropConnections();
     this.bus.emit('state', { power: 'off' });

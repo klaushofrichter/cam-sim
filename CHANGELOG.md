@@ -3,6 +3,7 @@
 ## Unreleased
 
 - RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".
+- Power-off ends a detection in progress at once and silently: no ONVIF "detection off" notification fires after the camera is off (a camera that is off sends nothing), and after power-on `GetMdState`/`GetAiState` read no detection. Before, the detection's timer still ran and fired after power-off (cam-sim#83).
 
 ## v2026.11.09.1
 
