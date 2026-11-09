@@ -43,6 +43,9 @@ async function freePort(host: string): Promise<number> {
 
 class Stopped extends Error {}
 
+// MediaMTX starts on a newly picked port this often before start() fails.
+const MTX_ATTEMPTS = 3;
+
 // A process that exits without stop() (process.exit, an uncaught error, a test
 // worker ended) must not leave MediaMTX and its publishers running (#70). One
 // 'exit' listener for all services; a signal without a handler ends the
@@ -68,6 +71,8 @@ function track(s: RtspService): void {
 export class RtspService {
   private mtx?: ChildProcess;
   private mtxExited = false;
+  // One per MediaMTX start: a publisher of an earlier one never restarts.
+  private generation = 0;
   private auth?: http.Server;
   private readonly publishers = new Map<Stream, ChildProcess>();
   private readonly announced = new Set<string>();
@@ -111,7 +116,7 @@ export class RtspService {
     }
   }
 
-  constructor(private readonly engine: Engine, private readonly opts: { port: number; host?: string; mediamtx: string | undefined }) {}
+  constructor(private readonly engine: Engine, private readonly opts: { port: number; host?: string; mediamtx: string | undefined; pickPort?: () => Promise<number> }) {}
 
   running(): boolean {
     return this.up;
@@ -156,8 +161,6 @@ export class RtspService {
       throw new Error(`the RTSP port is not available (${(err as NodeJS.ErrnoException).code ?? 'error'}); MediaMTX not started`);
     }
     this.check();
-    this.mtxPort = await freePort('127.0.0.1');
-    this.check();
 
     this.auth = http.createServer(async (req, res) => {
       try {
@@ -169,9 +172,37 @@ export class RtspService {
     });
     const authPort = await listenOn(this.auth, 0, '127.0.0.1');
     this.check();
-
     this.dir = mkdtempSync(join(tmpdir(), 'camsim-rtsp-'));
-    const conf = join(this.dir, 'mediamtx.yml');
+
+    // MediaMTX's port is picked free and bound by MediaMTX a moment later, so
+    // another listener can take it in between: MediaMTX then exits at once (or
+    // a stranger answers on it). Such a start is tried again on a new port.
+    for (let attempt = 1; ; attempt++) {
+      const failure = await this.startMediaMtx(authPort);
+      this.check();
+      if (!failure) break;
+      if (attempt >= MTX_ATTEMPTS) throw new Error(failure);
+      e.log.warn({ attempt, port: this.mtxPort, reason: failure }, 'mediamtx_retry_new_port');
+    }
+    await sleep(300);
+    this.check();
+    if (this.mtxExited) throw new Error('MediaMTX exited during start');
+    for (const [topic, h] of this.subscriptions()) e.bus.on(topic, h);
+    this.up = true;
+    e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
+  }
+
+  // One MediaMTX start on a newly picked loopback port, up to both publishers
+  // announced: undefined when it runs, else why not (it is gone by then).
+  private async startMediaMtx(authPort: number): Promise<string | undefined> {
+    const e = this.engine;
+    this.generation++;
+    this.mtxExited = false;
+    this.announced.clear();
+    this.mtxPort = await (this.opts.pickPort ?? (() => freePort('127.0.0.1')))();
+    this.check();
+
+    const conf = join(this.dir!, 'mediamtx.yml');
     const listen = `127.0.0.1:${this.mtxPort}`;
     writeFileSync(conf, [
       'logLevel: warn',
@@ -194,27 +225,38 @@ export class RtspService {
       '',
     ].join('\n'));
 
+    const m = spawn(this.opts.mediamtx!, [conf], { stdio: ['ignore', 'pipe', 'pipe'], cwd: this.dir });
+    this.mtx = m;
+    track(this);
     const exited = new Promise<void>((resolve) => {
-      const m = spawn(this.opts.mediamtx!, [conf], { stdio: ['ignore', 'pipe', 'pipe'], cwd: this.dir });
-      this.mtx = m;
-      track(this);
       m.stdout?.on('data', (d) => e.log.debug({ mediamtx: String(d).trim() }, 'mediamtx'));
       m.stderr?.on('data', (d) => e.log.warn({ mediamtx: String(d).trim() }, 'mediamtx'));
       m.on('error', (err) => {
         e.log.error({ err: err.message }, 'mediamtx_spawn_failed');
-        this.mtxExited = true;
+        if (this.mtx === m) this.mtxExited = true;
         resolve();
       });
       m.on('exit', (code, signal) => {
-        this.mtxExited = true;
-        if (!this.stopping) {
-          e.log.error({ code, signal }, 'mediamtx_exited');
-          this.up = false;
-          this.stopPublishers();
+        if (this.mtx === m) {
+          this.mtxExited = true;
+          if (!this.stopping && this.up) {
+            e.log.error({ code, signal }, 'mediamtx_exited');
+            this.up = false;
+            this.stopPublishers();
+          }
         }
         resolve();
       });
     });
+    // A failed attempt: no publishers and no MediaMTX left from it.
+    const fail = async (why: string) => {
+      this.generation++;
+      this.stopPublishers();
+      if (m.exitCode === null && m.signalCode === null) m.kill('SIGKILL');
+      await exited;
+      this.mtxExited = true;
+      return why;
+    };
 
     // Ready when MediaMTX accepts connections, or failed when it exits first.
     const ready = (async () => {
@@ -226,7 +268,7 @@ export class RtspService {
     })();
     const ok = await Promise.race([ready, exited.then(() => false)]);
     this.check();
-    if (!ok || this.mtxExited) throw new Error('MediaMTX did not start (port in use or binary not runnable?)');
+    if (!ok || this.mtxExited) return fail('MediaMTX did not start (port in use or binary not runnable?)');
 
     for (const stream of ['main', 'sub'] as const) this.publish(stream);
     // Readiness: both publishers announced their stream (seen by the auth
@@ -234,13 +276,9 @@ export class RtspService {
     for (let i = 0; i < 150 && this.announced.size < 2; i++) {
       await sleep(100);
       this.check();
-      if (this.mtxExited) throw new Error('MediaMTX exited during start');
+      if (this.mtxExited) return fail('MediaMTX exited during start');
     }
-    await sleep(300);
-    this.check();
-    for (const [topic, h] of this.subscriptions()) e.bus.on(topic, h);
-    this.up = true;
-    e.log.info({ port: this.boundPort, ready: this.announced.size === 2 }, 'rtsp_listening');
+    return undefined;
   }
 
   private accepts(): Promise<boolean> {
@@ -290,6 +328,7 @@ export class RtspService {
     if (this.stopping || this.mtxExited) return;
     if (stream === 'sub' && this.subMode === 'pipeline') return;
     const enc = encodingOf(e, stream);
+    const generation = this.generation;
     this.published.set(stream, enc.key);
     const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-stream_loop', '-1', ...inputArgsOf(e.media, stream),
       ...enc.args, '-f', 'rtsp', '-rtsp_transport', 'tcp', this.pubUrl(stream)], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -298,7 +337,7 @@ export class RtspService {
     p.on('exit', () => {
       if (this.publishers.get(stream) === p) this.publishers.delete(stream);
       // Restarted while MediaMTX runs; readers cut by dropReaders reconnect.
-      if (!this.stopping && !this.mtxExited && !(stream === 'sub' && this.subMode === 'pipeline')) setTimeout(() => this.publish(stream), 1000).unref();
+      if (!this.stopping && !this.mtxExited && generation === this.generation && !(stream === 'sub' && this.subMode === 'pipeline')) setTimeout(() => this.publish(stream), 1000).unref();
     });
     this.publishers.set(stream, p);
   }
