@@ -163,9 +163,9 @@ export class Events extends EventEmitter {
     }
   }
 
-  // Shutdown: stop() plus the detection timers, so no callback runs after it.
-  // Power-off uses stop() alone: there the detection state still clears when
-  // its timer runs (cam-sim#83 keeps that until it's measured on a camera).
+  // Power-off and shutdown: stop() plus the detection timers and state, so
+  // no callback runs after it. A camera that is off sends nothing, and boots
+  // with no detection going on (cam-sim#83).
   dispose(): void {
     this.stop();
     for (const t of this.detectTimers) clearTimeout(t);

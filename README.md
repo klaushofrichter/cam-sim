@@ -1007,7 +1007,7 @@ C=http://127.0.0.1:9443/sim/api
 | Action | Body | Answer | Effect |
 |---|---|---|---|
 | `reboot` | `{"ms":1000,"dropsConnection":false}` (optional) | 202 | offline for `ms` (default: 1 s fast, 60 s real), then a new serial, no sessions, and the saved settings take effect. Baichuan connections drop too. 409 `powered_off` while off |
-| `power-off` | — | 204 | the camera goes dark: every connection drops (Baichuan too), sessions end, the recording in progress is closed, background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
+| `power-off` | — | 204 | the camera goes dark: every connection drops (Baichuan too), sessions end, the recording in progress is closed, a detection in progress ends without a notification (it reads as none after power-on), background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
 | `power-on` | `{"ms":1000}` (optional) | 202 | boots like a reboot (`power` is `booting`, then `on`), and background events resume. 409 `already_on` |
 | `tokens.revoke` | — | 204 | every session ends |
 | `flv.dropActive` | — | 204 | open live streams are cut |
