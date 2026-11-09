@@ -7,26 +7,40 @@ export const isConfigTag = (t: FlvTag) => (t.type === 9 || t.type === 8) && t.by
 export const isKeyframe = (t: FlvTag) => t.type === 9 && t.bytes[11] >> 4 === 1;
 
 // FLV from a pipe (ffmpeg -f flv pipe:1): the header once, then whole tags
-// as they complete, whatever the chunk boundaries.
+// as they complete, whatever the chunk boundaries. Chunks are queued and joined
+// only once the next header or tag is complete, so small chunks cost linear
+// time (joining on every chunk was quadratic in the tag size).
 export class FlvStreamParser extends EventEmitter {
-  private buf: Buffer = Buffer.alloc(0);
+  private chunks: Buffer[] = [];
+  private queued = 0;
+  private need = 9; // bytes until the next header or tag can be parsed
   private headerDone = false;
 
   push(chunk: Buffer): void {
-    this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
+    if (!chunk.length) return;
+    this.chunks.push(chunk);
+    this.queued += chunk.length;
+    if (this.queued < this.need) return;
+    let buf = this.chunks.length === 1 ? this.chunks[0] : Buffer.concat(this.chunks, this.queued);
     if (!this.headerDone) {
-      if (this.buf.length < 9) return;
-      const end = this.buf.readUInt32BE(5) + 4; // header, then PreviousTagSize0
-      if (this.buf.length < end) return;
-      this.emit('header', Buffer.from(this.buf.subarray(0, end)));
-      this.buf = this.buf.subarray(end);
+      const end = buf.readUInt32BE(5) + 4; // header, then PreviousTagSize0
+      if (buf.length < end) return this.keep(buf, end);
+      this.emit('header', Buffer.from(buf.subarray(0, end)));
+      buf = buf.subarray(end);
       this.headerDone = true;
     }
     let at = 0;
-    for (let t; (t = parseTagAt(this.buf, at)); at = t.end) {
+    for (let t; (t = parseTagAt(buf, at)); at = t.end) {
       // A copy: the buffer's memory is kept for the next chunk.
       this.emit('tag', { ...t.tag, bytes: Buffer.from(t.tag.bytes) } satisfies FlvTag);
     }
-    this.buf = this.buf.subarray(at);
+    const rest = buf.subarray(at);
+    this.keep(rest, rest.length >= 4 ? 11 + rest.readUIntBE(1, 3) + 4 : 11);
+  }
+
+  private keep(rest: Buffer, need: number): void {
+    this.chunks = rest.length ? [rest] : [];
+    this.queued = rest.length;
+    this.need = need;
   }
 }

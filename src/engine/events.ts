@@ -42,6 +42,7 @@ export class Events extends EventEmitter {
   private current: { id: string; startMs: number; endsAt: number; timer: ReturnType<typeof setTimeout> } | null = null;
   private readonly log: SimEvent[] = [];
   private readonly autoTimers = new Map<Trigger, ReturnType<typeof setTimeout>>();
+  private readonly detectTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(private readonly o: { clock: Clock; tz: string; sd: SdCard; settings: SettingsStore; rng: Rng }) {
     super();
@@ -56,11 +57,13 @@ export class Events extends EventEmitter {
       const n = this.active.get(t) ?? 0;
       this.active.set(t, n + 1);
       if (n === 0) this.emit('detect', { type: t, state: true });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        this.detectTimers.delete(timer);
         const left = Math.max(0, (this.active.get(t) ?? 1) - 1);
         this.active.set(t, left);
         if (left === 0) this.emit('detect', { type: t, state: false });
       }, durationS * 1000);
+      this.detectTimers.add(timer);
     }
 
     let recording: Recording | null = null;
@@ -158,6 +161,16 @@ export class Events extends EventEmitter {
       const end = addSeconds(rec.start, Math.max(1, Math.round((this.o.clock.now().getTime() - cur.startMs) / 1000)));
       this.o.sd.finish(cur.id, end, addSeconds(end, MAIN_EXTRA_S));
     }
+  }
+
+  // Shutdown: stop() plus the detection timers, so no callback runs after it.
+  // Power-off uses stop() alone: there the detection state still clears when
+  // its timer runs (cam-sim#83 keeps that until it's measured on a camera).
+  dispose(): void {
+    this.stop();
+    for (const t of this.detectTimers) clearTimeout(t);
+    this.detectTimers.clear();
+    this.active.clear();
   }
 }
 

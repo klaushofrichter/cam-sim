@@ -205,7 +205,8 @@ export class Library {
       return why ? refuse(why.startsWith('unknown') ? 404 : 409, why.startsWith('unknown') ? 'not_found' : 'not_ready', why) : null;
     }
     const first = this.entries.get(ids[0])!.compat;
-    const differ = ids.filter((id) => this.entries.get(id)!.compat !== first || !first);
+    if (!first) return refuse(409, 'incompatible', `${ids[0]} can't be played in a sequence: its codec setup is unknown`);
+    const differ = ids.filter((id) => this.entries.get(id)!.compat !== first);
     if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
     const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
     const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });

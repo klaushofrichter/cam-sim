@@ -163,9 +163,16 @@ describe('control API: videos', () => {
       const r = await put(app, { ids: ['a', 'b', 'odd'] });
       expect(r.status).toBe(409);
       expect(r.body.error).toBe('incompatible');
-      expect(r.body.detail).toContain('odd');
-      expect(r.body.detail).not.toContain('b,');
+      expect(r.body.detail).toMatch(/^odd can't be played in sequence with a: /);
       expect(engine.videoId).toBe('test-pattern');
+    }, 90_000);
+
+    it('a first video without a codec key is named once (#154)', async () => {
+      const { app, lib } = await setupSeq();
+      (lib as unknown as { entries: Map<string, { compat?: string }> }).entries.get('a')!.compat = undefined;
+      const r = await put(app, { ids: ['a', 'b'] });
+      expect(r.status).toBe(409);
+      expect(r.body).toMatchObject({ error: 'incompatible', detail: "a can't be played in a sequence: its codec setup is unknown" });
     }, 90_000);
 
     it('refuses the test pattern in a sequence', async () => {

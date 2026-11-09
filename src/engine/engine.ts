@@ -462,7 +462,7 @@ export class Engine {
 
   stop(): void {
     if (this.pipeline.on) this.pipelineOff();
-    this.events.stop();
+    this.events.dispose();
     this.dropFlv();
     this.dropDownloads();
   }
