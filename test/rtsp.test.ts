@@ -6,7 +6,7 @@ import { spawn } from 'child_process';
 import { makeEngine } from './helpers';
 import { RtspService, findMediaMtx } from '../src/rtsp/rtsp';
 import { mkdtempSync } from 'fs';
-import { tmpdir } from 'os';
+import { tmpdir, networkInterfaces } from 'os';
 import { join } from 'path';
 import { Library } from '../src/media/library';
 import { SdPipeline } from '../src/pipeline/sd-pipeline';
@@ -66,6 +66,17 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     await svc.start();
     return { engine, svc, port, url: (path: string, user = 'cams', pw = 'cams-pw') => `rtsp://${user}:${pw}@127.0.0.1:${port}/${path}` };
   }
+
+  // cam-sim#92: bound to a non-loopback address, the stream must play there
+  // (MediaMTX and its publishers stay on loopback behind the front).
+  const lan = Object.values(networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal)?.address;
+  it.skipIf(!lan)('plays on a non-loopback bind address (#92)', async () => {
+    const engine = await makeEngine();
+    const svc = new RtspService(engine, { port: 0, host: lan, mediamtx: mediamtx! });
+    services.push(svc);
+    await svc.start();
+    expect(await probe(`rtsp://cams:cams-pw@${lan}:${svc.port()}/h264Preview_01_sub`)).toMatchObject({ codec: 'h264', width: 896 });
+  }, 60_000);
 
   it('serves the camera paths: sub is H.264, main is H.265', async () => {
     const { url } = await start();
