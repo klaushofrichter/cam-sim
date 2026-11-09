@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".
+
 ## v2026.11.09.1
 
 - Stopping the simulator (`createCamSim().stop()`) also clears the timers that end a detection, so no detection event fires after it (cam-sim#106).

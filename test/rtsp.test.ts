@@ -193,6 +193,33 @@ describe.skipIf(!mediamtx)('RTSP lifecycle', () => {
     }
   }, 30_000);
 
+  // cam-proxy saw "MediaMTX exited during start": the loopback port picked
+  // for MediaMTX was free when picked and taken by another listener before
+  // MediaMTX bound it. The picker here hands out such a taken port first.
+  it('starts on another loopback port when MediaMTX\'s port is taken before it binds', async () => {
+    const taken = await freePort();
+    const holder = net.createServer((s) => s.destroy()).listen(taken, '127.0.0.1');
+    await new Promise((r) => holder.once('listening', r));
+    try {
+      const engine = await makeEngine();
+      const picked: number[] = [];
+      const pickPort = async () => {
+        const p = picked.length ? await freePort() : taken;
+        picked.push(p);
+        return p;
+      };
+      const port = await freePort();
+      const svc = new RtspService(engine, { port, host: '127.0.0.1', mediamtx: mediamtx!, pickPort });
+      services.push(svc);
+      await svc.start();
+      expect(svc.running()).toBe(true);
+      expect(picked.length).toBe(2);
+      expect((await probe(`rtsp://cams:cams-pw@127.0.0.1:${port}/h264Preview_01_sub`)).codec).toBe('h264');
+    } finally {
+      holder.close();
+    }
+  }, 60_000);
+
   it('reports a binary that cannot run instead of crashing the process', async () => {
     const engine = await makeEngine();
     const svc = new RtspService(engine, { port: await freePort(), host: '127.0.0.1', mediamtx: '/nonexistent/mediamtx' });
