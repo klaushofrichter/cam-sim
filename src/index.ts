@@ -23,7 +23,7 @@ import type { FaultSpec } from './engine/faults';
 import type { SeedClip, Trigger } from './engine/sdcard';
 import type pino from 'pino';
 
-export { DEMO_CLIPS } from './engine/sdcard';
+export { DEMO_CLIPS, recentClips } from './engine/sdcard';
 export { MODELS } from './profile/profile';
 // For test runners: build the fixtures once before workers start (globalSetup).
 export { ensureFixtures, defaultFixtureDir } from './media/fixtures';
@@ -43,7 +43,7 @@ export interface CamSimOptions {
   seed?: number;
   dataDir?: string; // omit: nothing is written to disk
   faults?: FaultSpec[];
-  seedClips?: 'demo' | SeedClip[];
+  seedClips?: 'demo' | 'recent' | SeedClip[];
   autoEvents?: CamSimConfig['autoEvents'];
   reboot?: { ms?: number; dropsConnection?: boolean };
   tlsCertFile?: string;
@@ -99,7 +99,7 @@ export function configFromOptions(o: CamSimOptions): CamSimConfig {
     tz: o.tz ?? CONFIG_DEFAULTS.tz,
     sdMb: o.sdMb ?? CONFIG_DEFAULTS.sdMb,
     speed: o.speed ?? CONFIG_DEFAULTS.speed,
-    seedClips: o.seedClips === 'demo' ? 'demo' : 'none',
+    seedClips: o.seedClips === 'demo' || o.seedClips === 'recent' ? o.seedClips : 'none',
     faults: o.faults ?? [],
     autoEvents: o.autoEvents ?? [],
     firmVer: o.firmVer ?? profile.firmware.firmVer,

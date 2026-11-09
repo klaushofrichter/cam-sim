@@ -26,7 +26,7 @@ export interface CamSimConfig {
   tz: string;
   sdMb: number;
   speed: 'fast' | 'real';
-  seedClips: 'none' | 'demo';
+  seedClips: 'none' | 'demo' | 'recent';
   faults: FaultSpec[];
   autoEvents: Array<{ type: Trigger; perHour: number }>;
   firmVer: string;
@@ -204,7 +204,7 @@ export function loadConfig(env: Env, readFile: (p: string) => string = (p) => re
     tz: env.CAMSIM_TZ || CONFIG_DEFAULTS.tz,
     sdMb: int('CAMSIM_SD_MB', CONFIG_DEFAULTS.sdMb, 1),
     speed: oneOf('CAMSIM_SPEED', ['fast', 'real'] as const, CONFIG_DEFAULTS.speed),
-    seedClips: oneOf('CAMSIM_SEED_CLIPS', ['none', 'demo'] as const, 'none'),
+    seedClips: oneOf('CAMSIM_SEED_CLIPS', ['none', 'demo', 'recent'] as const, 'none'),
     faults,
     autoEvents,
     firmVer: env.CAMSIM_FIRMWARE || profile.firmware.firmVer,
