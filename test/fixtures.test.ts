@@ -86,9 +86,14 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
   it('puts keyframes where the camera does: sub every 4 s, main every 2 s', () => {
     // Frames between keyframes (FLV timestamps can be unset; frames are
     // exact): 40 frames is 4 s at the sub's 10 fps and 2 s at the main's 20.
+    // Counted on packets in presentation order (one per frame, K flag on
+    // keyframes), not decoded frames: decoding every frame took over 15 s on
+    // a loaded machine (#57).
     const gaps = (file: string) => {
-      const keys = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=key_frame', '-of', 'csv=p=0', file])
-        .toString().trim().split('\n').map((l, i) => (l.trim().split(',')[0] === '1' ? i : -1)).filter((i) => i >= 0);
+      const keys = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts,flags', '-of', 'csv=p=0', file])
+        .toString().trim().split('\n').map((l) => l.trim().split(','))
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map((f, i) => (f[1].startsWith('K') ? i : -1)).filter((i) => i >= 0);
       return keys.slice(1).map((k, i) => k - keys[i]);
     };
     for (const f of [paths.subFlv, paths.clipSub]) expect(gaps(f).length).toBeGreaterThanOrEqual(1);
