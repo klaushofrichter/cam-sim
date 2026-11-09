@@ -67,6 +67,20 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     return { engine, svc, port, url: (path: string, user = 'cams', pw = 'cams-pw') => `rtsp://${user}:${pw}@127.0.0.1:${port}/${path}` };
   }
 
+  // cam-sim#105, measured on a CX820 2026-11-09: RTSP uses the current
+  // users, so AddUser, ModifyUser and DelUser take effect at once.
+  it('authenticates readers against the current user list', async () => {
+    const { engine, url } = await start();
+    const sub = 'h264Preview_01_sub';
+    expect(engine.sessions.addUser({ name: 'g', password: 'gp', level: 'guest' })).toBeNull();
+    expect((await probe(url(sub, 'g', 'gp'))).codec).toBe('h264');
+    expect(engine.sessions.modifyUser('g', { password: 'gp2' })).toBeNull();
+    expect((await probe(url(sub, 'g', 'gp'))).error).toMatch(/401/);
+    expect((await probe(url(sub, 'g', 'gp2'))).codec).toBe('h264');
+    expect(engine.sessions.delUser('g')).toBeNull();
+    expect((await probe(url(sub, 'g', 'gp2'))).error).toMatch(/401/);
+  }, 90_000);
+
   // cam-sim#92: bound to a non-loopback address, the stream must play there
   // (MediaMTX and its publishers stay on loopback behind the front).
   const lan = Object.values(networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal)?.address;

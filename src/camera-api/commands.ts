@@ -73,7 +73,10 @@ const HANDLERS: Record<string, Handler> = {
   },
   ModifyUser: (c) => {
     const u = c.param?.User ?? {};
-    const r = c.engine.sessions.modifyUser(u.userName, { password: u.password ?? u.newPassword, level: u.level });
+    // The new password comes from newPassword only; `password` alone answers
+    // 200 and leaves the user unable to log in (measured on a CX820, #105).
+    // Whether a wrong oldPassword is refused was not measured.
+    const r = c.engine.sessions.modifyUser(u.userName, { password: u.newPassword, level: u.level, unusable: u.newPassword === undefined && u.password !== undefined });
     return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
   },
   GetDevInfo: (c) => {

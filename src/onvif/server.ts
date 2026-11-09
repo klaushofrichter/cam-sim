@@ -89,7 +89,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
   };
 
   const authed = (req: Request, res: Response): boolean => {
-    if (authenticate(String(req.body ?? ''), e.config.users)) return true;
+    if (authenticate(String(req.body ?? ''), e.sessions.current())) return true;
     sendFault(res, 'ter:NotAuthorized', 'Sender not Authorized');
     return false;
   };

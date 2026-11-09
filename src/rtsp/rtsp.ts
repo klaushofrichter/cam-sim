@@ -302,7 +302,7 @@ export class RtspService {
     if (a.action !== 'read') return false;
     if (!Object.values(RTSP_PATHS).includes(a.path as never)) return false;
     if (!e.serving('rtsp') || e.faults.active('rtsp.refuse') || e.faults.active('rtsp.reset')) return false;
-    const u = e.config.users.find((x) => x.name === a.user);
+    const u = e.sessions.findUser((x) => x.name === a.user);
     return !!u && same(a.password ?? '', u.password);
   }
 
