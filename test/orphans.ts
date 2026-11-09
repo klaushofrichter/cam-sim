@@ -32,7 +32,7 @@ export function findOrphans(procs: Proc[]): Proc[] {
 export function sweepOrphans(): number[] {
   let out: string;
   try {
-    out = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    out = execFileSync('ps', ['-eo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   } catch {
     return [];
   }

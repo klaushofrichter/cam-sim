@@ -101,7 +101,7 @@ describe.skipIf(!mediamtx)('RTSP', () => {
       void exited.then(() => reject(new Error(`exited before it was up: ${out.slice(-500)}`)));
     });
     // The children, then the exit (the script waits for our line).
-    const { stdout } = await run('ps', ['-axo', 'pid=,ppid=,command=']);
+    const { stdout } = await run('ps', ['-eo', 'pid=,ppid=,command=']);
     const kids = stdout.split('\n').map((l) => l.trim().split(/\s+/)).filter((f) => Number(f[1]) === child.pid && /mediamtx|ffmpeg/.test(f.slice(2).join(' '))).map((f) => Number(f[0]));
     child.stdin!.write('exit\n');
     await exited;
