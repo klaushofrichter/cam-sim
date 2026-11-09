@@ -9,7 +9,7 @@ import { CameraTime } from './camera-time';
 import { createRng, type Rng } from './rng';
 import { Sessions } from './sessions';
 import { SettingsStore } from './settings';
-import { SdCard, DEMO_CLIPS } from './sdcard';
+import { SdCard } from './sdcard';
 import { Events } from './events';
 import { Faults } from './faults';
 import { Counters } from './counters';
@@ -138,7 +138,7 @@ export class Engine {
       const r = this.settings.set('SetFtpV20', { Ftp: { ...this.settings.get('Ftp'), ...config.ftp, enable: 1 } }, { strictPartial: true });
       if (r) this.log.warn({ rspCode: r.rspCode }, 'ftp_config_rejected');
     }
-    if (config.seedClips === 'demo' && this.sd.all().length === 0) this.sd.seed(DEMO_CLIPS);
+    if (config.seedClips !== 'none' && this.sd.all().length === 0) this.sd.seed(this.sd.namedClips(config.seedClips));
     this.faults.on('change', () => this.bus.emit('fault', this.faults.list()));
     this.events.on('event', (e) => this.bus.emit('event', e));
   }
@@ -347,12 +347,13 @@ export class Engine {
   }
 
   // Power-off: every connection drops, sessions end, the recording in
-  // progress is closed and background events pause. False when not on.
+  // progress is closed, background events pause and the detection state
+  // ends without an event (cam-sim#83). False when not on.
   powerOff(): boolean {
     if (this.power !== 'on' || this.rebooting) return false;
     this.power = 'off';
     this.ptz?.stop();
-    this.events.stop();
+    this.events.dispose();
     this.sessions.revokeAll();
     this.dropConnections();
     this.bus.emit('state', { power: 'off' });

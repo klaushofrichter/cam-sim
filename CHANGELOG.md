@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".
+- Power-off ends a detection in progress at once and silently: no ONVIF "detection off" notification fires after the camera is off (a camera that is off sends nothing), and after power-on `GetMdState`/`GetAiState` read no detection. Before, the detection's timer still ran and fired after power-off (cam-sim#83).
+- A new seed set, `recent` (`CAMSIM_SEED_CLIPS=recent`, `POST /sim/api/recordings/seed {"clips":"recent"}`, `createCamSim({ seedClips: 'recent' })`): the six demo recordings, but never in the future. Today's four keep their kinds, order and lengths and are moved into the part of today gone by, ending at least a minute ago (from 17:47:05 on they are the `demo` times); in the first 11 minutes after midnight the whole set is a day earlier. `recentClips(hhmmss)` is exported. `demo` is unchanged (cam-sim#92).
+- Simulator page, video list: a single checked video (or the test pattern) says "playing now", like the playing video of a sequence (it said "showing"). Rows no longer dim while a change is on its way (the checkboxes are still disabled then), a second click while one is on its way is ignored, and "The video list could not be loaded." goes away with the next good load instead of staying until the next change (cam-sim#154).
+- Video sequences: a sequence's list files are removed 5 s after a switch away instead of at once, so a publisher or the SD pipeline started just before the switch still reads its list; a list written after that goes the same way (cam-sim#154).
+- RTSP and ONVIF sign in against the current camera users: a user added, changed or deleted with `AddUser`/`ModifyUser`/`DelUser` applies there at once, as on the real camera (measured on a CX820; before, both used the start-up user list). `ModifyUser` takes the new password from `newPassword` only, as the camera does; a `ModifyUser` with `password` instead answers 200 but leaves the user unable to log in, the old password included, which is what the CX820 does (cam-sim#105).
+
+## v2026.11.09.1
+
 - Stopping the simulator (`createCamSim().stop()`) also clears the timers that end a detection, so no detection event fires after it (cam-sim#106).
 - A process that exits without stopping the simulator (`process.exit`, an uncaught error, a test worker ending) now kills MediaMTX and the RTSP publishers instead of leaving them running (cam-sim#70). The unit tests' global setup also kills MediaMTX/ffmpeg publishers orphaned by an earlier aborted run (killed by a signal).
 - Video sequences: when the first video has no codec key, the refusal names it once (`a can't be played in a sequence: its codec setup is unknown`), not as incompatible with itself. A library video whose first frame lacks a parameter set now fails its preparation instead of getting a key built from an empty one.

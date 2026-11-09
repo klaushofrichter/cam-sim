@@ -44,6 +44,30 @@ export const DEMO_CLIPS: SeedClip[] = [
   { daysAgo: 1, start: '221510', end: '221540', triggers: ['person'] },
 ];
 
+// The `recent` seed (cam-sim#92): the demo set, but never in the future and
+// with its four clips today at any time of day. `hms` is the camera's local
+// time now. Today's clips end at least a minute ago: once the demo's last one
+// does, it is the demo set; earlier, today's starts are scaled into the part
+// of the day gone by (same kinds, order and lengths). In the first 11 minutes
+// after midnight that part is too short, and the whole set moves a day back.
+const RECENT_MARGIN_S = 60;
+const RECENT_MIN_S = 600;
+export function recentClips(hms: string): SeedClip[] {
+  const secs = (x: string) => Number(x.slice(0, 2)) * 3600 + Number(x.slice(2, 4)) * 60 + Number(x.slice(4, 6));
+  const room = secs(hms) - RECENT_MARGIN_S;
+  if (room < RECENT_MIN_S) return DEMO_CLIPS.map((c) => ({ ...c, daysAgo: c.daysAgo + 1 }));
+  const today = DEMO_CLIPS.filter((c) => c.daysAgo === 0);
+  const last = today[today.length - 1];
+  const len = (c: SeedClip) => secs(c.end) - secs(c.start);
+  const scale = Math.min(1, (room - len(last)) / secs(last.start));
+  if (scale === 1) return DEMO_CLIPS;
+  return DEMO_CLIPS.map((c) => {
+    if (c.daysAgo !== 0) return c;
+    const start = addSeconds('000000', Math.floor(secs(c.start) * scale));
+    return { ...c, start, end: addSeconds(start, len(c)) };
+  });
+}
+
 const ROOT = '/mnt/sda/Mp4Record';
 // Trigger bit positions (reolink_aio layout), from the flags' top bit.
 const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20, motion: 24 };
@@ -329,6 +353,11 @@ export class SdCard {
       this.recs = this.recs.filter((r) => r.date !== first.date || r.end === null);
     }
     if (this.recs.length !== before) this.persist();
+  }
+
+  // A named seed set: `demo` (fixed times) or `recent` (never in the future).
+  namedClips(name: 'demo' | 'recent'): SeedClip[] {
+    return name === 'demo' ? DEMO_CLIPS : recentClips(localParts(this.opts.clock, this.opts.tz).hms);
   }
 
   seed(clips: SeedClip[]): void {

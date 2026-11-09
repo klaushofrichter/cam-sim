@@ -5,6 +5,7 @@ import { SettingsStore } from '../src/engine/settings';
 import { systemClock } from '../src/engine/clock';
 import { createLogger } from '../src/log';
 import { createRng } from '../src/engine/rng';
+import { makeEngine } from './helpers';
 
 const TZ = 'America/Chicago';
 const log = createLogger('silent');
@@ -127,12 +128,28 @@ describe('Events', () => {
     expect(seen).toEqual(['person:true', 'motion:true']);
   });
 
-  it('stop() (power-off) keeps the detection timers, so the state still clears', () => {
+  it('stop() alone keeps the detection timers, so the state still clears', () => {
     const { events } = setup('2026-09-26T11:52:21Z');
     events.trigger('motion', 5);
     events.stop();
     vi.advanceTimersByTime(5_000);
     expect(events.mdState()).toEqual({ state: 0 });
+  });
+
+  // cam-sim#83: a camera that is off sends nothing, and its detection state
+  // starts from nothing when it boots again.
+  it('power-off clears the detection timers and state: no event after it', async () => {
+    const engine = await makeEngine();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const seen: string[] = [];
+    engine.events.on('detect', (d: { type: string; state: boolean }) => seen.push(`${d.type}:${d.state}`));
+    engine.events.trigger('person', 5);
+    expect(engine.powerOff()).toBe(true);
+    expect(engine.events.mdState()).toEqual({ state: 0 });
+    expect(engine.events.aiState().people.alarm_state).toBe(0);
+    vi.advanceTimersByTime(10_000);
+    expect(seen).toEqual(['person:true', 'motion:true']);
+    engine.stop();
   });
 
   it('emits detection state changes, once per type', () => {

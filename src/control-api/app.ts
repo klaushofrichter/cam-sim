@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'crypto';
 import type { Engine } from '../engine/engine';
 import { FAULT_NAMES, ACTION_NAMES, FaultError, type ActionName, type FaultName } from '../engine/faults';
 import { DATE, HMS, TRIGGERS } from '../engine/types';
-import { DEMO_CLIPS, type SeedClip } from '../engine/sdcard';
+import { type SeedClip } from '../engine/sdcard';
 import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
 import { Library } from '../media/library';
@@ -121,13 +121,13 @@ export function createControlApp(engine: Engine): express.Express {
   api.post('/recordings/seed', (req, res) => {
     const clips = req.body?.clips;
     let list: SeedClip[];
-    if (clips === 'demo') list = DEMO_CLIPS;
+    if (clips === 'demo' || clips === 'recent') list = e.sd.namedClips(clips);
     else if (Array.isArray(clips) && clips.length <= 1000 && clips.every((c: any) =>
       Number.isInteger(c?.daysAgo) && c.daysAgo >= 0 && c.daysAgo <= 365 && HMS.test(c.start) && HMS.test(c.end) &&
       (c.mainEnd === undefined || HMS.test(c.mainEnd)) &&
       Array.isArray(c.triggers) && c.triggers.length > 0 && c.triggers.every((t: string) => isOneOf(TRIGGERS, t)))) {
       list = clips.map((c: any) => ({ daysAgo: c.daysAgo, start: c.start, end: c.end, mainEnd: c.mainEnd, triggers: c.triggers }));
-    } else return bad(res, "clips must be 'demo' or a list of {daysAgo, start, end, triggers, mainEnd?}");
+    } else return bad(res, "clips must be 'demo', 'recent' or a list of {daysAgo, start, end, triggers, mainEnd?}");
     e.sd.seed(list);
     res.status(201).json({ added: list.length });
   });

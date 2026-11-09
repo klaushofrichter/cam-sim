@@ -76,10 +76,22 @@ describe('camera API: sessions and device', () => {
     expect(users).toEqual({ CurUser: { User: 'admin' }, User: [{ level: 'admin', userName: 'admin' }, { level: 'admin', userName: 'cams' }] });
     expect((await post(app, 'AddUser', { User: { userName: 'g', password: 'gp', level: 'guest' } }, admin)).reply.code).toBe(0);
     expect((await post(app, 'AddUser', { User: { userName: 'g', password: 'gp', level: 'guest' } }, admin)).reply.error.rspCode).toBe(-4);
-    expect((await post(app, 'ModifyUser', { User: { userName: 'cams', password: 'new' } }, admin)).reply.code).toBe(0);
+    expect((await post(app, 'ModifyUser', { User: { userName: 'cams', oldPassword: 'cams-pw', newPassword: 'new', level: 'admin' } }, admin)).reply.code).toBe(0);
     expect((await post(app, 'GetDevInfo', {}, cams)).reply.error.rspCode).toBe(-6);
     expect(await login(app, 'cams', 'new')).toMatch(/^[0-9a-f]{16}$/);
     expect((await post(app, 'DelUser', { User: { userName: 'g' } }, admin)).reply.code).toBe(0);
+  });
+
+  // Measured on a CX820 2026-11-09 (cam-sim#105): ModifyUser with `password`
+  // instead of oldPassword/newPassword answers 200, and then neither the old
+  // nor the given password logs in.
+  it('ModifyUser with only `password` succeeds but leaves the user unable to log in', async () => {
+    const { app } = await makeCamera();
+    const admin = await login(app, 'admin', 'admin-pw');
+    expect((await post(app, 'AddUser', { User: { userName: 'g', password: 'gp', level: 'guest' } }, admin)).reply.code).toBe(0);
+    expect((await post(app, 'ModifyUser', { User: { userName: 'g', password: 'gp2', level: 'guest' } }, admin)).reply).toMatchObject({ code: 0, value: { rspCode: 200 } });
+    for (const pw of ['gp', 'gp2']) expect((await post(app, 'Login', { User: { userName: 'g', password: pw } })).reply.error.rspCode).toBe(-7);
+    expect((await post(app, 'GetUser', {}, admin)).reply.value.User).toContainEqual({ level: 'guest', userName: 'g' });
   });
 
   it('never echoes markup back in a command name', async () => {

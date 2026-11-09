@@ -133,7 +133,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
 | `CAMSIM_SPEED` | `fast` | `real` adds the camera's timings: Login ~0.2 s, Search ~0.3 s, Download 150 KB/s, reboot 60 s, certificate restart 10 s. `fast` keeps the behaviour with short timings |
-| `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday |
+| `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday, at fixed times (today's last at 17:45:40, so in the future before then). `recent`: the same six, never in the future: today's four are moved into the part of today gone by (ending at least a minute ago; the `demo` times once 17:47:05 has passed), and in the first 11 minutes after midnight the whole set is a day earlier |
 | `CAMSIM_AUTO_EVENTS` | `off` | background events, e.g. `motion:6/h,person:1/h` |
 | `CAMSIM_FAULTS` | `[]` | faults switched on at start, as JSON, e.g. `[{"name":"downloads.refuse"}]` |
 | `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820), `v3.1.0.5714_2511271366` (E1-Outdoor-Pro) | the firmware version reported |
@@ -436,7 +436,7 @@ post Logout
 | Users | `GetUser` | `{}` | `{CurUser:{User},User:[{level,userName}]}` |
 | | `AddUser` | `{User:{userName,password,level}}` | `{rspCode:200}`; `-4` for a duplicate or invalid user |
 | | `DelUser` | `{User:{userName}}` | `{rspCode:200}` |
-| | `ModifyUser` | `{User:{userName,password?,level?}}` | `{rspCode:200}`; a new password ends that user's sessions |
+| | `ModifyUser` | `{User:{userName,oldPassword?,newPassword?,level?}}` | `{rspCode:200}`; a new password ends that user's sessions. As on the CX820 (measured 2026-11-09): the password comes from `newPassword` only, and `password` instead of it also answers 200 but leaves the user unable to log in (the old password stops working too). `oldPassword` is not checked (not measured). Users added, changed or deleted apply at once to HTTP, RTSP and ONVIF |
 | Device | `GetDevInfo` | `{}` | `{DevInfo:{model,firmVer,hardVer,serial,name,…}}`; the serial starts with `SIM` and changes at every boot |
 | | `GetDevName` / `SetDevName` | `{channel:0}` / `{DevName:{name}}` | `{DevName:{name}}`; with `action: 1` also `initial` (the factory name, `CAMSIM_NAME`) and `range: {DevName:{name:{maxLen:31,minLen:0}}}`. **One name:** `GetDevName`, `GetDevInfo.name` and the OSD's `osdChannel.name` are the same value, and `SetDevName` or a `SetOsd` with a new `osdChannel.name` change all three (measured 2026-10-03). Rules: 1–31 characters of ASCII letters, digits, space and `- ( ) + = [ ] { }`, no leading or trailing space; anything else (`_`, `.`, `é`, the empty name, …) `-54`, longer than 31 `-56`; a refused name keeps the old one. Stored like the other settings (survives reboot, power cycle and a restart with `CAMSIM_DATA_DIR`) |
 | | `GetTime` / `SetTime` | `{}` / `{Dst:{…},Time:{…}}` | `{Dst:{enable,offset,start/endMon,Week,Weekday,Hour,Min,Sec},Time:{year,mon,day,hour,min,sec,isDst,timeZone,hourFmt,timeFmt}}`; `timeZone` is seconds **west** of UTC (Chicago: 21600); `action: 1` adds `initial` and `range` (timeZone −46800…43200). `SetTime` with the whole objects (measured on the E1 2026-10-30) sets the camera's clock to the given date and time and stores the zone, DST rule and formats, which `GetTime` then reports; a value out of range → `-4` "param error", nothing changed. Until then, and after a reset, `CAMSIM_TZ` and the simulator's clock. File names, Search and events keep `CAMSIM_TZ`. Not stored across a restart. `settings.fail` / `settings.ignore` and `setCalls` cover it |
@@ -1007,7 +1007,7 @@ C=http://127.0.0.1:9443/sim/api
 | Action | Body | Answer | Effect |
 |---|---|---|---|
 | `reboot` | `{"ms":1000,"dropsConnection":false}` (optional) | 202 | offline for `ms` (default: 1 s fast, 60 s real), then a new serial, no sessions, and the saved settings take effect. Baichuan connections drop too. 409 `powered_off` while off |
-| `power-off` | — | 204 | the camera goes dark: every connection drops (Baichuan too), sessions end, the recording in progress is closed, background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
+| `power-off` | — | 204 | the camera goes dark: every connection drops (Baichuan too), sessions end, the recording in progress is closed, a detection in progress ends without a notification (it reads as none after power-on), background events pause, and new events are refused. 409 `already_off`, or `busy` while booting |
 | `power-on` | `{"ms":1000}` (optional) | 202 | boots like a reboot (`power` is `booting`, then `on`), and background events resume. 409 `already_on` |
 | `tokens.revoke` | — | 204 | every session ends |
 | `flv.dropActive` | — | 204 | open live streams are cut |
@@ -1047,7 +1047,7 @@ ctl -X POST $C/events -d '{"type":"person","durationS":8}'
 
 | Route | Body | Effect |
 |---|---|---|
-| `POST /sim/api/recordings/seed` | `{"clips":"demo"}` or `{"clips":[{"daysAgo":1,"start":"070000","end":"070030","triggers":["motion"],"mainEnd":"070032"}]}` | adds past recordings; 201 `{"added":n}` |
+| `POST /sim/api/recordings/seed` | `{"clips":"demo"}`, `{"clips":"recent"}` (see `CAMSIM_SEED_CLIPS`) or `{"clips":[{"daysAgo":1,"start":"070000","end":"070030","triggers":["motion"],"mainEnd":"070032"}]}` | adds past recordings; 201 `{"added":n}` |
 | `DELETE /sim/api/recordings` | — | empties the SD card; 204 |
 
 ### Faults

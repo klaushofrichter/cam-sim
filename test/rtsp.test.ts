@@ -67,6 +67,20 @@ describe.skipIf(!mediamtx)('RTSP', () => {
     return { engine, svc, port, url: (path: string, user = 'cams', pw = 'cams-pw') => `rtsp://${user}:${pw}@127.0.0.1:${port}/${path}` };
   }
 
+  // cam-sim#105, measured on a CX820 2026-11-09: RTSP uses the current
+  // users, so AddUser, ModifyUser and DelUser take effect at once.
+  it('authenticates readers against the current user list', async () => {
+    const { engine, url } = await start();
+    const sub = 'h264Preview_01_sub';
+    expect(engine.sessions.addUser({ name: 'g', password: 'gp', level: 'guest' })).toBeNull();
+    expect((await probe(url(sub, 'g', 'gp'))).codec).toBe('h264');
+    expect(engine.sessions.modifyUser('g', { password: 'gp2' })).toBeNull();
+    expect((await probe(url(sub, 'g', 'gp'))).error).toMatch(/401/);
+    expect((await probe(url(sub, 'g', 'gp2'))).codec).toBe('h264');
+    expect(engine.sessions.delUser('g')).toBeNull();
+    expect((await probe(url(sub, 'g', 'gp2'))).error).toMatch(/401/);
+  }, 90_000);
+
   // cam-sim#92: bound to a non-loopback address, the stream must play there
   // (MediaMTX and its publishers stay on loopback behind the front).
   const lan = Object.values(networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal)?.address;
@@ -192,6 +206,33 @@ describe.skipIf(!mediamtx)('RTSP lifecycle', () => {
       holder.close();
     }
   }, 30_000);
+
+  // cam-proxy saw "MediaMTX exited during start": the loopback port picked
+  // for MediaMTX was free when picked and taken by another listener before
+  // MediaMTX bound it. The picker here hands out such a taken port first.
+  it('starts on another loopback port when MediaMTX\'s port is taken before it binds', async () => {
+    const taken = await freePort();
+    const holder = net.createServer((s) => s.destroy()).listen(taken, '127.0.0.1');
+    await new Promise((r) => holder.once('listening', r));
+    try {
+      const engine = await makeEngine();
+      const picked: number[] = [];
+      const pickPort = async () => {
+        const p = picked.length ? await freePort() : taken;
+        picked.push(p);
+        return p;
+      };
+      const port = await freePort();
+      const svc = new RtspService(engine, { port, host: '127.0.0.1', mediamtx: mediamtx!, pickPort });
+      services.push(svc);
+      await svc.start();
+      expect(svc.running()).toBe(true);
+      expect(picked.length).toBe(2);
+      expect((await probe(`rtsp://cams:cams-pw@127.0.0.1:${port}/h264Preview_01_sub`)).codec).toBe('h264');
+    } finally {
+      holder.close();
+    }
+  }, 60_000);
 
   it('reports a binary that cannot run instead of crashing the process', async () => {
     const engine = await makeEngine();
