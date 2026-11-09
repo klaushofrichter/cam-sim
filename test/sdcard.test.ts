@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { Writable } from 'stream';
-import { SdCard, flagsHex, fileName, DEMO_CLIPS } from '../src/engine/sdcard';
+import { SdCard, flagsHex, fileName, DEMO_CLIPS, recentClips } from '../src/engine/sdcard';
 import { fixedClock } from '../src/engine/clock';
 import { createLogger } from '../src/log';
 
@@ -191,5 +191,44 @@ describe('SdCard', () => {
     sd.seed(DEMO_CLIPS);
     sd.clear();
     expect(sd.all()).toEqual([]);
+  });
+});
+
+// cam-sim#92: the `recent` seed: the demo set, never in the future, with four
+// clips today at any time of day (from 00:11 on; before, "today" is yesterday).
+describe('recentClips', () => {
+  const secs = (hms: string) => Number(hms.slice(0, 2)) * 3600 + Number(hms.slice(2, 4)) * 60 + Number(hms.slice(4, 6));
+  const hms = (s: number) => [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, '0')).join('');
+  const times = [...Array.from({ length: 24 * 60 / 7 + 1 }, (_, i) => i * 7 * 60 + 13), 0, 659, 660, 661, 63965 + 59, 63965 + 60, 63965 + 61, 86399].filter((t) => t < 86400);
+
+  it('puts nothing in the future and keeps the demo\'s four kinds today, in order and apart', () => {
+    for (const t of times) {
+      const clips = recentClips(hms(t));
+      const today = clips.filter((c) => c.daysAgo === 0);
+      for (const c of today) expect(secs(c.end), `${hms(t)}: ${c.start}-${c.end}`).toBeLessThanOrEqual(t - 60);
+      if (t < 660) {
+        expect(today, hms(t)).toEqual([]);
+        expect(clips.filter((c) => c.daysAgo === 1).map((c) => c.start)).toEqual(['081510', '093000', '120505', '174540']);
+        expect(clips.filter((c) => c.daysAgo === 2)).toHaveLength(2);
+        continue;
+      }
+      expect(today.map((c) => c.triggers[0]), hms(t)).toEqual(['person', 'vehicle', 'motion', 'pet']);
+      for (let i = 1; i < today.length; i++) expect(secs(today[i].start), hms(t)).toBeGreaterThanOrEqual(secs(today[i - 1].end));
+      expect(today.map((c) => secs(c.end) - secs(c.start))).toEqual([25, 20, 25, 25]);
+      expect(clips.filter((c) => c.daysAgo === 1)).toEqual(DEMO_CLIPS.filter((c) => c.daysAgo === 1));
+    }
+  });
+
+  it('is the demo set once its last clip is a minute old', () => {
+    expect(recentClips('174705')).toEqual(DEMO_CLIPS);
+    expect(recentClips('235959')).toEqual(DEMO_CLIPS);
+    expect(recentClips('174704')).not.toEqual(DEMO_CLIPS);
+  });
+
+  it('seeds through the SD card: four today at 00:30', () => {
+    const sd = make({ clock: fixedClock(new Date('2026-09-26T05:30:00Z')) }); // 00:30 CDT
+    sd.seed(recentClips('003000'));
+    const today = { year: 2026, mon: 9, day: 26 };
+    expect(sd.search('sub', today, today)).toHaveLength(4);
   });
 });

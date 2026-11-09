@@ -133,7 +133,7 @@ pointing at a mounted file wins over the plain variable.
 | `CAMSIM_TZ` | `America/Chicago` | camera time zone: `GetTime`, file names, Search times |
 | `CAMSIM_SD_MB` | `4096` | simulated SD card size |
 | `CAMSIM_SPEED` | `fast` | `real` adds the camera's timings: Login ~0.2 s, Search ~0.3 s, Download 150 KB/s, reboot 60 s, certificate restart 10 s. `fast` keeps the behaviour with short timings |
-| `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday |
+| `CAMSIM_SEED_CLIPS` | `none` | `demo`: start with six recordings, four today and two yesterday, at fixed times (today's last at 17:45:40, so in the future before then). `recent`: the same six, never in the future: today's four are moved into the part of today gone by (ending at least a minute ago; the `demo` times once 17:47:05 has passed), and in the first 11 minutes after midnight the whole set is a day earlier |
 | `CAMSIM_AUTO_EVENTS` | `off` | background events, e.g. `motion:6/h,person:1/h` |
 | `CAMSIM_FAULTS` | `[]` | faults switched on at start, as JSON, e.g. `[{"name":"downloads.refuse"}]` |
 | `CAMSIM_FIRMWARE` | the model's: `v3.2.0.6011_2607012059` (RLC-1224A), `v3.2.0.5316_2509028854` (CX820), `v3.1.0.5714_2511271366` (E1-Outdoor-Pro) | the firmware version reported |
@@ -1047,7 +1047,7 @@ ctl -X POST $C/events -d '{"type":"person","durationS":8}'
 
 | Route | Body | Effect |
 |---|---|---|
-| `POST /sim/api/recordings/seed` | `{"clips":"demo"}` or `{"clips":[{"daysAgo":1,"start":"070000","end":"070030","triggers":["motion"],"mainEnd":"070032"}]}` | adds past recordings; 201 `{"added":n}` |
+| `POST /sim/api/recordings/seed` | `{"clips":"demo"}`, `{"clips":"recent"}` (see `CAMSIM_SEED_CLIPS`) or `{"clips":[{"daysAgo":1,"start":"070000","end":"070030","triggers":["motion"],"mainEnd":"070032"}]}` | adds past recordings; 201 `{"added":n}` |
 | `DELETE /sim/api/recordings` | — | empties the SD card; 204 |
 
 ### Faults

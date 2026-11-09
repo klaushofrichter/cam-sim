@@ -198,7 +198,7 @@ paths:
               properties:
                 clips:
                   oneOf:
-                    - { type: string, enum: [demo] }
+                    - { type: string, enum: [demo, recent], description: 'demo: fixed times (today 08:15:10, 09:30:00, 12:05:05, 17:45:40; yesterday 07:00:00, 22:15:10). recent: the same set, today''s clips moved into the part of today gone by (never in the future)' }
                     - { type: array, items: { $ref: '#/components/schemas/SeedClip' } }
       responses:
         '201': { description: added }

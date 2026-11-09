@@ -87,6 +87,19 @@ describe('control API: state, events, recordings', () => {
     expect(engine.sd.all()).toHaveLength(0);
   });
 
+  // cam-sim#92: `recent` never seeds a recording in the future.
+  it('seeds the recent set: six recordings, none in the future', async () => {
+    const { ctl, engine } = await setup({ CAMSIM_TZ: 'UTC' });
+    expect((await request(ctl).post('/sim/api/recordings/seed').set(auth).send({ clips: 'recent' })).body).toEqual({ added: 6 });
+    const now = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    for (const r of engine.sd.all()) expect(`${r.date.replaceAll('-', '')}${r.end}` <= now, `${r.date} ${r.end}`).toBe(true);
+  });
+
+  it('seeds the recent set at start-up with CAMSIM_SEED_CLIPS=recent', async () => {
+    const { engine } = await setup({ CAMSIM_SEED_CLIPS: 'recent' });
+    expect(engine.sd.all()).toHaveLength(6);
+  });
+
 });
 
 describe('control API: faults, actions, reset', () => {
