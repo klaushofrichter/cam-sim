@@ -5,6 +5,8 @@
 - RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".
 - Power-off ends a detection in progress at once and silently: no ONVIF "detection off" notification fires after the camera is off (a camera that is off sends nothing), and after power-on `GetMdState`/`GetAiState` read no detection. Before, the detection's timer still ran and fired after power-off (cam-sim#83).
 - A new seed set, `recent` (`CAMSIM_SEED_CLIPS=recent`, `POST /sim/api/recordings/seed {"clips":"recent"}`, `createCamSim({ seedClips: 'recent' })`): the six demo recordings, but never in the future. Today's four keep their kinds, order and lengths and are moved into the part of today gone by, ending at least a minute ago (from 17:47:05 on they are the `demo` times); in the first 11 minutes after midnight the whole set is a day earlier. `recentClips(hhmmss)` is exported. `demo` is unchanged (cam-sim#92).
+- Simulator page, video list: a single checked video (or the test pattern) says "playing now", like the playing video of a sequence (it said "showing"). Rows no longer dim while a change is on its way (the checkboxes are still disabled then), a second click while one is on its way is ignored, and "The video list could not be loaded." goes away with the next good load instead of staying until the next change (cam-sim#154).
+- Video sequences: a sequence's list files are removed 5 s after a switch away instead of at once, so a publisher or the SD pipeline started just before the switch still reads its list; a list written after that goes the same way (cam-sim#154).
 
 ## v2026.11.09.1
 

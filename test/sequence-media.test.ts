@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -33,6 +33,7 @@ describe('SequenceMedia', () => {
   let dir: string;
   beforeAll(() => { dir = mkdtempSync(join(tmpdir(), 'seq-')); });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  afterEach(() => vi.useRealTimers());
   const a = fake('a', 1000);
   const b = fake('b', 2500);
   const make = (clock: { t: number }) => new SequenceMedia([{ id: 'a', media: a }, { id: 'b', media: b }], { now: () => clock.t, listDir: dir });
@@ -122,7 +123,8 @@ describe('SequenceMedia', () => {
     expect(args).toEqual(['-readrate_initial_burst', '1.200', '-f', 'concat', '-safe', '0', '-i', file, '-ss', '1.200']);
   });
 
-  it('each sequence has its own list files, removed on release', () => {
+  it('each sequence has its own list files, removed a few seconds after release', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
     const one = make({ t: 0 });
     const two = make({ t: 0 });
     const f1 = one.inputArgs('main').at(-3)!;
@@ -131,8 +133,20 @@ describe('SequenceMedia', () => {
     expect(one.inputArgs('main').at(-3)).toBe(f1);
     expect(one.inputArgs('sub').at(-3)).not.toBe(f1);
     one.release();
+    expect(existsSync(f1)).toBe(true); // a publisher started just before may still read it
+    vi.advanceTimersByTime(5_000);
     expect(existsSync(f1)).toBe(false);
     expect(existsSync(f2)).toBe(true);
+  });
+
+  it('a list written after release goes too', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    const one = make({ t: 0 });
+    one.release();
+    const f = one.inputArgs('sub').at(-3)!;
+    expect(existsSync(f)).toBe(true);
+    vi.advanceTimersByTime(5_000);
+    expect(existsSync(f)).toBe(false);
   });
 
   it('inputArgsOf falls back to -i clipPath', () => {

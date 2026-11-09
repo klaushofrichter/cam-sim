@@ -12,6 +12,9 @@ export interface SequenceItem {
   media: MediaSource;
 }
 
+// How long a released sequence's list files stay (cam-sim#154).
+const RELEASE_DELAY_MS = 5_000;
+
 // Several compatible videos played one after another, looped, on one clock
 // that starts when the sequence is created. The items stay registered.
 export class SequenceMedia implements MediaSource {
@@ -26,10 +29,13 @@ export class SequenceMedia implements MediaSource {
   // Names this sequence's list files: a publisher restarting during a switch
   // must not read another sequence's list.
   private readonly listId = randomBytes(6).toString('hex');
+  private released = false;
+  private readonly releaseDelayMs: number;
 
-  constructor(private readonly entries: SequenceItem[], opts: { now?: () => number; listDir: string }) {
+  constructor(private readonly entries: SequenceItem[], opts: { now?: () => number; listDir: string; releaseDelayMs?: number }) {
     this.now = opts.now ?? Date.now;
     this.listDir = opts.listDir;
+    this.releaseDelayMs = opts.releaseDelayMs ?? RELEASE_DELAY_MS;
     this.t0 = this.now();
   }
 
@@ -140,14 +146,27 @@ export class SequenceMedia implements MediaSource {
       const esc = (p: string) => p.replace(/'/g, "'\\''");
       writeFileSync(file, this.entries.map((i) => `file '${esc(i.media.clipPath(stream))}'\n`).join(''));
       this.lists.set(stream, file);
+      if (this.released) this.dropLists();
     }
     const sec = (this.streamPosition(stream) / 1000).toFixed(3);
     return ['-readrate_initial_burst', sec, '-f', 'concat', '-safe', '0', '-i', file, '-ss', sec];
   }
 
-  // The items stay registered; only the list files go (ffmpeg has read them).
+  // The items stay registered; only the list files go, a few seconds later:
+  // a publisher or the SD pipeline started just before the switch may not
+  // have read its list yet. A list written after release goes the same way.
   release(): void {
-    for (const file of this.lists.values()) rmSync(file, { force: true });
+    this.released = true;
+    this.dropLists();
+  }
+
+  private dropLists(): void {
+    const files = [...this.lists.values()];
     this.lists.clear();
+    const rm = () => {
+      for (const file of files) rmSync(file, { force: true });
+    };
+    if (this.releaseDelayMs > 0) setTimeout(rm, this.releaseDelayMs).unref();
+    else rm();
   }
 }
