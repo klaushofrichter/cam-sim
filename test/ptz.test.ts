@@ -104,6 +104,15 @@ describe('Ptz', () => {
     expect(pos.focus).toBe(focusFor(pos.zoom));
   });
 
+  // The E1's autofocus button, as cam-proxy sends it (measured 2026-11-12):
+  // ZoomPos to the zoom it is at refocuses and keeps the zoom.
+  it('ZoomPos to the current zoom refocuses a manual focus, zoom unchanged', () => {
+    p.zoomFocus({ op: 'ZoomPos', pos: 26 });
+    p.zoomFocus({ op: 'FocusPos', pos: 10 });
+    expect(p.zoomFocus({ op: 'ZoomPos', pos: 26 })).toBeNull();
+    expect(p.position()).toMatchObject({ zoom: 26, focus: 81 });
+  });
+
   it('without focusTrack, focus stays through zoom (fixed-focus spec)', () => {
     const q = new Ptz({ ...SPEC, focusTrack: undefined }, clock);
     q.control({ op: 'ZoomInc', speed: 32 }); clock.advance(1500); q.control({ op: 'Stop' });

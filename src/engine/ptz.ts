@@ -173,7 +173,8 @@ export class Ptz {
     if (!isInt(p.pos) || p.pos < lo || p.pos > hi) return PARAM_ERROR;
     this.settle();
     this.base = { ...this.base, [axis]: p.pos };
-    // ZoomPos refocuses like any zoom (not measured).
+    // ZoomPos refocuses like any zoom, also to the zoom it is at (measured
+    // 2026-11-12: the focus swept and settled in about 4 s; here at once).
     if (axis === 'zoom') this.base.focus = this.refocus(p.pos, this.base.focus);
     return null;
   }
