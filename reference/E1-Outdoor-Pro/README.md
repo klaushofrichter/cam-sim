@@ -74,6 +74,11 @@ the probe.
 - `ZoomInc` at speed 32 for 1.5 s took zoom 7 → 26 (of 0–27); `GetZoomFocus`
   follows. Zoom 0–27, focus 0–97; at the start zoom 7, focus 49.
 - Absolute zoom: `StartZoomFocus {ZoomFocus: {channel, op: "ZoomPos", pos}}`.
+  To the zoom it is at, it runs an autofocus (measured 2026-11-12, the
+  camera's autofocus on, `GetAutoFocus` `disable: 0`): after `FocusDec` to
+  −13, the focus went 3, 15, 25, 14, 13, 14 over a few seconds and stayed at
+  14, the zoom unchanged. `SetAutoFocus` (the same object, or `disable` 1 then
+  0) did not refocus. The simulator refocuses at once.
 - Preset slots are ids 0–63, although `GetPtzPreset`'s `range` says 1–64;
   id 64 → `-4`. `SetPtzPreset {PtzPreset: {channel, enable: 1, id, name}}`
   saves the current position including zoom; delete with `enable: 0, name: ""`.
