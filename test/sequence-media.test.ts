@@ -59,7 +59,11 @@ describe('SequenceMedia', () => {
     });
     const c = { t: 0 };
     const s = new SequenceMedia([{ id: 'a', media: counted(a) }, { id: 'b', media: counted(b) }], { now: () => c.t, listDir: dir });
-    for (const st of ['sub', 'main'] as const) s.liveFlv(st);
+    // Preload (as the library does), then a viewer of each stream.
+    for (const st of ['sub', 'main'] as const) {
+      s.durationMs(st);
+      s.liveFlv(st);
+    }
     const after = { ...calls };
     c.t = 1200;
     s.currentId();
@@ -181,12 +185,20 @@ describe('SequenceMedia', () => {
     expect(s.startMs('main')).toBe(500);
   });
 
+  // Every stream of an item takes the item's (main) length, so an FLV viewer
+  // looping on its stream's total stays on the clock, loop after loop.
   it('sub follows the main clock although its durations differ', () => {
     const c = { t: 0 };
-    const s = new SequenceMedia([{ id: 'a', media: fake('a', 1000, 950) }, { id: 'b', media: fake('b', 2500, 2450) }], { now: () => c.t, listDir: dir });
+    const b2 = fake('b', 2500, 2450);
+    const s = new SequenceMedia([{ id: 'a', media: fake('a', 1000, 950) }, { id: 'b', media: b2 }], { now: () => c.t, listDir: dir });
+    expect(s.durationMs('sub')).toBe(s.durationMs('main'));
+    // Item b's sub starts where its main does, not after a's 950 ms.
+    expect(s.liveFlv('sub').tags.find((t) => t.bytes === b2.liveFlv('sub').tags[2].bytes)!.ms).toBe(1000);
     c.t = 3500 * 40 + 1200; // many loops, 200 ms into item b on main
     expect(s.currentId()).toBe('b');
-    expect(s.startMs('sub')).toBe(950); // on sub, item b starts after a's 950 ms
+    expect(s.startMs('sub')).toBe(1000); // b's first keyframe, on the clock
+    // The clip concat (RTSP, recordings) plays the clips back to back: there
+    // item b starts after a's 950 ms.
     expect(s.inputArgs('sub').at(-1)).toBe('1.150');
     c.t = 3500 * 40 + 970; // item a's sub is over (950) while main is still in a
     expect(s.currentId()).toBe('a');
