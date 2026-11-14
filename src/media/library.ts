@@ -45,6 +45,8 @@ function slug(name: string): string {
 // ffmpeg reads a plain absolute path (no protocol like concat:, no option-like '-').
 const input = (p: string) => `file:${resolve(p)}`;
 const STALE_TMP_MS = 3600_000;
+// Scaled into W x H, letterboxed: the picture keeps its aspect ratio.
+const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
 
 async function probe(file: string): Promise<{ vcodec?: string; acodec?: string; duration: number; fps: number }> {
   const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,avg_frame_rate:format=duration', '-of', 'json', input(file)]);
@@ -314,7 +316,6 @@ export class Library {
         const hasAudio = !!src.acodec;
         const quiet = hasAudio ? [] : silent(src);
         const amap = hasAudio ? ['-map', '0:v:0', '-map', '0:a:0'] : ['-map', '0:v:0', '-map', '1:a:0', '-shortest'];
-        const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=${m.mainFps}`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',
           '-x265-params', 'keyint=40:min-keyint=40:bframes=0:log-level=error', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipMain], this.abort.signal);
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(sw, sh)},${m.noSar ? 'setsar=0,' : ''}fps=${m.subFps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
@@ -330,8 +331,7 @@ export class Library {
       if (m.ext) {
         // The ext stream's live FLV (a model with one): H.264 at its size, from the main copy.
         const [ew, eh] = m.ext.size.split('x');
-        const fitExt = `scale=${ew}:${eh}:force_original_aspect_ratio=decrease,pad=${ew}:${eh}:(ow-iw)/2:(oh-ih)/2`;
-        await ffmpeg([...ONE_DECODER_THREAD, '-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
+        await ffmpeg([...ONE_DECODER_THREAD, '-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fit(ew, eh)},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
           '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
       }
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);

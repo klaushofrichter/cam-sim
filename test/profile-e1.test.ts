@@ -5,6 +5,7 @@ import { loadConfig, ConfigError } from '../src/config';
 import { configFromOptions } from '../src/index';
 import { MODELS, profileFor } from '../src/profile/profile';
 import { E1_OUTDOOR_PRO } from '../src/profile/E1-Outdoor-Pro';
+import { resetDefaultsFor } from '../src/profile/rlc1224a';
 import { Ptz, ptzEnabled } from '../src/engine/ptz';
 import { fixedClock } from '../src/engine/clock';
 import { fixtureSpec } from '../src/media/fixtures';
@@ -76,7 +77,7 @@ describe('E1 Outdoor Pro profile (reference/E1-Outdoor-Pro)', () => {
     for (const t of ['people', 'vehicle', 'dog_cat'] as const) expect(f.AiAlarm[t].scope).toMatchObject({ cols: 60, rows: 33 });
     expect(f.Ftp).toMatchObject({ picWidth: 3840, picHeight: 2160 });
     expect(E1.whiteLedModes).toContain(f.WhiteLed.mode);
-    const r = E1.resetDefaults();
+    const r = resetDefaultsFor(E1.factorySettings(''));
     expect(shape(r.Isp)).toEqual(shape(f.Isp));
     expect(shape(r.WhiteLed)).toEqual(shape(f.WhiteLed));
   });

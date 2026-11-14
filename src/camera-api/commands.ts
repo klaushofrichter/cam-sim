@@ -30,6 +30,8 @@ export type Entry = Record<string, unknown>;
 export const ok = (cmd: string, value: unknown, extra: Entry = {}): Entry => ({ cmd, code: 0, ...extra, value });
 export const fail = (cmd: string, rspCode: number): Entry => ({ cmd, code: 1, error: { detail: DETAIL[rspCode] ?? 'param error', rspCode } });
 const UNKNOWN: Entry = { cmd: 'Unknown', code: 1, error: { detail: 'not support', rspCode: -9 } };
+// 200, or the refusal's rspCode.
+export const done = (cmd: string, r: number | null): Entry => (r === null ? ok(cmd, { rspCode: 200 }) : fail(cmd, r));
 
 export interface Ctx {
   engine: Engine;
@@ -65,11 +67,11 @@ const HANDLERS: Record<string, Handler> = {
   AddUser: (c) => {
     const u = c.param?.User ?? {};
     const r = c.engine.sessions.addUser({ name: u.userName, password: u.password, level: u.level });
-    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
+    return done(c.cmd, r);
   },
   DelUser: (c) => {
     const r = c.engine.sessions.delUser(c.param?.User?.userName);
-    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
+    return done(c.cmd, r);
   },
   ModifyUser: (c) => {
     const u = c.param?.User ?? {};
@@ -77,11 +79,11 @@ const HANDLERS: Record<string, Handler> = {
     // 200 and leaves the user unable to log in (measured on a CX820, #105).
     // Whether a wrong oldPassword is refused was not measured.
     const r = c.engine.sessions.modifyUser(u.userName, { password: u.newPassword, level: u.level, unusable: u.newPassword === undefined && u.password !== undefined });
-    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
+    return done(c.cmd, r);
   },
   GetDevInfo: (c) => {
     c.engine.counters.devInfoCalls++;
-    return ok(c.cmd, { DevInfo: c.engine.profile.devInfo(c.engine.settings.name, c.engine.serial, c.engine.config.firmVer) });
+    return ok(c.cmd, { DevInfo: c.engine.devInfo() });
   },
   // The camera's name, one value with GetDevInfo.name and the OSD text
   // (measured 2026-10-03). action 1 adds the initial value and the range the
@@ -102,13 +104,10 @@ const HANDLERS: Record<string, Handler> = {
   // range is -4 "param error" and nothing changes. Like a settings Set for
   // the settings faults and setCalls.
   SetTime: (c) => {
-    const e = c.engine;
-    e.counters.noteSet(c.cmd);
-    const failing = e.faults.consume('settings.fail', c.cmd);
-    if (failing) return fail(c.cmd, failing.rspCode ?? -67);
-    if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
-    const r = e.time.set(c.param);
-    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
+    const f = setFaults(c);
+    if (f) return f;
+    const r = c.engine.time.set(c.param);
+    return done(c.cmd, r);
   },
   GetHddInfo: getter('HddInfo', (e) => e.sd.hddInfo()),
   // The running streams (SetEnc changes them). action 1 adds the factory
@@ -179,7 +178,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   TestFtp: async (c) => {
     const r = await testFtp(c.engine, c.param?.Ftp);
-    return r === null ? ok(c.cmd, { rspCode: 200 }) : fail(c.cmd, r);
+    return done(c.cmd, r);
   },
   GetCertificateInfo: (c) => ok(c.cmd, { CertificateInfo: { crtName: 'server.crt', enable: c.engine.certs.state.enable, keyName: 'server.key' } }),
   CertificateClear: (c) => {
@@ -214,12 +213,23 @@ const HANDLERS: Record<string, Handler> = {
   },
 };
 
-function setCommand(c: Ctx): Entry {
+// What every Set-like command does first: count it in setCalls, then the
+// settings faults (settings.fail answers its rspCode, -67 by default;
+// settings.ignore answers 200 and changes nothing). Returns that answer, or
+// undefined when the command goes ahead.
+export function setFaults(c: Ctx): Entry | undefined {
   const e = c.engine;
   e.counters.noteSet(c.cmd);
   const failing = e.faults.consume('settings.fail', c.cmd);
   if (failing) return fail(c.cmd, failing.rspCode ?? -67);
   if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
+  return undefined;
+}
+
+function setCommand(c: Ctx): Entry {
+  const f = setFaults(c);
+  if (f) return f;
+  const e = c.engine;
   const encBefore = c.cmd === 'SetEnc' ? JSON.stringify(e.settings.running.Enc) : undefined;
   const r = c.cmd === 'SetDevName'
     ? e.settings.setName(c.param?.DevName?.name)
@@ -234,7 +244,7 @@ function setCommand(c: Ctx): Entry {
       if (!e.down()) void e.reboot({ ms });
     });
   }
-  return r ? fail(c.cmd, r.rspCode) : ok(c.cmd, { rspCode: 200 });
+  return done(c.cmd, r?.rspCode ?? null);
 }
 
 export function runCommand(c: Ctx): Entry | 'destroyed' | Promise<Entry | 'destroyed'> {

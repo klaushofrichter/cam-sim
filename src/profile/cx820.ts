@@ -5,15 +5,15 @@
 // reference/cx820/README.md lists those points.
 import ability from './cx820-ability.json';
 import {
-  AI_TYPES, DEFAULT_NET_PORT, DEFAULT_NTP, IR_LIGHTS_EXTRA, factorySettings as rlcFactory, maskFtpUser as rlcMaskFtpUser,
-  devInfoFor, resetDefaultsFor, type AiType, type Settings,
+  AI_TYPES, IR_LIGHTS_EXTRA, factorySettings as rlcFactory, maskFtpUser as rlcMaskFtpUser,
+  devInfoFor, type AiType, type Settings,
 } from './rlc1224a';
 import { CX820_LOGIN_REPLY_LINES } from '../baichuan/device-info-cx820';
 import { CX820_ENC_RANGE } from './enc';
 import { RLC_AUTH_TYPES, afterLogin } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 
-export const CX820_FIRMWARE = {
+const CX820_FIRMWARE = {
   model: 'CX820',
   firmVer: 'v3.2.0.5316_2509028854',
   hardVer: 'IPC_NT18NA68MP',
@@ -79,8 +79,6 @@ function factorySettings(name: string): Settings {
   };
   s.Ftp.picWidth = 3840;
   s.Ftp.picHeight = 2160;
-  s.NetPort = { ...DEFAULT_NET_PORT };
-  s.Ntp = { ...DEFAULT_NTP };
   return s;
 }
 
@@ -123,10 +121,9 @@ export const CX820: CameraProfile = {
   // Mode 5 is the camera's measured value; which other modes it takes is not
   // measured (the RLC-1224A's 0-3 are kept).
   whiteLedModes: [0, 1, 2, 3, 5],
-  factorySettings,
   // The partial-Set resets are not measured on the CX820: the RLC-1224A's
-  // rules over the CX820's key sets.
-  resetDefaults: () => resetDefaultsFor(factorySettings('')),
+  // rules over the CX820's key sets (resetDefaultsFor).
+  factorySettings,
   // Measured on one motion clip (Search-*.json); the trigger bits are assumed
   // at the RLC-1224A's positions (the motion bit matches).
   fileFlags: { sub: 0x2b148000000000n, main: 0x67328200000000n },

@@ -37,8 +37,8 @@ export interface CameraProfile {
   ftpPasswordMask?: string;
   // SetWhiteLed's accepted modes.
   whiteLedModes: readonly number[];
+  // The partial-Set resets: resetDefaultsFor(factorySettings('')).
   factorySettings(name: string): Settings;
-  resetDefaults(): Settings;
   // Record file names: the flags field without trigger bits.
   fileFlags: Record<Stream, bigint>;
   // Record file names' format (absent: name version 0A, as the RLC-1224A's).
@@ -71,7 +71,7 @@ export interface CameraProfile {
 
 const PROFILES: Record<Model, CameraProfile> = { 'RLC-1224A': RLC1224A, CX820, 'E1-Outdoor-Pro': E1_OUTDOOR_PRO };
 
-export const DEFAULT_MODEL: Model = 'RLC-1224A';
+const DEFAULT_MODEL: Model = 'RLC-1224A';
 
 export function profileFor(model: Model | undefined): CameraProfile {
   return PROFILES[model ?? DEFAULT_MODEL];

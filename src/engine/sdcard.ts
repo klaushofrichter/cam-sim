@@ -78,7 +78,7 @@ const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20,
 // 03 (the E1 Outdoor Pro, measured 2026-11-02): no animal-type field and 7
 // digits, the 14-digit field without its trailing zeros.
 export interface NameFormat { version: string; animalField: boolean; flagDigits: 7 | 14 }
-export const V0A_NAMES: NameFormat = { version: '0A', animalField: true, flagDigits: 14 };
+const V0A_NAMES: NameFormat = { version: '0A', animalField: true, flagDigits: 14 };
 export const V03_NAMES: NameFormat = { version: '03', animalField: false, flagDigits: 7 };
 
 // `base`: the flags of a real clip without trigger bits, the model's (profile

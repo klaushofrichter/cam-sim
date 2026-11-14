@@ -105,7 +105,7 @@ export function createOnvifApp(engine: Engine): OnvifApp {
     const b = esc(base(req));
     switch (op) {
       case 'GetDeviceInformation': {
-        const d = e.profile.devInfo(e.settings.name, e.serial, e.config.firmVer);
+        const d = e.devInfo();
         return send(res, `<tds:GetDeviceInformationResponse><tds:Manufacturer>Reolink</tds:Manufacturer><tds:Model>${esc(d.model)}</tds:Model><tds:FirmwareVersion>${esc(d.firmVer)}</tds:FirmwareVersion><tds:SerialNumber>${esc(d.serial)}</tds:SerialNumber><tds:HardwareId>${esc(d.hardVer)}</tds:HardwareId></tds:GetDeviceInformationResponse>`);
       }
       case 'GetCapabilities':

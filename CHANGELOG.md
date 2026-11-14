@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer, and the faults behave as before. Live FLV viewers cost less: a looped or sequence tag no longer copies its whole video payload per viewer, and a video's tag list is filtered once instead of once per viewer. A cached Snap or web picture no longer reads the picture file from disk on every poll.
+
 ## v2026.11.09.2
 
 - RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".

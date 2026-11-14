@@ -56,7 +56,7 @@ export function ptzText(p: { pan: number; tilt: number; zoom: number }): string 
 }
 
 // The PTZ text's style: centered, so it never meets the six OSD positions.
-export const PTZ_TEXT_STYLE = 'fontsize=20:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=(h-text_h)/2';
+const PTZ_TEXT_STYLE = 'fontsize=20:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=(h-text_h)/2';
 
 // drawtext for the PTZ text from a file (live SD) or a literal (snapshots).
 export function ptzDrawtext(font: string, src: { file: string } | { text: string }): string {

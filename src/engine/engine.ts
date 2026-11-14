@@ -23,7 +23,7 @@ import { profileFor, type CameraProfile } from '../profile/profile';
 import { Ptz, ptzEnabled } from './ptz';
 import { ptzText } from '../pipeline/overlay';
 import { findFonts } from '../pipeline/fonts';
-import { drawTextOnJpeg, renderJpeg } from '../pipeline/ptz-picture';
+import { renderJpeg } from '../pipeline/ptz-picture';
 import { sleep } from '../util/sleep';
 
 // Measured timings (CAMSIM_SPEED=real) and their fast stand-ins.
@@ -44,6 +44,11 @@ export interface RequestRecord {
   len?: number;
   replyLen?: number;
 }
+
+// The two cached pictures: the web UI's (PTZ position drawn) and Snap's
+// (main stream size), with the event logged on their first failure.
+type PictureKind = 'ptz' | 'snap';
+const PICTURE_FAILED: Record<PictureKind, string> = { ptz: 'ptz_snapshot_failed', snap: 'snap_scale_failed' };
 
 // One simulated camera: every surface (camera API, control API, in-process
 // tests) works on this object.
@@ -89,15 +94,11 @@ export class Engine {
   liveSub?: LiveSubSource; // set by SdPipeline
   // The ffmpeg that draws the PTZ position on snapshots (tests point it elsewhere).
   ffmpeg = 'ffmpeg';
-  // The last PTZ snapshot (one entry: video and text), the font, and whether
-  // a failure was logged.
-  private ptzSnap?: { key: string; jpeg: Buffer };
+  // The PTZ font (looked up once), the last picture of each kind (one entry:
+  // video, text and size), and the kinds whose failure was logged.
   private ptzFont?: string | null;
-  private ptzSnapFailed = false;
-  // The last Snap picture at the main size (one entry: video and text), and
-  // whether a failure was logged.
-  private mainSnap?: { key: string; jpeg: Buffer };
-  private mainSnapFailed = false;
+  private readonly pictures = new Map<PictureKind, { key: string; jpeg: Buffer }>();
+  private readonly pictureFailed = new Set<PictureKind>();
   // The picture ffmpeg in flight (at most one per camera): requests of the
   // same kind share its result, others wait for it.
   private render?: { kind: string; run: Promise<Buffer> };
@@ -217,26 +218,8 @@ export class Engine {
   // the media's snapshot unchanged. (The FTP upload keeps the plain picture:
   // whether the camera's FTP picture shows anything extra is not measured.)
   async snapshot(): Promise<Buffer> {
-    const plain = await this.media.snapshot();
-    if (!this.ptz) return plain;
-    if (this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
-    if (!this.ptzFont) return plain;
-    const font = this.ptzFont;
-    const ptz = this.ptz;
-    return this.rendered('ptz', async () => {
-      const text = ptzText(ptz.position());
-      const key = `${this.media.currentId?.() ?? this.videoId}|${text}`;
-      if (this.ptzSnap?.key === key) return this.ptzSnap.jpeg;
-      try {
-        const jpeg = await drawTextOnJpeg(plain, text, font, this.ffmpeg);
-        this.ptzSnap = { key, jpeg };
-        return jpeg;
-      } catch (err) {
-        if (!this.ptzSnapFailed) this.log.warn({ err: (err as Error).message }, 'ptz_snapshot_failed');
-        this.ptzSnapFailed = true;
-        return plain;
-      }
-    });
+    if (!this.ptz || !this.ptzFontPath()) return this.media.snapshot();
+    return this.picture('ptz');
   }
 
   // Snap: the picture at the main stream's size as GetEnc reports it (SetEnc
@@ -245,22 +228,34 @@ export class Engine {
   // models. One ffmpeg run per video and position, cached; when ffmpeg
   // fails, the fixture picture as it is.
   async snapMain(): Promise<Buffer> {
-    const plain = await this.media.snapshot();
     const { width, height } = this.settings.running.Enc.mainStream;
-    if (this.ptz && this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
-    const font = this.ptz && this.ptzFont ? this.ptzFont : undefined;
+    return this.picture('snap', `${width}x${height}`);
+  }
+
+  private ptzFontPath(): string | null {
+    if (this.ptzFont === undefined) this.ptzFont = findFonts(this.config.fontDir)?.regular ?? null;
+    return this.ptzFont;
+  }
+
+  // The media's picture with the PTZ position drawn (PTZ models with a font)
+  // and scaled to `size`, cached per kind; the plain picture is read only
+  // when the cache misses. A failure is logged once per kind.
+  private picture(kind: PictureKind, size?: string): Promise<Buffer> {
     const ptz = this.ptz;
-    return this.rendered('snap', async () => {
+    const font = ptz ? this.ptzFontPath() ?? undefined : undefined;
+    return this.rendered(kind, async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.media.currentId?.() ?? this.videoId}|${text ?? ''}|${width}x${height}`;
-      if (this.mainSnap?.key === key) return this.mainSnap.jpeg;
+      const key = `${this.media.currentId?.() ?? this.videoId}|${text ?? ''}|${size ?? ''}`;
+      const cached = this.pictures.get(kind);
+      if (cached?.key === key) return cached.jpeg;
+      const plain = await this.media.snapshot();
       try {
-        const jpeg = await renderJpeg(plain, { text, font, size: `${width}x${height}` }, this.ffmpeg);
-        this.mainSnap = { key, jpeg };
+        const jpeg = await renderJpeg(plain, { text, font, size }, this.ffmpeg);
+        this.pictures.set(kind, { key, jpeg });
         return jpeg;
       } catch (err) {
-        if (!this.mainSnapFailed) this.log.warn({ err: (err as Error).message }, 'snap_scale_failed');
-        this.mainSnapFailed = true;
+        if (!this.pictureFailed.has(kind)) this.log.warn({ err: (err as Error).message }, PICTURE_FAILED[kind]);
+        this.pictureFailed.add(kind);
         return plain;
       }
     });
@@ -270,11 +265,13 @@ export class Engine {
   // move would otherwise start one run each, as the text changes every time.
   // A request finding a run of its kind in flight shares that run's result
   // (the position it started with); a run of another kind is waited for.
-  // `make` checks its cache first and never rejects.
+  // `make` checks its cache first; it rejects only when the media's picture
+  // can't be read.
   private async rendered(kind: string, make: () => Promise<Buffer>): Promise<Buffer> {
     while (this.render) {
       if (this.render.kind === kind) return this.render.run;
-      await this.render.run;
+      // Another kind's failure is its callers' (a picture that can't be read).
+      await this.render.run.catch(() => undefined);
     }
     const run = make().finally(() => {
       if (this.render?.run === run) this.render = undefined;
@@ -292,6 +289,12 @@ export class Engine {
   // HTTPS, RTSP, ONVIF; Baichuan's port 9000 stays up through that).
   offline(): boolean {
     return this.down() || this.certRestarting;
+  }
+
+  // The camera's identity (GetDevInfo, ONVIF GetDeviceInformation, the
+  // control API): its name, serial and firmware.
+  devInfo(): ReturnType<CameraProfile['devInfo']> {
+    return this.profile.devInfo(this.settings.name, this.serial, this.config.firmVer);
   }
 
   // A protocol's port answers: the camera is online and the port is enabled

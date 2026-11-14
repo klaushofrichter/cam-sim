@@ -250,6 +250,16 @@ describe('control API: request log and SSE', () => {
     expect((await request(ctl).get('/sim/api/state').set(auth)).body.name).toBe('Backyard Left');
   });
 
+  it('PUT /settings/:key writes the UI keys through their Set command; Ntp, Enc and unknown keys are 404', async () => {
+    const { ctl, engine } = await setup();
+    for (const key of ['Rec', 'MdAlarm', 'Isp', 'IrLights', 'WhiteLed', 'Osd', 'NetPort', 'Ftp'] as const) {
+      const r = await request(ctl).put(`/sim/api/settings/${key}`).set(auth).send({ ...engine.settings.get(key), ...(key === 'Ftp' ? { server: '192.168.1.10' } : {}) });
+      expect(r.status, key).toBe(200);
+      expect(r.body).toEqual(engine.settings.get(key));
+    }
+    for (const key of ['Ntp', 'Enc', 'AiAlarm', 'Bogus', 'constructor']) expect((await request(ctl).put(`/sim/api/settings/${key}`).set(auth).send({})).status, key).toBe(404);
+  });
+
   it('PUT /settings/Osd renames the camera with the camera\'s rules', async () => {
     const { ctl, cam, engine } = await setup({ CAMSIM_NAME: 'Den' });
     const osd = engine.settings.get('Osd');

@@ -11,6 +11,7 @@ import { ensureFixtures, defaultFixtureDir } from '../src/media/fixtures';
 import { createLogger } from '../src/log';
 import { makeEngine, listen, login } from './helpers';
 import { createCameraApp } from '../src/camera-api/app';
+import { playable } from '../src/camera-api/media-routes';
 import { Library } from '../src/media/library';
 import { SequenceMedia } from '../src/media/sequence';
 
@@ -58,6 +59,29 @@ describe('FlvStreamParser', () => {
 
 // Video sequences (spec 2026-11-06, Playing): every FLV reader joins at the
 // sequence clock, at the keyframe at or before it, not at video 1.
+describe('playable', () => {
+  it('filters a tag list once for every viewer, and again for a new list', () => {
+    const w = new FlvWriter();
+    const nalu = Buffer.from([0x26, 0x01, 0xaf, 0x00]);
+    const eos = Buffer.from(w.video('h264', [nalu], false, 40));
+    eos[12] = 2; // AVC end of sequence
+    const buf = Buffer.concat([w.header(true, true), w.tag(18, 0, Buffer.from([2, 0, 0])), w.videoConfig('h264', Buffer.from([1, 2, 3]), 0),
+      w.video('h264', [nalu], true, 0), w.video('h264', [nalu], false, 20), eos]);
+    const all = readFlv(buf).tags;
+    const a = playable(all, true);
+    expect(a.tags.map((t) => [t.type, t.ms])).toEqual([[18, 0], [9, 0], [9, 0], [9, 20]]);
+    expect(a.loopTags).toEqual([all[2], all[3]]);
+    expect(playable(all, true)).toBe(a);
+    const later = playable(all, false);
+    expect(later.tags.map((t) => [t.type, t.ms])).toEqual([[9, 0], [9, 0], [9, 20]]);
+    expect(playable(all, false)).toBe(later);
+    // A released and reloaded media gives a new list: computed again.
+    const again = playable([...all], true);
+    expect(again).not.toBe(a);
+    expect(again).toEqual(a);
+  });
+});
+
 describe('FLV readers of a sequence', () => {
   let srcDir: string;
   const cleanups: Array<() => Promise<void> | void> = [];
@@ -140,9 +164,26 @@ describe('FLV readers of a sequence', () => {
     const video = r.tags.filter((t) => t.type === 9 && !isConfigTag(t));
     for (let i = 1; i < video.length; i++) expect(video[i].ms).toBeGreaterThan(video[i - 1].ms);
     const from = video.map((t) => (bTags.has(payload(t)) ? 'b' : aTags.has(payload(t)) ? 'a' : '?'));
+    // Rewritten timestamps, untouched payloads.
+    expect(from).not.toContain('?');
     expect(from.join('').replace(/(.)\1+/g, '$1')).toMatch(/^bab/);
     expect(r.tags.filter((t) => t.type === 9 && isConfigTag(t))).toHaveLength(1);
     expect(r.tags.findIndex(isConfigTag)).toBeLessThan(r.tags.findIndex(media));
+  }, 90_000);
+
+  it('a looped tag goes out with its timestamp rewritten and its payload untouched', async () => {
+    const { engine, lib, srv, token } = await setup();
+    expect(lib.selectSequence(['b'])).toBeNull();
+    // Past the 2 s video's end: the second pass goes out with rewritten
+    // timestamps (written as header copy + the original payload).
+    const loopMs = engine.mediaFor({ video: 'b' }).durationMs('main');
+    const own = new Map<string, number[]>();
+    for (const t of engine.mediaFor({ video: 'b' }).liveFlv('main').tags.filter(media)) own.set(payload(t), [...(own.get(payload(t)) ?? []), t.ms]);
+    const r = read(`${srv.url}/flv?port=1935&app=bcs&stream=channel0_main.bcs&token=${token}`);
+    await wait(loopMs + 1000);
+    const looped = r.tags.filter((t) => media(t) && t.ms >= loopMs);
+    expect(looped.length).toBeGreaterThan(0);
+    for (const t of looped) expect(own.get(payload(t))).toContain(t.ms - loopMs);
   }, 90_000);
 
   it('a single video still starts at its beginning', async () => {

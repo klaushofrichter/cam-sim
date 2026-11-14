@@ -137,4 +137,22 @@ describe('camera API: settings', () => {
     const t2 = await login(app);
     expect((await post(app, 'GetNtp', {}, t2)).reply.value.Ntp.server).toBe('192.168.60.1');
   });
+
+  // One preamble for every Set-like command (setFaults): counted in
+  // setCalls, settings.fail answers its rspCode, settings.ignore answers 200.
+  it.each(['SetTime', 'SetIsp', 'SetNtp', 'SetEnc', 'SetDevName'])('%s: counted in setCalls and subject to settings.fail and settings.ignore', async (cmd) => {
+    const { app, engine } = await makeCamera();
+    const t = await login(app);
+    engine.faults.set({ name: 'settings.fail', cmds: [cmd], rspCode: -54, count: 1 });
+    expect((await post(app, cmd, {}, t)).reply).toEqual({ cmd, code: 1, error: { detail: 'the respode of msg is err', rspCode: -54 } });
+    engine.faults.set({ name: 'settings.fail', cmds: [cmd], count: 1 });
+    expect((await post(app, cmd, {}, t)).reply).toEqual({ cmd, code: 1, error: { detail: 'param error', rspCode: -67 } });
+    engine.faults.set({ name: 'settings.ignore', cmds: [cmd], count: 1 });
+    const settings = structuredClone(engine.settings.running);
+    const time = engine.time.value();
+    expect((await post(app, cmd, { DevName: { name: '' } }, t)).reply).toEqual({ cmd, code: 0, value: { rspCode: 200 } });
+    expect(engine.settings.running).toEqual(settings);
+    expect(engine.time.value()).toEqual(time);
+    expect(engine.counters.setCalls).toEqual([cmd, cmd, cmd]);
+  });
 });

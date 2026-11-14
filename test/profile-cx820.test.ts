@@ -7,6 +7,7 @@ import { loadConfig, ConfigError } from '../src/config';
 import { configFromOptions } from '../src/index';
 import { MODELS, profileFor } from '../src/profile/profile';
 import { FIRMWARE_VERSION } from '../src/profile/version';
+import { resetDefaultsFor } from '../src/profile/rlc1224a';
 import { fileName, flagsHex } from '../src/engine/sdcard';
 import { createControlApp } from '../src/control-api/app';
 import { loginReplyXml, nonceXml } from '../src/baichuan/xml';
@@ -81,7 +82,7 @@ describe('CX820 profile (reference/cx820)', () => {
     expect(f.Ftp).toMatchObject({ enable: 0, server: '', userName: '', password: '', picWidth: 3840, picHeight: 2160 });
     expect(shape(f.NetPort)).toEqual(shape(ref('GetNetPort').NetPort));
     // Reset defaults keep the factory key sets (the partial-Set reset is not measured on the CX820).
-    const r = CX.resetDefaults();
+    const r = resetDefaultsFor(CX.factorySettings(''));
     expect(shape(r.Isp)).toEqual(shape(f.Isp));
     expect(shape(r.WhiteLed)).toEqual(shape(f.WhiteLed));
   });
