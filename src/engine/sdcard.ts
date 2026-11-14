@@ -155,7 +155,7 @@ export class SdCard {
   private seq = 0;
   private readonly file?: string;
 
-  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string; names: RecordNames }) {
+  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); playing?: () => { video: string; sizes: Record<Stream, number> }; names: RecordNames }) {
     if (opts.dir) {
       this.file = join(opts.dir, 'index.json');
       try {
@@ -226,12 +226,14 @@ export class SdCard {
 
   // Adds without sorting or persisting (seed does both once at the end).
   private insert(rec: NewRecording): Stored {
+    // Video and sizes from one reading: a sequence may switch videos between two.
+    const now = this.opts.playing?.() ?? { video: 'test-pattern', sizes: this.currentSizes() };
     const r: Stored = {
       id: `r${++this.seq}-${rec.date}-${rec.start}`,
       date: rec.date, start: rec.start, end: rec.end ?? null, mainEnd: rec.mainEnd ?? rec.end ?? null,
       triggers: [...new Set(rec.triggers)], dst: rec.dst,
-      sizes: { ...this.currentSizes() },
-      video: this.opts.currentVideo?.() ?? 'test-pattern',
+      sizes: { ...now.sizes },
+      video: now.video,
       ...(rec.picture ? { picture: rec.picture } : {}),
     };
     this.recs.push(r);

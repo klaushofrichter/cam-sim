@@ -78,6 +78,10 @@ export class SequenceMedia implements MediaSource {
     return this.entries[this.position().index];
   }
 
+  playing(): SequenceItem {
+    return this.current();
+  }
+
   currentId(): string {
     return this.current().id;
   }

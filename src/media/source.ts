@@ -22,6 +22,9 @@ export interface MediaSource {
   items?(): MediaSource[];
   // A sequence of videos: the id of the video playing now.
   currentId?(): string;
+  // A sequence of videos: the video playing now, id and media from one
+  // reading of the clock.
+  playing?(): { id: string; media: MediaSource };
   // Where a new live reader joins: the clock position snapped down to the
   // last keyframe at or before it, in the live FLV's timeline.
   startMs?(stream: LiveStream): number;

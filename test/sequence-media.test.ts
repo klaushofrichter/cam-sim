@@ -6,6 +6,7 @@ import { FlvWriter, type FlvTag } from '../src/media/flv';
 import { inputArgsOf, type LiveStream, type MediaSource, type Stream } from '../src/media/source';
 import { FixtureMedia, fixturePaths } from '../src/media/fixtures';
 import { SequenceMedia } from '../src/media/sequence';
+import { makeEngine } from './helpers';
 
 const w = new FlvWriter();
 const tag = (type: 8 | 9 | 18, ms: number, bytes: Buffer): FlvTag => ({ type, ms, bytes });
@@ -90,6 +91,24 @@ describe('SequenceMedia', () => {
     expect(loaded).toEqual([]);
     s.startMs('sub');
     expect([...new Set(loaded)]).toEqual(['sub']); // a sub viewer loads sub only
+  });
+
+  // The clock moves between calls: a recording's sizes and video must come
+  // from one reading, not from items on either side of a switch.
+  it('a recording takes its video and sizes from one clock reading', async () => {
+    const engine = await makeEngine();
+    // Created at 0; the reads after it come at 998, 999, 1000...: the clock
+    // crosses into the second video during them.
+    let n = 0;
+    const now = () => (n++ === 0 ? 0 : 997 + n);
+    const one = fake('one', 1000);
+    const three = { ...fake('three', 1000), clipSize: (st: Stream) => (st === 'sub' ? 30 : 300) };
+    const s = new SequenceMedia([{ id: 'one', media: { ...one, clipSize: (st: Stream) => (st === 'sub' ? 10 : 100) } }, { id: 'three', media: three }], { now, listDir: dir });
+    s.durationMs('main');
+    engine.setMedia(s, 'one', ['one', 'three']);
+    const rec = engine.sd.add({ date: '2026-09-26', start: '120000', triggers: ['motion'], dst: true });
+    const sizes = rec.video === 'one' ? { sub: 10, main: 100 } : { sub: 30, main: 300 };
+    expect({ sub: rec.files.sub.size, main: rec.files.main.size }).toEqual(sizes);
   });
 
   it('items lists the videos it plays', () => {
