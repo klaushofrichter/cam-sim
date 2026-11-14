@@ -216,6 +216,11 @@ export class Library {
     const differ = ids.filter((id) => this.entries.get(id)!.compat !== first);
     if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
     const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
+    // Each video on its own, so a refusal names the one whose files fail.
+    for (const { id, media } of items) {
+      const why = this.preload(id, media);
+      if (why) return refuse(409, 'not_ready', why);
+    }
     const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
     const why = this.preload(ids[0], media);
     if (why) return refuse(409, 'not_ready', why);

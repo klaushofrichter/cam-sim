@@ -173,6 +173,14 @@ describe('control API: videos', () => {
       expect((await put(app, { ids: ['a'] })).status).toBe(200);
     }, 90_000);
 
+    it('a sequence with a video whose files are missing names that video', async () => {
+      const { app, engine } = await setupSeq();
+      rmSync(join(dirname(engine.mediaFor({ video: 'b' }).clipPath('main')), 'sub.flv'));
+      const r = await put(app, { ids: ['a', 'b'] });
+      expect(r.status).toBe(409);
+      expect(r.body.detail).toMatch(/^video b files are missing/);
+    }, 90_000);
+
     it('sequence refusals of the list use the shape error code', async () => {
       const { app } = await setupSeq();
       for (const ids of [['a', 'a'], [], ['test-pattern', 'a']]) expect((await put(app, { ids })).body.error).toBe('invalid');
