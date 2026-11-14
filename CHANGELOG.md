@@ -4,6 +4,13 @@
 
 - Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer, and the faults behave as before. Live FLV viewers cost less: a looped or sequence tag no longer copies its whole video payload per viewer, and a video's tag list is filtered once instead of once per viewer. A cached Snap or web picture no longer reads the picture file from disk on every poll.
 
+- Video sequences use far less memory: choosing one no longer loads every video's live streams (a video's length is read from its file without loading it), and a stream is loaded only when someone watches it. A sequence of 32 camera-sized videos OOM-killed cam2. A sequence whose live streams total more than 384 MB is refused with 409 `too_large` (about five 60 s camera-sized videos).
+- Video sequences: live viewers of the sub and ext streams stay on the sequence clock; before, they drifted from it a little on every loop.
+- Video sequences: a recording made at the moment the sequence switches videos names one video with that video's sizes (before, it could take its sizes from the video before).
+- Video sequences: a refusal because of missing or unreadable files names the video that failed, not the first one, and a refused video or sequence no longer keeps what it read in memory.
+- FTP: clips, pictures and `TestFtp` files are named after the camera's current name, so after `SetDevName` they carry the new name like `GetDevInfo` and the OSD (before, the start-up name). Not measured on a real camera, which holds a single name.
+- SD card: after old recordings were deleted (retention) and the simulator restarted, new recordings could get ids still in use; ids now continue after the highest one.
+
 ## v2026.11.09.2
 
 - RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".
