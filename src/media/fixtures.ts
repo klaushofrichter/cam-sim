@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { promisify } from 'util';
 import type pino from 'pino';
-import { FlvWriter, readFlv, splitAnnexB, h265NalType, hvcc, parseAdts, type FlvTag } from './flv';
+import { FlvWriter, lastTagMs, readFlv, splitAnnexB, h265NalType, hvcc, parseAdts, type FlvTag } from './flv';
 import type { LiveStream, MediaSource, Stream } from './source';
 import { sleep } from '../util/sleep';
 import { profileFor, type CameraProfile } from '../profile/profile';
@@ -264,6 +264,7 @@ async function build(dir: string, log: pino.Logger, spec: FixtureSpec): Promise<
 
 export class FixtureMedia implements MediaSource {
   private readonly flv = new Map<LiveStream, { header: Buffer; tags: FlvTag[] }>();
+  private readonly durations = new Map<LiveStream, number>();
 
   constructor(private readonly paths: FixturePaths) {}
 
@@ -271,18 +272,34 @@ export class FixtureMedia implements MediaSource {
     return readFileSync(this.paths.snapshot);
   }
 
+  private flvPath(stream: LiveStream): string {
+    return stream === 'main' ? this.paths.mainFlv : stream === 'ext' ? this.paths.extFlv : this.paths.subFlv;
+  }
+
   liveFlv(stream: LiveStream) {
     let f = this.flv.get(stream);
     if (!f) {
-      f = readFlv(readFileSync(stream === 'main' ? this.paths.mainFlv : stream === 'ext' ? this.paths.extFlv : this.paths.subFlv));
+      f = readFlv(readFileSync(this.flvPath(stream)));
       this.flv.set(stream, f);
     }
     return f;
   }
 
+  // From the loaded tags, or from the file's tag headers without loading it
+  // (a sequence's clock needs every item's length).
   durationMs(stream: LiveStream): number {
-    const tags = this.liveFlv(stream).tags;
-    return tags.length ? tags[tags.length - 1].ms + 100 : 0;
+    let d = this.durations.get(stream);
+    if (d === undefined) {
+      const loaded = this.flv.get(stream)?.tags;
+      const last = loaded ? loaded[loaded.length - 1]?.ms : lastTagMs(this.flvPath(stream));
+      d = last === undefined ? 0 : last + 100;
+      this.durations.set(stream, d);
+    }
+    return d;
+  }
+
+  liveBytes(stream: LiveStream): number {
+    return statSync(this.flvPath(stream)).size;
   }
 
   clipPath(stream: Stream): string {
@@ -295,5 +312,6 @@ export class FixtureMedia implements MediaSource {
 
   release(): void {
     this.flv.clear();
+    this.durations.clear();
   }
 }

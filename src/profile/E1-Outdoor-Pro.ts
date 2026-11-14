@@ -127,8 +127,7 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   // Record file names as measured 2026-11-02: RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
   // and RecM03_…_6728828_…: name version 03, no animal-type field, 7-digit
   // flags (here without the motion bit).
-  fileFlags: { sub: 0x2b14800n, main: 0x6728820n },
-  nameFormat: V03_NAMES,
+  recordNames: { ...V03_NAMES, flags: { sub: 0x2b14800n, main: 0x6728820n } },
   // Measured 2026-11-02: the Baichuan download (cmd 8) of a recording Search
   // lists answers 400 within about 0.5 s; the E1's web UI downloads the same
   // files over HTTP. HTTP Download serves them here.

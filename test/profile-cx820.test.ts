@@ -90,12 +90,10 @@ describe('CX820 profile (reference/cx820)', () => {
   it('record file names carry the CX820 flags (Search-*.json)', () => {
     const sub = ref('Search-sub').SearchResult.File[0].name as string;
     const main = ref('Search-main').SearchResult.File[0].name as string;
-    expect(flagsHex('sub', ['motion'], CX.fileFlags)).toBe('2B148080000000');
-    expect(flagsHex('main', ['motion'], CX.fileFlags)).toBe('67328280000000');
-    expect(fileName('sub', '2026-10-20', true, '110752', '110814', ['motion'], 0x6fe32, CX.fileFlags)).toBe(sub);
-    expect(fileName('main', '2026-10-20', true, '110752', '110814', ['motion'], 0x4dd005, CX.fileFlags)).toBe(main);
-    // The default stays the RLC-1224A's.
-    expect(flagsHex('sub', ['motion'])).toBe('55148080000000');
+    expect(flagsHex('sub', ['motion'], CX.recordNames)).toBe('2B148080000000');
+    expect(flagsHex('main', ['motion'], CX.recordNames)).toBe('67328280000000');
+    expect(fileName('sub', '2026-10-20', true, '110752', '110814', ['motion'], 0x6fe32, CX.recordNames)).toBe(sub);
+    expect(fileName('main', '2026-10-20', true, '110752', '110814', ['motion'], 0x4dd005, CX.recordNames)).toBe(main);
   });
 
   it('test media follow the profile: sub 640x360 at 10 fps, main at 25 fps, ext 896x512 at 15 fps', () => {

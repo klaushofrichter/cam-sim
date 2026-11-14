@@ -147,6 +147,15 @@ describe('FTP session like the RLC-1224A (#25)', () => {
     expect(s.sessions[0].commands).toEqual(['USER cam', 'PASS', 'PWD', 'TYPE A', 'MODE S', 'PASV', expect.stringMatching(/^STOR Den_00_\d{14}\.txt$/), 'QUIT']);
     expect([...s.sessions[0].stored.values()][0].length).toBeGreaterThan(0);
   });
+
+  it('TestFtp names its file after the camera name set with SetDevName', async () => {
+    const s = await recordingServer();
+    const { app, engine } = await makeCamera({ CAMSIM_NAME: 'Den' });
+    const t = await login(app);
+    expect((await post(app, 'SetDevName', { DevName: { name: 'Yard' } }, t)).reply.code).toBe(0);
+    expect((await post(app, 'TestFtp', { Ftp: ftpObject(engine, s.port) }, t)).reply.code).toBe(0);
+    expect(s.sessions[0].commands).toContainEqual(expect.stringMatching(/^STOR Yard_00_\d{14}\.txt$/));
+  });
 });
 
 describe('pre-record (#25)', () => {

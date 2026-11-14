@@ -7,14 +7,13 @@ import { RLC1224A } from './rlc1224a';
 import { CX820 } from './cx820';
 import { E1_OUTDOOR_PRO } from './E1-Outdoor-Pro';
 import type { PtzSpec } from '../engine/ptz';
-import type { NameFormat } from '../engine/sdcard';
+import type { RecordNames } from '../engine/sdcard';
 import type { Enc } from './enc';
 
 export const MODELS = ['RLC-1224A', 'CX820', 'E1-Outdoor-Pro'] as const;
 export type Model = (typeof MODELS)[number];
 
 type Obj = Record<string, any>;
-type Stream = 'sub' | 'main';
 
 export type { EncStream } from './enc';
 
@@ -39,10 +38,8 @@ export interface CameraProfile {
   whiteLedModes: readonly number[];
   // The partial-Set resets: resetDefaultsFor(factorySettings('')).
   factorySettings(name: string): Settings;
-  // Record file names: the flags field without trigger bits.
-  fileFlags: Record<Stream, bigint>;
-  // Record file names' format (absent: name version 0A, as the RLC-1224A's).
-  nameFormat?: NameFormat;
+  // Record file names: the name format and the flags without trigger bits.
+  recordNames: RecordNames;
   // refusesDownload: cmd 8 answers 400 (no body, no chunks) even for a file
   // Search lists, as the E1 Outdoor Pro does (measured 2026-11-02); HTTP
   // Download still serves it.

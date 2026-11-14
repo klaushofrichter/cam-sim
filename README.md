@@ -277,7 +277,10 @@ the stream goes on without a decoder reset. Each video has a `compat` key in
 `GET /sim/api/videos`; equal keys combine. The test pattern can't be part of
 a sequence. Incompatible ids are refused with 409 `incompatible`, and the
 web UI greys such videos out ("Different encoding: run
-scripts/library-normalize.sh to combine it").
+scripts/library-normalize.sh to combine it"). A live viewer of a sequence
+holds that stream of all its videos in memory, so a sequence whose live
+streams (sub, main and ext of every video) total more than 384 MB is refused
+with 409 `too_large`: about five 60 s camera-sized videos.
 
 - The MEVA clips from `scripts/library-meva.sh` and anything made by
   `scripts/library-normalize.sh` (below) share one key. A video the
@@ -1107,6 +1110,7 @@ ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
   404 for an unknown id, 409 while it isn't ready.
   With `{"ids":["a","b"]}` (up to 32) the videos play as a [sequence](#video-library)
   (`selected` is the first): 409 `incompatible` when their `compat` keys differ,
+  409 `too_large` when their live streams total more than 384 MB,
   400 for a repeated id or the test pattern in a list of more than one.
 - `GET /sim/api/videos/{id}/poster` → a JPEG still of a ready video.
 

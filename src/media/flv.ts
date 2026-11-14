@@ -1,3 +1,5 @@
+import { closeSync, fstatSync, openSync, readSync } from 'fs';
+
 // FLV reading and writing, including the Reolink firmware's non-standard
 // H.265 in FLV: legacy codec id 12 with the same packet layout as H.264
 // (AVCPacketType, 24-bit composition time, 4-byte length-prefixed NAL units)
@@ -22,6 +24,28 @@ export function parseTagAt(buf: Buffer, at: number): { tag: FlvTag; end: number 
   const first = buf[at + 11];
   const codecId = type === 9 ? first & 0x0f : type === 8 ? first >> 4 : undefined;
   return { tag: { type, ms, codecId, bytes: buf.subarray(at, end) }, end };
+}
+
+// The last whole tag's timestamp, from the tag headers only: the payloads
+// are skipped, not read. undefined for a file without a whole tag.
+export function lastTagMs(file: string): number | undefined {
+  const fd = openSync(file, 'r');
+  try {
+    const size = fstatSync(fd).size;
+    const h = Buffer.alloc(11);
+    if (readSync(fd, h, 0, 9, 0) < 9) return undefined;
+    let last: number | undefined;
+    for (let at = h.readUInt32BE(5) + 4; at + 11 <= size;) {
+      readSync(fd, h, 0, 11, at);
+      const end = at + 11 + h.readUIntBE(1, 3) + 4;
+      if (end > size) break;
+      last = h.readUIntBE(4, 3) + h[7] * 0x1000000;
+      at = end;
+    }
+    return last;
+  } finally {
+    closeSync(fd);
+  }
 }
 
 export function readFlv(buf: Buffer): { header: Buffer; tags: FlvTag[] } {

@@ -126,22 +126,31 @@ describe('E1 Outdoor Pro profile (reference/E1-Outdoor-Pro)', () => {
 // no animal-type field, 7 hex digits of flags; DST as on the other models.
 describe('E1 Outdoor Pro record file names', () => {
   it('match the measured names: RecS03/RecM03, no 0_ field, 7-digit flags', () => {
-    expect(flagsHex('sub', ['motion'], E1.fileFlags, E1.nameFormat?.flagDigits)).toBe('2B14808');
-    expect(flagsHex('main', ['motion'], E1.fileFlags, E1.nameFormat?.flagDigits)).toBe('6728828');
-    expect(fileName('sub', '2026-11-02', false, '065854', '065924', ['motion'], 0xb2b5f, E1.fileFlags, E1.nameFormat)).toBe('/mnt/sda/Mp4Record/2026-11-02/RecS03_20261102_065854_065924_2B14808_B2B5F.mp4');
-    expect(fileName('main', '2026-11-02', false, '065854', '065924', ['motion'], 0x5d5561, E1.fileFlags, E1.nameFormat)).toBe('/mnt/sda/Mp4Record/2026-11-02/RecM03_20261102_065854_065924_6728828_5D5561.mp4');
-    expect(fileName('sub', '2026-10-30', true, '080922', '080959', ['motion'], 0xc7076, E1.fileFlags, E1.nameFormat)).toBe('/mnt/sda/Mp4Record/2026-10-30/RecS03_DST20261030_080922_080959_2B14808_C7076.mp4');
+    expect(flagsHex('sub', ['motion'], E1.recordNames)).toBe('2B14808');
+    expect(flagsHex('main', ['motion'], E1.recordNames)).toBe('6728828');
+    expect(fileName('sub', '2026-11-02', false, '065854', '065924', ['motion'], 0xb2b5f, E1.recordNames)).toBe('/mnt/sda/Mp4Record/2026-11-02/RecS03_20261102_065854_065924_2B14808_B2B5F.mp4');
+    expect(fileName('main', '2026-11-02', false, '065854', '065924', ['motion'], 0x5d5561, E1.recordNames)).toBe('/mnt/sda/Mp4Record/2026-11-02/RecM03_20261102_065854_065924_6728828_5D5561.mp4');
+    expect(fileName('sub', '2026-10-30', true, '080922', '080959', ['motion'], 0xc7076, E1.recordNames)).toBe('/mnt/sda/Mp4Record/2026-10-30/RecS03_DST20261030_080922_080959_2B14808_C7076.mp4');
+  });
+
+  // One value per profile (flags, digits and prefix together), so a caller
+  // can't pass a model's flags with another model's format.
+  it("each profile's record names are one value: its flags, digits and prefix", () => {
+    const sub = (m: Parameters<typeof profileFor>[0]) => fileName('sub', '2026-11-02', false, '065854', '065924', ['motion'], 16, profileFor(m).recordNames);
+    expect(sub('E1-Outdoor-Pro')).toBe('/mnt/sda/Mp4Record/2026-11-02/RecS03_20261102_065854_065924_2B14808_10.mp4');
+    expect(sub('CX820')).toBe('/mnt/sda/Mp4Record/2026-11-02/RecS0A_20261102_065854_065924_0_2B148080000000_10.mp4');
+    expect(sub('RLC-1224A')).toBe('/mnt/sda/Mp4Record/2026-11-02/RecS0A_20261102_065854_065924_0_55148080000000_10.mp4');
   });
 
   it('trigger bits sit at the same positions from the top as in the 14-digit names', () => {
     // person 17, vehicle 19, pet 20, motion 24: bit 27 - pos (not measured on the E1).
-    expect(flagsHex('sub', ['person', 'motion'], E1.fileFlags, 7)).toBe('2B14C08');
-    expect(flagsHex('sub', ['pet'], E1.fileFlags, 7)).toBe('2B14880');
+    expect(flagsHex('sub', ['person', 'motion'], E1.recordNames)).toBe('2B14C08');
+    expect(flagsHex('sub', ['pet'], E1.recordNames)).toBe('2B14880');
   });
 
   it('the SD card names its recordings that way, and the other models keep theirs', () => {
     const clock = fixedClock(new Date('2026-11-02T13:00:00Z'));
-    const card = (p = E1) => new SdCard({ capacityMb: 1000, clock, tz: 'America/Chicago', log: createLogger('silent'), fixtureSizes: { sub: 0xb2b5f, main: 0x5d5561 }, fileFlags: p.fileFlags, nameFormat: p.nameFormat });
+    const card = (p = E1) => new SdCard({ capacityMb: 1000, clock, tz: 'America/Chicago', log: createLogger('silent'), fixtureSizes: { sub: 0xb2b5f, main: 0x5d5561 }, names: p.recordNames });
     const e1 = card();
     e1.seed([{ daysAgo: 0, start: '065854', end: '065924', triggers: ['motion'] }]);
     const f = e1.all()[0].files;

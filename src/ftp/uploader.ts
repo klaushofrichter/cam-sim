@@ -72,7 +72,9 @@ async function uploadOne(t: FtpTarget, dir: string, source: string | Readable, n
 
 // Uploads each finished recording like the RLC-1224A: the clip of the chosen
 // stream and a JPEG, to <remoteDir>/YYYY/MM/DD/<Name>_00_YYYYMMDDHHMMSS.*,
-// one at a time. Failures are logged and counted, not retried. At most
+// one at a time. <Name> is the camera's current name (SetDevName changes
+// it; that uploads follow a rename is not measured, the camera holds one
+// name). Failures are logged and counted, not retried. At most
 // MAX_PENDING wait; more are dropped (counted), so a slow server can't grow
 // the backlog without bound.
 const MAX_PENDING = 20;
@@ -130,7 +132,7 @@ export class FtpUploader {
     const weekday = new Date(`${rec.date}T12:00:00Z`).getUTCDay();
     if (!rec.triggers.some((t) => scheduled(ftp.schedule?.table, t, weekday, Number(rec.start.slice(0, 2))))) return;
 
-    const stem = `${e.config.name}_00_${rec.date.replaceAll('-', '')}${rec.start}`;
+    const stem = `${e.settings.name}_00_${rec.date.replaceAll('-', '')}${rec.start}`;
     const dir = [String(ftp.remoteDir ?? '').replace(/\/+$/, ''), ftp.autoDir === 1 ? rec.date.replaceAll('-', '/') : ''].filter(Boolean).join('/');
     const file = `${dir ? `${dir}/` : ''}${stem}.mp4`;
     const stream = ftp.streamType === 1 ? 'sub' : 'main';
@@ -142,7 +144,7 @@ export class FtpUploader {
       const target = ftp as FtpTarget;
       // The camera sends the snapshot in a second session while the clip
       // is still uploading, named after the event rather than the clip.
-      const picture = rec.picture ? `${e.config.name}_00_${rec.picture}` : stem;
+      const picture = rec.picture ? `${e.settings.name}_00_${rec.picture}` : stem;
       await Promise.all([
         uploadOne(target, dir, media.clipPath(stream), `${stem}.mp4`),
         media.snapshot().then((jpeg) => uploadOne(target, dir, Readable.from(jpeg), `${picture}.jpg`)),
@@ -172,7 +174,7 @@ export async function testFtp(engine: Engine, ftp: Record<string, unknown> | und
     client = await connect(t);
     await transferMode(client, 'A', t.onlyFtps === 1);
     const p = localParts(engine.clock, engine.config.tz);
-    await client.uploadFrom(Readable.from([Buffer.from('FTP test\r\n')]), `${engine.config.name}_00_${p.date.replaceAll('-', '')}${p.hms}.txt`);
+    await client.uploadFrom(Readable.from([Buffer.from('FTP test\r\n')]), `${engine.settings.name}_00_${p.date.replaceAll('-', '')}${p.hms}.txt`);
     return null;
   } catch {
     return -454;

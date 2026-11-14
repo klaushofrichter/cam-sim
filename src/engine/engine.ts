@@ -129,9 +129,12 @@ export class Engine {
       tz: config.tz,
       log,
       fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
-      currentVideo: () => this.media.currentId?.() ?? this.videoId,
-      fileFlags: this.profile.fileFlags,
-      nameFormat: this.profile.nameFormat,
+      // The video playing and its sizes from one clock reading.
+      playing: () => {
+        const p = this.media.playing?.() ?? { id: this.videoId, media: this.media };
+        return { video: p.id, sizes: { sub: p.media.clipSize('sub'), main: p.media.clipSize('main') } };
+      },
+      names: this.profile.recordNames,
     });
     this.events = new Events({ clock, tz: config.tz, sd: this.sd, settings: this.settings, rng: this.rng });
     for (const f of config.faults) this.faults.set(f);
