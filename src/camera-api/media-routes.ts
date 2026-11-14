@@ -93,7 +93,8 @@ export async function snap(engine: Engine, req: Request, res: Response): Promise
 // fixture). The bytes can hold another timestamp than `tag.ms` (a sequence's
 // later videos keep their own bytes), so they are rewritten unless they
 // match: only the 11-byte tag header is copied, and the two writes are
-// corked so the tag still goes out as one chunk.
+// corked so they go out together. The body bytes are the same as one write;
+// HTTP chunk boundaries may group several tags (they carry no meaning).
 function writeShifted(res: Response, tag: FlvTag, offsetMs: number): void {
   const ms = tag.ms + offsetMs;
   const inBytes = (tag.bytes.readUIntBE(4, 3) | (tag.bytes[7] << 24)) >>> 0;

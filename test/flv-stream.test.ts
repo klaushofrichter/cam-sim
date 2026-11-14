@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import http from 'http';
-import net from 'net';
 import { execFileSync } from 'child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -172,37 +171,19 @@ describe('FLV readers of a sequence', () => {
     expect(r.tags.findIndex(isConfigTag)).toBeLessThan(r.tags.findIndex(media));
   }, 90_000);
 
-  it('every tag goes out as one HTTP chunk, timestamps rewritten or not', async () => {
+  it('a looped tag goes out with its timestamp rewritten and its payload untouched', async () => {
     const { engine, lib, srv, token } = await setup();
     expect(lib.selectSequence(['b'])).toBeNull();
     // Past the 2 s video's end: the second pass goes out with rewritten
-    // timestamps.
+    // timestamps (written as header copy + the original payload).
     const loopMs = engine.mediaFor({ video: 'b' }).durationMs('main');
-    const raw: Buffer[] = [];
-    const sock = net.connect(Number(new URL(srv.url).port), '127.0.0.1', () => {
-      sock.write(`GET /flv?port=1935&app=bcs&stream=channel0_main.bcs&token=${token} HTTP/1.1\r\nHost: x\r\n\r\n`);
-    });
-    sock.on('data', (d: Buffer) => raw.push(d));
-    sock.on('error', () => undefined);
-    cleanups.push(() => void sock.destroy());
+    const own = new Map<string, number[]>();
+    for (const t of engine.mediaFor({ video: 'b' }).liveFlv('main').tags.filter(media)) own.set(payload(t), [...(own.get(payload(t)) ?? []), t.ms]);
+    const r = read(`${srv.url}/flv?port=1935&app=bcs&stream=channel0_main.bcs&token=${token}`);
     await wait(loopMs + 1000);
-    const all = Buffer.concat(raw);
-    let i = all.indexOf('\r\n\r\n') + 4;
-    const chunks: Buffer[] = [];
-    for (;;) {
-      const eol = all.indexOf('\r\n', i);
-      if (eol < 0) break;
-      const n = parseInt(all.subarray(i, eol).toString('latin1'), 16);
-      if (!(n > 0) || eol + 2 + n + 2 > all.length) break;
-      chunks.push(all.subarray(eol + 2, eol + 2 + n));
-      i = eol + 2 + n + 2;
-    }
-    expect(chunks[0].subarray(0, 3).toString('latin1')).toBe('FLV');
-    expect(chunks.length).toBeGreaterThan(5);
-    // One whole tag per chunk: header, data, previous-tag size.
-    for (const c of chunks.slice(1)) expect(c.length).toBe(11 + c.readUIntBE(1, 3) + 4);
-    const ms = (c: Buffer) => (c.readUIntBE(4, 3) | (c[7] << 24)) >>> 0;
-    expect(Math.max(...chunks.slice(1).map(ms))).toBeGreaterThanOrEqual(loopMs);
+    const looped = r.tags.filter((t) => media(t) && t.ms >= loopMs);
+    expect(looped.length).toBeGreaterThan(0);
+    for (const t of looped) expect(own.get(payload(t))).toContain(t.ms - loopMs);
   }, 90_000);
 
   it('a single video still starts at its beginning', async () => {
