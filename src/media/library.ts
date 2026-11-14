@@ -183,6 +183,12 @@ export class Library {
     return null;
   }
 
+  // After a refusal: what the videos read goes, except the ones on air.
+  private releaseUnshown(media: MediaSource[]): void {
+    const shown = new Set([this.engine.media, ...(this.engine.media.items?.() ?? [])]);
+    for (const m of media) if (!shown.has(m)) m.release?.();
+  }
+
   // null on success, or why not.
   select(id: string): string | null {
     const entry = this.entries.get(id);
@@ -190,7 +196,10 @@ export class Library {
     if (entry.state !== 'ready') return `video ${id} is not ready (${entry.state})`;
     const media = this.engine.mediaFor({ video: id });
     const why = this.preload(id, media);
-    if (why) return why;
+    if (why) {
+      this.releaseUnshown([media]);
+      return why;
+    }
     this.engine.setMedia(media, id);
     return null;
   }
@@ -217,19 +226,23 @@ export class Library {
     if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
     const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
     // Each video on its own, so a refusal names the one whose files fail.
+    const refuseLoaded = (status: 409, error: string, detail: string) => {
+      this.releaseUnshown(items.map((i) => i.media));
+      return refuse(status, error, detail);
+    };
     for (const { id, media } of items) {
       const why = this.preload(id, media);
-      if (why) return refuse(409, 'not_ready', why);
+      if (why) return refuseLoaded(409, 'not_ready', why);
     }
     const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
     const why = this.preload(ids[0], media);
-    if (why) return refuse(409, 'not_ready', why);
+    if (why) return refuseLoaded(409, 'not_ready', why);
     const streams = this.engine.profile.media.ext ? (['sub', 'main', 'ext'] as const) : (['sub', 'main'] as const);
     const bytes = items.reduce((n, i) => n + streams.reduce((m, s) => m + (i.media.liveBytes?.(s) ?? 0), 0), 0);
     const max = this.opts.maxSequenceBytes ?? MAX_SEQUENCE_BYTES;
     if (bytes > max) {
       const mb = (b: number) => Math.ceil(b / 1048576);
-      return refuse(409, 'too_large', `the sequence's live streams take ${mb(bytes)} MB, more than the ${mb(max)} MB a sequence may hold in memory: choose fewer or shorter videos`);
+      return refuseLoaded(409, 'too_large', `the sequence's live streams take ${mb(bytes)} MB, more than the ${mb(max)} MB a sequence may hold in memory: choose fewer or shorter videos`);
     }
     this.engine.setMedia(media, ids[0], ids);
     return null;

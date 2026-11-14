@@ -181,6 +181,24 @@ describe('control API: videos', () => {
       expect(r.body.detail).toMatch(/^video b files are missing/);
     }, 90_000);
 
+    it('a refused sequence or video keeps nothing loaded of the videos it read', async () => {
+      const { app, engine } = await setupSeq();
+      const cached = (id: string) => {
+        const m = engine.mediaFor({ video: id }) as unknown as { flv: Map<string, unknown>; durations: Map<string, unknown> };
+        return m.flv.size + m.durations.size;
+      };
+      rmSync(join(dirname(engine.mediaFor({ video: 'b' }).clipPath('main')), 'main.flv'));
+      expect((await put(app, { ids: ['a', 'b'] })).status).toBe(409);
+      expect(cached('a')).toBe(0);
+      expect(cached('b')).toBe(0);
+      expect((await put(app, { id: 'b' })).status).toBe(409);
+      expect(cached('b')).toBe(0);
+      // A video on air keeps what it has.
+      expect((await put(app, { id: 'a' })).status).toBe(200);
+      expect((await put(app, { ids: ['a', 'b'] })).status).toBe(409);
+      expect(cached('a')).toBeGreaterThan(0);
+    }, 90_000);
+
     it('sequence refusals of the list use the shape error code', async () => {
       const { app } = await setupSeq();
       for (const ids of [['a', 'a'], [], ['test-pattern', 'a']]) expect((await put(app, { ids })).body.error).toBe('invalid');
