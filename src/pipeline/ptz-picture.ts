@@ -4,10 +4,6 @@
 import { spawn } from 'child_process';
 import { ptzDrawtext } from './overlay';
 
-export function drawTextOnJpeg(jpeg: Buffer, text: string, font: string, ffmpeg = 'ffmpeg'): Promise<Buffer> {
-  return renderJpeg(jpeg, { text, font }, ffmpeg);
-}
-
 // The text (with its font) drawn first, then the scale to `size` (WxH), so
 // the text keeps its share of the picture.
 export function renderJpeg(jpeg: Buffer, o: { text?: string; font?: string; size?: string }, ffmpeg = 'ffmpeg'): Promise<Buffer> {

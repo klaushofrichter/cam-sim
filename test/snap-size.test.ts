@@ -1,6 +1,6 @@
 // Snap answers at the main stream's size, as GetEnc reports it (#126); the
 // web/control snapshot stays at the fixture's sub size.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Writable } from 'stream';
 import request from 'supertest';
 import { fixedClock } from '../src/engine/clock';
@@ -50,6 +50,20 @@ describe('Snap size (#126)', () => {
     const a = await engine.snapMain();
     expect(await engine.snapMain()).toBe(a);
     expect((await snap(app, t)).equals(a)).toBe(true);
+  });
+
+  it('a cached Snap or web picture does not read the media\'s picture again', async () => {
+    const { engine } = await makeCamera();
+    const read = vi.spyOn(engine.media, 'snapshot');
+    const a = await engine.snapMain();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(await engine.snapMain()).toBe(a);
+    expect(await engine.snapMain()).toBe(a);
+    expect(read).toHaveBeenCalledTimes(1);
+    // A new main size misses the cache: one more read.
+    engine.settings.running.Enc.mainStream = { ...engine.settings.running.Enc.mainStream, width: 2560, height: 1440 };
+    expect(jpegSize(await engine.snapMain())).toEqual({ width: 2560, height: 1440 });
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   it.skipIf(!findFonts())('E1: Snap shows the position and changes after a move', async () => {
