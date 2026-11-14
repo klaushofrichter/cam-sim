@@ -1,10 +1,8 @@
 // The PTZ commands of pan/tilt models (profile.ptz, engine.ptz): measured on
 // the E1 Outdoor Pro (reference/E1-Outdoor-Pro/). runCommand() consults these
 // only when the engine has a Ptz, so the fixed models never reach them.
-import { ok, fail, type Ctx, type Entry, type Handler } from './commands';
+import { ok, done, setFaults, type Ctx, type Handler } from './commands';
 import type { Engine } from '../engine/engine';
-
-const done = (cmd: string, r: number | null): Entry => (r === null ? ok(cmd, { rspCode: 200 }) : fail(cmd, r));
 
 const spec = (e: Engine) => e.profile.ptz!;
 const ptz = (e: Engine) => e.ptz!;
@@ -17,7 +15,7 @@ const captured = (key: 'GetPtzGuard' | 'GetPtzCheckState' | 'GetAutoFocus' | 'Ge
   return ok(c.cmd, value, { initial, range });
 };
 
-export const PTZ_HANDLERS: Record<string, Handler> = {
+const PTZ_HANDLERS: Record<string, Handler> = {
   PtzCtrl: (c) => done(c.cmd, ptz(c.engine).control(c.param ?? {})),
   StartZoomFocus: (c) => done(c.cmd, ptz(c.engine).zoomFocus(c.param?.ZoomFocus ?? {})),
   // `initial` follows the current position (measured: it changed with the zoom).
@@ -32,14 +30,7 @@ export const PTZ_HANDLERS: Record<string, Handler> = {
   }),
   // Like a settings Set for the settings faults and setCalls; no `settings`
   // bus event (presets are not settings).
-  SetPtzPreset: (c) => {
-    const e = c.engine;
-    e.counters.noteSet(c.cmd);
-    const failing = e.faults.consume('settings.fail', c.cmd);
-    if (failing) return fail(c.cmd, failing.rspCode ?? -67);
-    if (e.faults.consume('settings.ignore', c.cmd)) return ok(c.cmd, { rspCode: 200 });
-    return done(c.cmd, ptz(e).setPreset(c.param?.PtzPreset ?? {}));
-  },
+  SetPtzPreset: (c) => setFaults(c) ?? done(c.cmd, ptz(c.engine).setPreset(c.param?.PtzPreset ?? {})),
   GetPtzGuard: captured('GetPtzGuard'),
   GetPtzCheckState: captured('GetPtzCheckState'),
   GetAutoFocus: captured('GetAutoFocus'),
