@@ -1,5 +1,5 @@
 import type pino from 'pino';
-import { nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
+import { nameRspCode, resetDefaultsFor, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
 import { profileFor, type CameraProfile } from '../profile/profile';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 import { isOneOf } from '../util/one-of';
@@ -135,7 +135,7 @@ export class SettingsStore {
     // from clients that write the whole object: keep the stored password.
     const mask = this.profile.ftpPasswordMask;
     if (key === 'Ftp' && mask !== undefined && sent.password === mask) sent = { ...sent, password: this.running.Ftp.password };
-    this.defaults ??= this.profile.resetDefaults();
+    this.defaults ??= resetDefaultsFor(this.profile.factorySettings(''));
     const defaults = this.defaults;
     // SetEnc: the streams the camera would run must be in its range (both
     // sizes one entry's pair); width and height follow size.

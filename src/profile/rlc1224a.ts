@@ -191,11 +191,7 @@ function zeroed(o: unknown): unknown {
 // partial SetIsp turned rotation 0 -> 1, a partial SetOsd watermark 1 -> 0,
 // a partial SetAiAlarm stay_time 3 -> 0), plus the values cams' mock camera
 // used for the other keys it modelled. Everything else: the zero value.
-export function resetDefaults(): Settings {
-  return resetDefaultsFor(factorySettings(''));
-}
-
-// The same rules over another model's factory settings (its key sets).
+// Over the model's factory settings (its key sets).
 export function resetDefaultsFor(factory: Settings): Settings {
   const z = zeroed(factory) as Settings;
   deepMerge(z.Rec, { postRec: '1 Minute', saveDay: 30 });
@@ -233,7 +229,6 @@ export const RLC1224A: CameraProfile = {
   maskFtpUser,
   whiteLedModes: [0, 1, 2, 3],
   factorySettings,
-  resetDefaults,
   fileFlags: FILE_FLAGS,
   baichuan: { authTypes: RLC_AUTH_TYPES, loginReplyLines: LOGIN_REPLY_LINES, pushes: PUSHES },
   media: { sub: '896x512', subFps: 10, mainFps: 20, mainSize: '4512x2512' },
