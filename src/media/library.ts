@@ -17,6 +17,10 @@ const run = promisify(execFile);
 const ONE_DECODER_THREAD = ['-threads', '1'];
 // Bump when the prepared files change, so caches are rebuilt.
 const LIBRARY_VERSION = 5;
+// What a sequence's live streams may take in memory, all streams together
+// (a viewer's stream holds its videos' FLVs): cam2 has 1 GiB, and 32
+// camera-sized mains (about 60 MB each for 60 s) OOM-killed it.
+const MAX_SEQUENCE_BYTES = 384 * 1024 * 1024;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
 
 export interface VideoEntry {
@@ -66,7 +70,7 @@ export class Library {
   private readonly sources = new Map<string, Source>();
   private readonly abort = new AbortController();
 
-  constructor(private readonly engine: Engine, private readonly opts: { sourceDir?: string; cacheDir: string }) {
+  constructor(private readonly engine: Engine, private readonly opts: { sourceDir?: string; cacheDir: string; maxSequenceBytes?: number }) {
     engine.library = this;
     this.entries.set('test-pattern', { id: 'test-pattern', name: 'Test pattern', state: 'ready', converted: true });
     // Every cached copy stays servable, so recordings keep their video after
@@ -164,14 +168,15 @@ export class Library {
     return [all[0], ...all.slice(1).sort((a, b) => a.id.localeCompare(b.id))].map((e) => ({ ...e }));
   }
 
-  // Loaded now, so missing files fail here and not in a live stream.
+  // Checked now (lengths from the files' tag headers, without loading
+  // them), so missing files fail here and not in a live stream.
   private preload(id: string, media: MediaSource): string | null {
     try {
       for (const s of ['sub', 'main'] as const) {
-        media.liveFlv(s);
+        media.durationMs(s);
         media.clipSize(s);
       }
-      if (this.engine.profile.media.ext) media.liveFlv('ext');
+      if (this.engine.profile.media.ext) media.durationMs('ext');
     } catch (err) {
       return `video ${id} files are missing or unreadable (${(err as NodeJS.ErrnoException).code ?? 'error'})`;
     }
@@ -214,6 +219,13 @@ export class Library {
     const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
     const why = this.preload(ids[0], media);
     if (why) return refuse(409, 'not_ready', why);
+    const streams = this.engine.profile.media.ext ? (['sub', 'main', 'ext'] as const) : (['sub', 'main'] as const);
+    const bytes = items.reduce((n, i) => n + streams.reduce((m, s) => m + (i.media.liveBytes?.(s) ?? 0), 0), 0);
+    const max = this.opts.maxSequenceBytes ?? MAX_SEQUENCE_BYTES;
+    if (bytes > max) {
+      const mb = (b: number) => Math.ceil(b / 1048576);
+      return refuse(409, 'too_large', `the sequence's live streams take ${mb(bytes)} MB, more than the ${mb(max)} MB a sequence may hold in memory: choose fewer or shorter videos`);
+    }
     this.engine.setMedia(media, ids[0], ids);
     return null;
   }

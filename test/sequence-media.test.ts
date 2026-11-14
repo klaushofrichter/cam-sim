@@ -70,6 +70,24 @@ describe('SequenceMedia', () => {
     expect(calls).toEqual(after);
   });
 
+  // A main FLV is tens of MB per video: only a main viewer may load it.
+  it('loads no stream for the clock, snapshots, recordings or RTSP', async () => {
+    const loaded: string[] = [];
+    const watched = (m: MediaSource): MediaSource => ({ ...m, liveFlv: (s) => (loaded.push(s), m.liveFlv(s)) });
+    const c = { t: 0 };
+    const s = new SequenceMedia([{ id: 'a', media: watched(a) }, { id: 'b', media: watched(b) }], { now: () => c.t, listDir: dir });
+    for (const st of ['sub', 'main', 'ext'] as const) s.durationMs(st);
+    c.t = 1200;
+    s.position();
+    expect(s.currentId()).toBe('b');
+    await s.snapshot();
+    s.clipSize('main');
+    s.inputArgs('main');
+    expect(loaded).toEqual([]);
+    s.startMs('sub');
+    expect([...new Set(loaded)]).toEqual(['sub']); // a sub viewer loads sub only
+  });
+
   it('items lists the videos it plays', () => {
     expect(make({ t: 0 }).items()).toEqual([a, b]);
   });

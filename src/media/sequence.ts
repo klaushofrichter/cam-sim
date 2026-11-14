@@ -21,9 +21,12 @@ export class SequenceMedia implements MediaSource {
   private readonly t0: number;
   private readonly now: () => number;
   private readonly listDir: string;
+  // A stream's chain, built when a viewer asks for that stream: a main FLV
+  // is tens of MB per video, so nothing else loads one.
   private readonly flv = new Map<LiveStream, { header: Buffer; tags: FlvTag[] }>();
-  // Each item's length per stream, taken once while chaining: the sequence
-  // never asks an item again (a released item would parse its files anew).
+  // Each item's length per stream, taken once (from the files' tag headers,
+  // without loading them): the sequence never asks an item again (a released
+  // item would read its files anew).
   private readonly durations = new Map<LiveStream, number[]>();
   private readonly lists = new Map<Stream, string>();
   // Names this sequence's list files: a publisher restarting during a switch
@@ -49,8 +52,12 @@ export class SequenceMedia implements MediaSource {
   }
 
   private lengths(stream: LiveStream): number[] {
-    this.liveFlv(stream);
-    return this.durations.get(stream)!;
+    let l = this.durations.get(stream);
+    if (!l) {
+      l = this.entries.map((i) => i.media.durationMs(stream));
+      this.durations.set(stream, l);
+    }
+    return l;
   }
 
   // Where the clock is on the main stream's total length.
@@ -79,19 +86,16 @@ export class SequenceMedia implements MediaSource {
     if (!r) {
       const first = this.entries[0].media.liveFlv(stream);
       const tags = first.tags.filter((t) => t.type === 18 || isConfigTag(t));
-      const lengths: number[] = [];
+      const lengths = this.lengths(stream);
       let offset = 0;
-      for (const item of this.entries) {
+      this.entries.forEach((item, i) => {
         for (const t of item.media.liveFlv(stream).tags) {
           if (t.type === 18 || isConfigTag(t) || isEndOfSequence(t)) continue;
           tags.push({ ...t, ms: t.ms + offset });
         }
-        const d = item.media.durationMs(stream);
-        lengths.push(d);
-        offset += d;
-      }
+        offset += lengths[i];
+      });
       r = { header: first.header, tags };
-      this.durations.set(stream, lengths);
       this.flv.set(stream, r);
     }
     return r;

@@ -106,9 +106,9 @@ describe('control API: videos', () => {
       ff(['-f', 'lavfi', '-i', 'testsrc2=size=896x512:rate=10', '-f', 'lavfi', '-i', 'sine=frequency=500:sample_rate=16000', '-t', '2', '-c:v', 'libx264', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(seq, 'odd', 'sub.mp4')]);
     }, 60_000);
 
-    async function setupSeq() {
+    async function setupSeq(opts: { maxSequenceBytes?: number } = {}) {
       const engine = await makeEngine({ CAMSIM_CONTROL_TOKEN: TOKEN, CAMSIM_MAIN_SIZE: '640x360' });
-      const lib = new Library(engine, { sourceDir: seq, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-ctlseq-cache-')) });
+      const lib = new Library(engine, { sourceDir: seq, cacheDir: mkdtempSync(join(tmpdir(), 'camsim-ctlseq-cache-')), ...opts });
       await lib.prepareAll();
       return { engine, lib, app: createControlApp(engine) };
     }
@@ -151,6 +151,26 @@ describe('control API: videos', () => {
       await put(app, { id: 'test-pattern' });
       expect(a).toHaveBeenCalledTimes(2);
       expect(b).toHaveBeenCalledTimes(1);
+    }, 90_000);
+
+    // A camera-sized main is tens of MB per video; 32 of them OOM-killed
+    // cam2 (1 GiB) when the clock loaded every main FLV.
+    it('selecting a sequence loads no live stream until a viewer asks', async () => {
+      const { app, engine } = await setupSeq();
+      expect((await put(app, { ids: ['a', 'b'] })).status).toBe(200);
+      expect(engine.media.currentId?.()).toBe('a');
+      await engine.media.snapshot();
+      for (const id of ['a', 'b']) expect((engine.mediaFor({ video: id }) as unknown as { flv: Map<string, unknown> }).flv.size).toBe(0);
+    }, 90_000);
+
+    it('refuses a sequence whose live streams would not fit in memory', async () => {
+      const { app, engine } = await setupSeq({ maxSequenceBytes: 1024 });
+      const r = await put(app, { ids: ['a', 'b'] });
+      expect(r.status).toBe(409);
+      expect(r.body).toMatchObject({ error: 'too_large' });
+      expect(r.body.detail).toMatch(/fewer or shorter videos/);
+      expect(engine.videoId).toBe('test-pattern');
+      expect((await put(app, { ids: ['a'] })).status).toBe(200);
     }, 90_000);
 
     it('sequence refusals of the list use the shape error code', async () => {

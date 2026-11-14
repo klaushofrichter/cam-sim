@@ -10,9 +10,12 @@ export type LiveStream = Stream | 'ext';
 export interface MediaSource {
   snapshot(): Promise<Buffer>;
   liveFlv(stream: LiveStream): { header: Buffer; tags: FlvTag[] };
+  // A stream's length; known without loading the stream.
   durationMs(stream: LiveStream): number;
   clipPath(stream: Stream): string;
   clipSize(stream: Stream): number;
+  // The live FLV's size in bytes: the memory liveFlv(stream) takes.
+  liveBytes?(stream: LiveStream): number;
   // Drops parsed data kept for live streams (the video is no longer shown).
   release?(): void;
   // A sequence of videos: the videos it plays (released with it).
