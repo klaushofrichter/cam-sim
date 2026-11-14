@@ -90,7 +90,58 @@ describe('Ptz', () => {
     p.zoomFocus({ op: 'FocusPos', pos: 52 });
     expect(p.position()).toMatchObject({ zoom: 7, focus: 52 });
     p.control({ op: 'ToPos', id: 0, speed: 32 });
+    clock.advance(1100);
     expect(p.position()).toMatchObject({ zoom: 20, focus: 77 });
+  });
+
+  it('ToPos travels: zoom 7 → 20 at speed 32 arrives in about 1 s (measured ~0.9 s); moving until then', () => {
+    p.zoomFocus({ op: 'ZoomPos', pos: 20 });
+    p.setPreset({ id: 0, enable: 1, name: 'z20' });
+    p.zoomFocus({ op: 'ZoomPos', pos: 7 });
+    p.control({ op: 'ToPos', id: 0, speed: 32 });
+    expect(p.view().moving).toMatchObject({ op: 'ToPos', speed: 32 });
+    clock.advance(500);
+    expect(p.position().zoom).toBe(13); // 7 + 0.4 * 32 * 0.5 = 13.4
+    expect(p.view().moving).not.toBeNull();
+    clock.advance(600);
+    expect(p.position().zoom).toBe(20);
+    expect(p.view().moving).toBeNull();
+  });
+
+  it('ToPos with pan and tilt: each axis at its rate; Stop mid-travel freezes it', () => {
+    p.control({ op: 'Left', speed: 32 }); clock.advance(2000); p.control({ op: 'Stop' }); // pan 84
+    p.setPreset({ id: 1, enable: 1, name: 'west' });
+    p.control({ op: 'Right', speed: 32 }); clock.advance(2000); p.control({ op: 'Stop' }); // pan 180
+    p.control({ op: 'ToPos', id: 1, speed: 32 });
+    clock.advance(1000);
+    expect(p.position().pan).toBe(132); // 48°/s
+    expect(p.control({ op: 'Stop' })).toBeNull();
+    clock.advance(5000);
+    expect(p.position().pan).toBe(132);
+    expect(p.view().moving).toBeNull();
+    p.control({ op: 'ToPos', id: 1, speed: 32 });
+    clock.advance(1000);
+    expect(p.position().pan).toBe(84);
+    expect(p.view().moving).toBeNull();
+  });
+
+  it('ToPos to a slot with the same zoom leaves a bad focus as it is (measured 2026-11-14)', () => {
+    p.control({ op: 'Left', speed: 32 }); clock.advance(1000); p.control({ op: 'Stop' });
+    p.setPreset({ id: 2, enable: 1, name: 'same zoom' });
+    p.control({ op: 'Right', speed: 32 }); clock.advance(1000); p.control({ op: 'Stop' });
+    p.zoomFocus({ op: 'FocusPos', pos: 3 });
+    p.control({ op: 'ToPos', id: 2, speed: 32 });
+    clock.advance(3000);
+    expect(p.position()).toMatchObject({ pan: 132, zoom: 7, focus: 3 });
+    // An explicit autofocus (ZoomPos to the same zoom) brings it back.
+    p.zoomFocus({ op: 'ZoomPos', pos: 7 });
+    expect(p.position().focus).toBe(49);
+  });
+
+  it('curPos: pan/tilt in tenths, zoom and focus in steps, channel 0', () => {
+    expect(p.curPos()).toEqual({ Fpos: 49, Ppos: 1800, Tpos: 250, Zpos: 7, channel: 0 });
+    p.control({ op: 'Left', speed: 32 }); clock.advance(500);
+    expect(p.curPos().Ppos).toBe(1560);
   });
 
   it('ZoomPos refocuses; manual focus stays until the next zoom; pan/tilt leave focus alone', () => {
@@ -226,14 +277,15 @@ describe('Ptz', () => {
     expect(saved).toMatchObject({ pan: 132, zoom: 11 });
     p.control({ op: 'Right', speed: 64 }); clock.advance(1000);
     p.control({ op: 'FocusInc', speed: 64 }); clock.advance(1000);
+    const manual = p.position().focus;
     expect(p.control({ op: 'ToPos', id: 5, speed: 32 })).toBeNull();
-    clock.advance(1000);
+    clock.advance(2500); // 96° at 48°/s
     const now = p.position();
     expect(now).toMatchObject({ pan: 132, tilt: 25, zoom: 11 });
-    // Focus is not part of a preset: the camera refocuses for the zoom, so
-    // the manual FocusInc is gone (focus tracks zoom).
-    expect(now.focus).toBe(focusFor(11));
-    expect(now.focus).toBe(saved.focus);
+    // Focus is not part of a preset, and the same zoom does not refocus
+    // (measured 2026-11-14): the manual FocusInc stays.
+    expect(now.focus).toBe(manual);
+    expect(now.focus).not.toBe(saved.focus);
     expect(p.view().moving).toBeNull();
   });
 
@@ -293,6 +345,7 @@ describe('Ptz', () => {
     // An emptied slot is not a ToPos target any more.
     p.control({ op: 'Left', speed: 32 }); clock.advance(1000); p.control({ op: 'Stop' });
     p.control({ op: 'ToPos', id: 10 });
+    clock.advance(5000);
     expect(p.position().pan).toBe(132);
   });
 

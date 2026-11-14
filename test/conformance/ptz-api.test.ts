@@ -65,6 +65,7 @@ describe('PTZ commands (E1-Outdoor-Pro)', () => {
     expect(g.initial.PtzPreset[63]).toEqual({ channel: 0, enable: 0, id: 63, imgName: '', name: 'pos64' });
     expect(await call('StartZoomFocus', { ZoomFocus: { channel: 0, op: 'ZoomPos', pos: 7 } })).toEqual(OK200('StartZoomFocus'));
     expect(await call('PtzCtrl', { channel: 0, op: 'ToPos', id: 63, speed: 32 })).toEqual(OK200('PtzCtrl'));
+    clock.advance(1500);
     expect((await call('GetZoomFocus', { channel: 0 })).value.ZoomFocus.zoom.pos).toBe(20);
     expect(await call('SetPtzPreset', { PtzPreset: { channel: 0, enable: 1, id: 64, name: 'x' } })).toEqual({ cmd: 'SetPtzPreset', code: 1, error: { detail: 'param error', rspCode: -4 } });
   });
@@ -84,6 +85,29 @@ describe('PTZ commands (E1-Outdoor-Pro)', () => {
       const want = cam.engine.profile.ptz!.answers[cmd as 'GetPtzGuard'];
       expect(r).toEqual({ cmd, code: 0, ...want });
       expect(Object.keys(r)).toEqual(Object.keys(entry(cmd)));
+    }
+  });
+
+  it('GetPtzCurPos {PtzCurPos: {channel: 0}} answers the position (measured 2026-11-14); it follows a ToPos travel', async () => {
+    const cur = async () => (await call('GetPtzCurPos', { PtzCurPos: { channel: 0 } })) as { cmd: string; code: number; value: { PtzCurPos: Record<string, number> } };
+    const r = await cur();
+    expect(Object.keys(r)).toEqual(['cmd', 'code', 'value']);
+    expect(r).toEqual({ cmd: 'GetPtzCurPos', code: 0, value: { PtzCurPos: { Fpos: 49, Ppos: 1800, Tpos: 250, Zpos: 7, channel: 0 } } });
+    expect(Object.keys(r.value.PtzCurPos)).toEqual(['Fpos', 'Ppos', 'Tpos', 'Zpos', 'channel']);
+    await call('PtzCtrl', { channel: 0, op: 'Left', speed: 32 });
+    clock.advance(1000);
+    await call('PtzCtrl', { channel: 0, op: 'Stop' });
+    await call('SetPtzPreset', { PtzPreset: { channel: 0, enable: 1, id: 4, name: 'west' } });
+    await call('PtzCtrl', { channel: 0, op: 'Right', speed: 32 });
+    clock.advance(1000);
+    await call('PtzCtrl', { channel: 0, op: 'Stop' });
+    await call('PtzCtrl', { channel: 0, op: 'ToPos', id: 4, speed: 32 });
+    clock.advance(500);
+    expect((await cur()).value.PtzCurPos.Ppos).toBe(1560);
+    clock.advance(1000);
+    expect((await cur()).value.PtzCurPos.Ppos).toBe(1320);
+    for (const bad of [{ channel: 0 }, {}, { PtzCurPos: 0 }]) {
+      expect(await call('GetPtzCurPos', bad)).toEqual({ cmd: 'GetPtzCurPos', code: 1, error: { detail: 'not exist', rspCode: -1 } });
     }
   });
 

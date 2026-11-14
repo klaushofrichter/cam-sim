@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- E1 Outdoor Pro: `GetPtzCurPos {PtzCurPos: {channel: 0}}` answers the pan/tilt/zoom/focus position (`Ppos`, `Tpos`, `Zpos`, `Fpos`) as the real E1 does (measured 2026-11-14); a plain `{channel: 0}` is still refused with `-1`. `ToPos` now takes time instead of jumping: pan, tilt and zoom travel at their rates (zoom 7 → 20 in about 1 s at speed 32, the camera took 0.9 s), and the Simulator page shows it moving until it arrives. A `ToPos` that keeps the zoom no longer refocuses, so a focus set by hand stays (measured); one to another zoom refocuses as before.
+
 - Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer, and the faults behave as before. Live FLV viewers cost less: a looped or sequence tag no longer copies its whole video payload per viewer, and a video's tag list is filtered once instead of once per viewer. A cached Snap or web picture no longer reads the picture file from disk on every poll.
 
 ## v2026.11.09.2

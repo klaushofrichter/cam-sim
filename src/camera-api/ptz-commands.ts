@@ -1,7 +1,7 @@
 // The PTZ commands of pan/tilt models (profile.ptz, engine.ptz): measured on
 // the E1 Outdoor Pro (reference/E1-Outdoor-Pro/). runCommand() consults these
 // only when the engine has a Ptz, so the fixed models never reach them.
-import { ok, done, setFaults, type Ctx, type Handler } from './commands';
+import { ok, done, setFaults, type Ctx, type Entry, type Handler } from './commands';
 import type { Engine } from '../engine/engine';
 
 const spec = (e: Engine) => e.profile.ptz!;
@@ -31,6 +31,13 @@ const PTZ_HANDLERS: Record<string, Handler> = {
   // Like a settings Set for the settings faults and setCalls; no `settings`
   // bus event (presets are not settings).
   SetPtzPreset: (c) => setFaults(c) ?? done(c.cmd, ptz(c.engine).setPreset(c.param?.PtzPreset ?? {})),
+  // The position wrapped as {PtzCurPos: {channel}} (measured 2026-11-14); a
+  // plain {channel} gets the captured refusal (-1 "not exist").
+  GetPtzCurPos: (c) => {
+    const w = c.param?.PtzCurPos;
+    if (w === null || typeof w !== 'object' || Array.isArray(w)) return refusal(c);
+    return ok(c.cmd, { PtzCurPos: ptz(c.engine).curPos() });
+  },
   GetPtzGuard: captured('GetPtzGuard'),
   GetPtzCheckState: captured('GetPtzCheckState'),
   GetAutoFocus: captured('GetAutoFocus'),
@@ -41,8 +48,12 @@ const PTZ_HANDLERS: Record<string, Handler> = {
 // profile captured (GetPtzCurPos, GetPtzTattern, ...).
 export function ptzHandler(c: Ctx): Handler | undefined {
   if (Object.hasOwn(PTZ_HANDLERS, c.cmd)) return PTZ_HANDLERS[c.cmd];
-  const refusals = c.engine.profile.ptz?.refusals ?? {};
-  if (!Object.hasOwn(refusals, c.cmd)) return undefined;
-  const { rspCode, detail } = refusals[c.cmd];
-  return (x) => ({ cmd: x.cmd, code: 1, error: { detail, rspCode } });
+  if (!Object.hasOwn(c.engine.profile.ptz?.refusals ?? {}, c.cmd)) return undefined;
+  return refusal;
+}
+
+// The refusal the profile captured for the command.
+function refusal(c: Ctx): Entry {
+  const { rspCode, detail } = spec(c.engine).refusals[c.cmd];
+  return { cmd: c.cmd, code: 1, error: { detail, rspCode } };
 }
