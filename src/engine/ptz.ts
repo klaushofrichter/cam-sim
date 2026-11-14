@@ -1,7 +1,7 @@
 // The virtual pan/tilt/zoom/focus state of a PTZ camera (the E1 Outdoor Pro,
-// reference/E1-Outdoor-Pro/README.md). The camera reports no pan/tilt
-// position, so pan and tilt are the simulator's own degrees; zoom and focus
-// are the camera's steps. Moves advance lazily from the clock: position() is
+// reference/E1-Outdoor-Pro/README.md). Pan and tilt are the simulator's own
+// degrees (GetPtzCurPos reports them in tenths); zoom and focus are the
+// camera's steps. Moves advance lazily from the clock: position() is
 // the state at clock.now(), so a fixed clock makes every test deterministic.
 // No state at module level: every engine owns its own Ptz.
 import type { Clock } from './clock';
@@ -56,7 +56,9 @@ const DIRECTIONS: Partial<Record<Op, Partial<Record<Axis, 1 | -1>>>> = {
 };
 
 interface Slot { enable: 0 | 1; name: string; pan: number; tilt: number; zoom: number }
-interface Move { op: Op; speed: number; sinceMs: number }
+// A ToPos travel carries its target: each axis runs at its rate until it
+// arrives, and the move ends when all have.
+interface Move { op: Op; speed: number; sinceMs: number; to?: { pan: number; tilt: number; zoom: number } }
 
 const PARAM_ERROR = -4;
 const SET_CONFIG_FAILED = -13;
@@ -92,16 +94,43 @@ export class Ptz {
     const m = this.moving;
     if (!m) return { ...this.base };
     const secs = Math.max(0, ms - m.sinceMs) / 1000;
+    if (m.to) return this.travel(m, secs);
     const dir = DIRECTIONS[m.op] ?? {};
     const out = { ...this.base };
     for (const a of AXES) {
       const d = dir[a];
       if (!d) continue;
-      const rate = a === 'zoom' ? this.spec.rate.zoom : a === 'focus' ? this.spec.rate.focus : this.spec.rate.panTilt;
-      out[a] = clamp(this.base[a] + d * rate * m.speed * secs, this.spec[a]);
+      out[a] = clamp(this.base[a] + d * this.rate(a) * m.speed * secs, this.spec[a]);
     }
     if (isZoom(m.op)) out.focus = this.refocus(out.zoom, out.focus);
     return out;
+  }
+
+  private rate(a: Axis): number {
+    return a === 'zoom' ? this.spec.rate.zoom : a === 'focus' ? this.spec.rate.focus : this.spec.rate.panTilt;
+  }
+
+  // A ToPos `secs` after it started: pan, tilt and zoom toward the target at
+  // their rates. A zoom change refocuses like any zoom; the same zoom leaves
+  // the focus alone (measured 2026-11-14: a bad focus stays bad).
+  private travel(m: Move, secs: number): PtzPos {
+    const to = m.to!;
+    const out = { ...this.base };
+    for (const a of ['pan', 'tilt', 'zoom'] as const) {
+      const step = this.rate(a) * m.speed * secs;
+      const d = to[a] - this.base[a];
+      out[a] = Math.abs(d) <= step ? to[a] : this.base[a] + Math.sign(d) * step;
+    }
+    if (Math.round(this.base.zoom) !== to.zoom) out.focus = this.refocus(out.zoom, out.focus);
+    return out;
+  }
+
+  // The running move at `ms`: a travel that has arrived is over.
+  private running(ms: number): Move | undefined {
+    const m = this.moving;
+    if (!m?.to) return m;
+    const p = this.at(ms);
+    return p.pan === m.to.pan && p.tilt === m.to.tilt && p.zoom === m.to.zoom ? undefined : m;
   }
 
   // The camera refocuses after every zoom change (autofocus on): focus
@@ -150,16 +179,19 @@ export class Ptz {
       const slot = this.slots[p.id];
       // An empty slot: 200 and no move (measured).
       if (!slot.enable) return null;
-      // Applies at once (not measured); focus is not stored: the camera
-      // refocuses for the slot's zoom (measured: zoom 20, focus 52 -> 77).
+      // A travel at the speed's rates (the zoom's matches the measured ~0.9 s
+      // for 7 -> 20 at speed 32; pan/tilt not measured). Focus is not
+      // stored: a zoom change refocuses for the slot's zoom (measured: zoom
+      // 20, focus 52 -> 77), the same zoom keeps the focus (measured 2026-11-14).
       this.settle();
-      this.base = { ...this.base, pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom, focus: this.refocus(slot.zoom, this.base.focus) };
+      this.moving = { op, speed, sinceMs: this.clock.now().getTime(), to: { pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom } };
       return null;
     }
     // A zoom while a zoom runs, either direction: -13 "set config failed",
     // and the running zoom goes on (measured 2026-10-30). Moves and focus may
     // be repeated or reversed mid-motion, and replace a zoom.
-    if (isZoom(op) && this.moving && isZoom(this.moving.op)) return SET_CONFIG_FAILED;
+    const run = this.running(this.clock.now().getTime());
+    if (isZoom(op) && run && isZoom(run.op)) return SET_CONFIG_FAILED;
     this.settle();
     this.moving = { op: op as Op, speed, sinceMs: this.clock.now().getTime() };
     return null;
@@ -226,8 +258,17 @@ export class Ptz {
     this.slots = Array.from({ length: this.spec.slots }, (_x, id) => this.emptySlot(id));
   }
 
+  // GetPtzCurPos (measured 2026-11-14 on the E1, which reports Ppos 1128,
+  // Tpos 0, Zpos 500, Fpos 511): pan and tilt in tenths of the simulator's
+  // degrees, zoom and focus in GetZoomFocus's steps (the camera's scales were
+  // not measured).
+  curPos(): { Fpos: number; Ppos: number; Tpos: number; Zpos: number; channel: 0 } {
+    const p = this.position();
+    return { Fpos: p.focus, Ppos: Math.round(p.pan * 10), Tpos: Math.round(p.tilt * 10), Zpos: p.zoom, channel: 0 };
+  }
+
   view(): PtzView {
-    const m = this.moving;
+    const m = this.running(this.clock.now().getTime());
     return {
       ...this.position(),
       moving: m ? { op: m.op, speed: m.speed, since: new Date(m.sinceMs).toISOString() } : null,
