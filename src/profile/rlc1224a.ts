@@ -9,6 +9,7 @@ import { PUSHES, RLC_AUTH_TYPES } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 import { deepMerge } from '../util/json-file';
 import { RLC_ENC_RANGE } from './enc';
+import { V0A_NAMES } from '../engine/sdcard';
 
 export const FIRMWARE = {
   model: 'RLC-1224A',
@@ -215,7 +216,7 @@ export function resetDefaultsFor(factory: Settings): Settings {
 export const maskFtpUser = (u: string): string => (u.length >= 5 ? `${u.slice(0, 2)}**${u.slice(-2)}` : u);
 
 // Flags of a real clip without trigger bits.
-export const FILE_FLAGS = { sub: 0x55148000000000n, main: 0x7b288200000000n };
+const FILE_FLAGS = { sub: 0x55148000000000n, main: 0x7b288200000000n };
 
 export const RLC1224A: CameraProfile = {
   model: 'RLC-1224A',
@@ -229,7 +230,7 @@ export const RLC1224A: CameraProfile = {
   maskFtpUser,
   whiteLedModes: [0, 1, 2, 3],
   factorySettings,
-  fileFlags: FILE_FLAGS,
+  recordNames: { ...V0A_NAMES, flags: FILE_FLAGS },
   baichuan: { authTypes: RLC_AUTH_TYPES, loginReplyLines: LOGIN_REPLY_LINES, pushes: PUSHES },
   media: { sub: '896x512', subFps: 10, mainFps: 20, mainSize: '4512x2512' },
   // No sprop-parameter-sets in its SDP (measured 2026-11-02, as the E1's).

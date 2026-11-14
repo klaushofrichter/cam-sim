@@ -130,8 +130,7 @@ export class Engine {
       log,
       fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
       currentVideo: () => this.media.currentId?.() ?? this.videoId,
-      fileFlags: this.profile.fileFlags,
-      nameFormat: this.profile.nameFormat,
+      names: this.profile.recordNames,
     });
     this.events = new Events({ clock, tz: config.tz, sd: this.sd, settings: this.settings, rng: this.rng });
     for (const f of config.faults) this.faults.set(f);

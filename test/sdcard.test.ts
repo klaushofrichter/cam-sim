@@ -5,28 +5,30 @@ import { join } from 'path';
 import { Writable } from 'stream';
 import { SdCard, flagsHex, fileName, DEMO_CLIPS, recentClips } from '../src/engine/sdcard';
 import { fixedClock } from '../src/engine/clock';
+import { RLC1224A } from '../src/profile/rlc1224a';
 import { createLogger } from '../src/log';
 
 const TZ = 'America/Chicago';
 const quiet = () => createLogger('silent');
 const sizes = { sub: 700_000, main: 5_000_000 };
+const names = RLC1224A.recordNames;
 const clock = () => fixedClock(new Date('2026-09-26T17:00:00Z')); // 12:00 CDT
 const make = (o: Partial<ConstructorParameters<typeof SdCard>[0]> = {}) =>
-  new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: sizes, ...o });
+  new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: sizes, names, ...o });
 
 describe('names', () => {
   it('encodes trigger flags like the firmware', () => {
-    expect(flagsHex('sub', ['motion'])).toBe('55148080000000');
-    expect(flagsHex('sub', ['person', 'vehicle', 'motion'])).toBe('5514D080000000');
-    expect(flagsHex('main', ['motion'])).toBe('7B288280000000');
-    expect(flagsHex('sub', ['pet'])).toBe('55148800000000');
+    expect(flagsHex('sub', ['motion'], names)).toBe('55148080000000');
+    expect(flagsHex('sub', ['person', 'vehicle', 'motion'], names)).toBe('5514D080000000');
+    expect(flagsHex('main', ['motion'], names)).toBe('7B288280000000');
+    expect(flagsHex('sub', ['pet'], names)).toBe('55148800000000');
   });
 
   it('builds the full path', () => {
-    expect(fileName('sub', '2026-09-26', true, '065221', '065224', ['motion'], 0x4ac87)).toBe(
+    expect(fileName('sub', '2026-09-26', true, '065221', '065224', ['motion'], 0x4ac87, names)).toBe(
       '/mnt/sda/Mp4Record/2026-09-26/RecS0A_DST20260926_065221_065224_0_55148080000000_4AC87.mp4',
     );
-    expect(fileName('main', '2026-11-02', false, '010203', '000000', ['person'], 16)).toBe(
+    expect(fileName('main', '2026-11-02', false, '010203', '000000', ['person'], 16, names)).toBe(
       '/mnt/sda/Mp4Record/2026-11-02/RecM0A_20261102_010203_000000_0_7B28C200000000_10.mp4',
     );
   });
@@ -193,7 +195,7 @@ describe('SdCard', () => {
 
   it("keeps each recording's size, so names stay stable when the video changes", () => {
     const current = { sub: 1000, main: 2000 };
-    const sd = new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: () => current });
+    const sd = new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: () => current, names });
     const r = sd.add({ date: '2026-09-26', start: '065221', end: '065241', triggers: ['motion'], dst: true });
     const before = sd.byId(r.id)!.files.sub.name;
     current.sub = 5555;

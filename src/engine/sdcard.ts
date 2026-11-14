@@ -3,7 +3,6 @@ import type pino from 'pino';
 import { localParts, isDstOn, p2, type Clock } from './clock';
 import { DATE, HMS, TRIGGERS, type Trigger } from './types';
 import { readJson, writeJsonAtomic } from '../util/json-file';
-import { FILE_FLAGS } from '../profile/rlc1224a';
 import { isOneOf } from '../util/one-of';
 
 export type { Trigger } from './types';
@@ -78,22 +77,26 @@ const TRIGGER_POS: Record<Trigger, number> = { person: 17, vehicle: 19, pet: 20,
 // 03 (the E1 Outdoor Pro, measured 2026-11-02): no animal-type field and 7
 // digits, the 14-digit field without its trailing zeros.
 export interface NameFormat { version: string; animalField: boolean; flagDigits: 7 | 14 }
-const V0A_NAMES: NameFormat = { version: '0A', animalField: true, flagDigits: 14 };
+export const V0A_NAMES: NameFormat = { version: '0A', animalField: true, flagDigits: 14 };
 export const V03_NAMES: NameFormat = { version: '03', animalField: false, flagDigits: 7 };
+// A model's record names: its format plus the flags of a real clip without
+// trigger bits. One value (profile recordNames), so flags and digits can't
+// come from different models, and no default stands in for a forgotten one.
+export interface RecordNames extends NameFormat { flags: Record<Stream, bigint> }
 
-// `base`: the flags of a real clip without trigger bits, the model's (profile
-// fileFlags), the RLC-1224A's by default. Trigger positions count from the
-// field's top bit: bit 55 − pos for 14 digits, 27 − pos for 7.
-export function flagsHex(stream: Stream, triggers: Trigger[], base: Record<Stream, bigint> = FILE_FLAGS, digits: 7 | 14 = 14): string {
-  let v = base[stream];
+// Trigger positions count from the field's top bit: bit 55 − pos for 14
+// digits, 27 − pos for 7.
+export function flagsHex(stream: Stream, triggers: Trigger[], names: Pick<RecordNames, 'flags' | 'flagDigits'>): string {
+  const digits = names.flagDigits;
+  let v = names.flags[stream];
   for (const t of triggers) v |= 1n << BigInt(digits * 4 - 1 - TRIGGER_POS[t]);
   return v.toString(16).toUpperCase().padStart(digits, '0');
 }
 
-export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, flags: Record<Stream, bigint> = FILE_FLAGS, format: NameFormat = V0A_NAMES): string {
+export function fileName(stream: Stream, date: string, dst: boolean, start: string, end: string, triggers: Trigger[], size: number, names: RecordNames): string {
   const ymd = date.replaceAll('-', '');
-  const animal = format.animalField ? '0_' : '';
-  const base = `Rec${stream === 'sub' ? 'S' : 'M'}${format.version}_${dst ? 'DST' : ''}${ymd}_${start}_${end}_${animal}${flagsHex(stream, triggers, flags, format.flagDigits)}_${size.toString(16).toUpperCase()}.mp4`;
+  const animal = names.animalField ? '0_' : '';
+  const base = `Rec${stream === 'sub' ? 'S' : 'M'}${names.version}_${dst ? 'DST' : ''}${ymd}_${start}_${end}_${animal}${flagsHex(stream, triggers, names)}_${size.toString(16).toUpperCase()}.mp4`;
   return `${ROOT}/${date}/${base}`;
 }
 
@@ -152,7 +155,7 @@ export class SdCard {
   private seq = 0;
   private readonly file?: string;
 
-  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string; fileFlags?: Record<Stream, bigint>; nameFormat?: NameFormat }) {
+  constructor(private readonly opts: { dir?: string; capacityMb: number; clock: Clock; tz: string; log: pino.Logger; fixtureSizes: Record<Stream, number> | (() => Record<Stream, number>); currentVideo?: () => string; names: RecordNames }) {
     if (opts.dir) {
       this.file = join(opts.dir, 'index.json');
       try {
@@ -187,7 +190,7 @@ export class SdCard {
   private withFiles(r: Stored): Recording {
     const f = (s: Stream) => {
       const size = (r.sizes ?? this.currentSizes())[s];
-      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size, this.opts.fileFlags, this.opts.nameFormat), size };
+      return { name: fileName(s, r.date, r.dst, r.start, streamEnd(r, s) ?? '000000', r.triggers, size, this.opts.names), size };
     };
     const { sizes: _sizes, ...rest } = r;
     void _sizes;

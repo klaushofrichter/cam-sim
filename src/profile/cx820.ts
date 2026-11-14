@@ -10,6 +10,7 @@ import {
 } from './rlc1224a';
 import { CX820_LOGIN_REPLY_LINES } from '../baichuan/device-info-cx820';
 import { CX820_ENC_RANGE } from './enc';
+import { V0A_NAMES } from '../engine/sdcard';
 import { RLC_AUTH_TYPES, afterLogin } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 
@@ -126,7 +127,7 @@ export const CX820: CameraProfile = {
   factorySettings,
   // Measured on one motion clip (Search-*.json); the trigger bits are assumed
   // at the RLC-1224A's positions (the motion bit matches).
-  fileFlags: { sub: 0x2b148000000000n, main: 0x67328200000000n },
+  recordNames: { ...V0A_NAMES, flags: { sub: 0x2b148000000000n, main: 0x67328200000000n } },
   baichuan: {
     authTypes: ['password', 'sigV1', 'sigV3', ...RLC_AUTH_TYPES.slice(2)],
     loginReplyLines: CX820_LOGIN_REPLY_LINES,
