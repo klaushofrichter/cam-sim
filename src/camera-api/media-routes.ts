@@ -110,6 +110,22 @@ function writeShifted(res: Response, tag: FlvTag, offsetMs: number): void {
 // AVC/HEVC end of sequence: never mid-stream (a live camera doesn't end).
 const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 
+// A source's tags as viewers play them: without end-of-sequence tags (and
+// without script tags after the first source), and the part that loops.
+// The same for every viewer, so computed once per tag list; a media's list
+// lives until the media is released, and the entry goes with it.
+const playableCache = new WeakMap<FlvTag[], { first?: Playable; later?: Playable }>();
+interface Playable { tags: FlvTag[]; loopTags: FlvTag[] }
+export function playable(all: FlvTag[], first: boolean): Playable {
+  let entry = playableCache.get(all);
+  if (!entry) playableCache.set(all, (entry = {}));
+  const make = (): Playable => {
+    const tags = all.filter((t) => !isEndOfSequence(t) && (first || t.type !== 18));
+    return { tags, loopTags: tags.filter((t) => t.type !== 18 && !isConfigTag(t)) };
+  };
+  return first ? (entry.first ??= make()) : (entry.later ??= make());
+}
+
 // The camera's /flv endpoint: token, fault and RTMP checks, then the stream.
 export async function flv(engine: Engine, req: Request, res: Response): Promise<void> {
   const e = engine;
@@ -140,9 +156,9 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
   // audio included, are skipped); later passes loop it whole.
   const load = (media: typeof e.media, first: boolean) => {
     const { header, tags: all } = media.liveFlv(stream);
-    let tags = all.filter((t) => !isEndOfSequence(t) && (first || t.type !== 18));
+    const { tags: playTags, loopTags } = playable(all, first);
+    let tags = playTags;
     const loopMs = media.durationMs(stream);
-    const loopTags = tags.filter((t) => t.type !== 18 && !isConfigTag(t));
     let startAt = 0;
     if (media.startMs) {
       const at = media.startMs(stream);

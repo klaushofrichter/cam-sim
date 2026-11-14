@@ -12,6 +12,7 @@ import { ensureFixtures, defaultFixtureDir } from '../src/media/fixtures';
 import { createLogger } from '../src/log';
 import { makeEngine, listen, login } from './helpers';
 import { createCameraApp } from '../src/camera-api/app';
+import { playable } from '../src/camera-api/media-routes';
 import { Library } from '../src/media/library';
 import { SequenceMedia } from '../src/media/sequence';
 
@@ -59,6 +60,29 @@ describe('FlvStreamParser', () => {
 
 // Video sequences (spec 2026-11-06, Playing): every FLV reader joins at the
 // sequence clock, at the keyframe at or before it, not at video 1.
+describe('playable', () => {
+  it('filters a tag list once for every viewer, and again for a new list', () => {
+    const w = new FlvWriter();
+    const nalu = Buffer.from([0x26, 0x01, 0xaf, 0x00]);
+    const eos = Buffer.from(w.video('h264', [nalu], false, 40));
+    eos[12] = 2; // AVC end of sequence
+    const buf = Buffer.concat([w.header(true, true), w.tag(18, 0, Buffer.from([2, 0, 0])), w.videoConfig('h264', Buffer.from([1, 2, 3]), 0),
+      w.video('h264', [nalu], true, 0), w.video('h264', [nalu], false, 20), eos]);
+    const all = readFlv(buf).tags;
+    const a = playable(all, true);
+    expect(a.tags.map((t) => [t.type, t.ms])).toEqual([[18, 0], [9, 0], [9, 0], [9, 20]]);
+    expect(a.loopTags).toEqual([all[2], all[3]]);
+    expect(playable(all, true)).toBe(a);
+    const later = playable(all, false);
+    expect(later.tags.map((t) => [t.type, t.ms])).toEqual([[9, 0], [9, 0], [9, 20]]);
+    expect(playable(all, false)).toBe(later);
+    // A released and reloaded media gives a new list: computed again.
+    const again = playable([...all], true);
+    expect(again).not.toBe(a);
+    expect(again).toEqual(a);
+  });
+});
+
 describe('FLV readers of a sequence', () => {
   let srcDir: string;
   const cleanups: Array<() => Promise<void> | void> = [];
