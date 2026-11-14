@@ -10,6 +10,7 @@ import { BAICHUAN_OVER_LIMIT_HELD_MAX, BAICHUAN_SESSION_LIMIT, type CamSimConfig
 import { CLS_CAMERA, CLS_NONCE_REPLY, CLS_NONCE_REQUEST, ENC_CHOICE, FrameParser, channelOf, encodeFrame, type BcFrame } from './frame';
 import { aesDecrypt, aesEncrypt, aesKey, bcXor, md5_31 } from './cipher';
 import { LATE_AFTER_LINK_TYPE_MS, LINK_TYPE_XML, LOGIN_ERR_XML, loginReplyXml, nonceXml, tagValue, type PushMessage } from './xml';
+import { safeEqual } from '../util/safe-equal';
 import { FIRST_REPLY_LEN, Transfer, fileInfoReply, resolveFile } from './vod';
 
 // Defaults: config.baichuan (idle close 32 s, 12.5 s before a first message).
@@ -251,7 +252,7 @@ export class BaichuanServer {
     // The current user list, so a password or user changed through the camera
     // API applies to the next login.
     const refused = !!this.engine.faults.consume('baichuan.loginFail');
-    const user = refused ? undefined : this.engine.sessions.findUser((u) => md5_31(u.name + nonce) === userHash && md5_31(u.password + nonce) === passHash);
+    const user = refused ? undefined : this.engine.sessions.findUser((u) => safeEqual(md5_31(u.name + nonce), userHash ?? '') && safeEqual(md5_31(u.password + nonce), passHash ?? ''));
     if (!user) {
       // Measured: 401 with remainTimes 10; the connection stays open.
       const body = bcXor(Buffer.from(LOGIN_ERR_XML), ch);
