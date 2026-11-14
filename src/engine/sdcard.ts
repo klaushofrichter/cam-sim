@@ -173,7 +173,9 @@ export class SdCard {
       } catch {
         opts.log.warn({ file: this.file }, 'sd_index_invalid');
       }
-      this.seq = this.recs.length;
+      // The highest r<N> kept, not the count: retention drops the oldest
+      // ids, and a count would hand them out again.
+      this.seq = this.recs.reduce((n, r) => Math.max(n, Number(/^r(\d+)-/.exec(r.id)?.[1] ?? 0)), 0);
     }
   }
 

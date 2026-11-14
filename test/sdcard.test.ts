@@ -161,6 +161,21 @@ describe('SdCard', () => {
     }
   });
 
+  // Retention drops the oldest ids; after a restart the next id continues
+  // after the highest one left, so an id is never used twice.
+  it('continues ids after the highest one kept, after retention and a restart', () => {
+    const sd = make({ dir, capacityMb: 12 });
+    sd.seed([
+      { daysAgo: 2, start: '010000', end: '010010', triggers: ['motion'] },
+      { daysAgo: 1, start: '010000', end: '010010', triggers: ['motion'] },
+      { daysAgo: 0, start: '010000', end: '010010', triggers: ['motion'] },
+    ]);
+    sd.retention(1);
+    expect(sd.all().map((r) => r.id)).toEqual(['r3-2026-09-26-010000']);
+    const after = make({ dir, capacityMb: 12 }).add({ date: '2026-09-26', start: '020000', end: '020010', triggers: ['motion'], dst: true });
+    expect(after.id).toBe('r4-2026-09-26-020000');
+  });
+
   it('closes recordings left open by a shutdown when loading', () => {
     const a = make({ dir });
     a.add({ date: '2026-09-26', start: '065221', triggers: ['motion'], dst: true });
