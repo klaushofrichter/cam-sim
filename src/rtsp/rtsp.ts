@@ -20,7 +20,7 @@ type Stream = keyof typeof RTSP_PATHS;
 // The third stream (ext, the app's Balanced) is not on RTSP: the real CX820
 // answers DESCRIBE for these paths with 404 Stream Not Found (measured
 // 2026-11-03; its ext is on FLV only). Every model answers so here.
-export const NO_STREAM_PATHS: readonly string[] = ['h264Preview_01_ext', 'Preview_01_ext', 'h265Preview_01_ext'];
+const NO_STREAM_PATHS: readonly string[] = ['h264Preview_01_ext', 'Preview_01_ext', 'h265Preview_01_ext'];
 
 // CAMSIM_MEDIAMTX, then `mediamtx` on PATH, then tools/mediamtx (development).
 export function findMediaMtx(): string | undefined {

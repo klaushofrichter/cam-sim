@@ -71,7 +71,7 @@ export interface CameraProfile {
 
 const PROFILES: Record<Model, CameraProfile> = { 'RLC-1224A': RLC1224A, CX820, 'E1-Outdoor-Pro': E1_OUTDOOR_PRO };
 
-export const DEFAULT_MODEL: Model = 'RLC-1224A';
+const DEFAULT_MODEL: Model = 'RLC-1224A';
 
 export function profileFor(model: Model | undefined): CameraProfile {
   return PROFILES[model ?? DEFAULT_MODEL];

@@ -72,7 +72,7 @@ export const OSD_POSITIONS = ['Upper Left', 'Top Center', 'Upper Right', 'Lower 
 // string (-56 here, the firmware's "err get data from json"), and which code
 // wins when a name is both too long and has a refused character (-56 here).
 export const NAME_MAX = 31;
-export const NAME_RE = /^[A-Za-z0-9()+=\[\]{}-](?:[A-Za-z0-9 ()+=\[\]{}-]{0,29}[A-Za-z0-9()+=\[\]{}-])?$/;
+const NAME_RE = /^[A-Za-z0-9()+=\[\]{}-](?:[A-Za-z0-9 ()+=\[\]{}-]{0,29}[A-Za-z0-9()+=\[\]{}-])?$/;
 export function nameRspCode(name: unknown): number | null {
   if (typeof name !== 'string' || Buffer.byteLength(name, 'utf8') > NAME_MAX) return -56;
   return NAME_RE.test(name) ? null : -54;
@@ -95,12 +95,12 @@ export interface Settings {
   Enc: Obj;
 }
 
-export const ALL = '1'.repeat(168);
+const ALL = '1'.repeat(168);
 const NONE = '0'.repeat(168);
 const AREA = '1'.repeat(70 * 39);
 
 // Every schedule table key the firmware returns, in its order.
-export function scheduleTable(on: string[]): Record<string, string> {
+function scheduleTable(on: string[]): Record<string, string> {
   const keys = [
     'AI_CROSSLINE_0', 'AI_CROSSLINE_1', 'AI_CROSSLINE_2', 'AI_DOG_CAT',
     'AI_INTRUSION_0', 'AI_INTRUSION_1', 'AI_INTRUSION_2',
@@ -112,7 +112,7 @@ export function scheduleTable(on: string[]): Record<string, string> {
   return Object.fromEntries(keys.map((k) => [k, on.includes(k) ? ALL : NONE]));
 }
 
-export const SENS_SLOTS = [
+const SENS_SLOTS = [
   [0, 0, 6, 0], [6, 0, 12, 0], [12, 0, 18, 0], [18, 0, 23, 59],
 ].map(([beginHour, beginMin, endHour, endMin], id) => ({ beginHour, beginMin, endHour, endMin, id }));
 

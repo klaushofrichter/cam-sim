@@ -13,7 +13,7 @@ import { CX820_ENC_RANGE } from './enc';
 import { RLC_AUTH_TYPES, afterLogin } from '../baichuan/xml';
 import type { CameraProfile } from './profile';
 
-export const CX820_FIRMWARE = {
+const CX820_FIRMWARE = {
   model: 'CX820',
   firmVer: 'v3.2.0.5316_2509028854',
   hardVer: 'IPC_NT18NA68MP',

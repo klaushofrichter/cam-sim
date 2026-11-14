@@ -22,7 +22,7 @@ import type { CameraProfile } from './profile';
 import type { PtzSpec } from '../engine/ptz';
 import { V03_NAMES } from '../engine/sdcard';
 
-export const E1_FIRMWARE = {
+const E1_FIRMWARE = {
   model: 'E1 Outdoor Pro',
   firmVer: 'v3.1.0.5714_2511271366',
   hardVer: 'IPC_560SD88MPW',
