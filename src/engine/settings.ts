@@ -48,6 +48,9 @@ const SET_COMMANDS: Record<string, Key> = {
 
 export const isSetCommand = (cmd: string): boolean => Object.hasOwn(SET_COMMANDS, cmd);
 
+// The Set command that writes a settings key (SetRecV20 for Rec, ...).
+export const setCommandFor = (key: Key): string => Object.keys(SET_COMMANDS).find((cmd) => SET_COMMANDS[cmd] === key)!;
+
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
 
 // Firmware range checks for the keys that were sent: -56 for a bad number,

@@ -8,6 +8,7 @@ import { sse } from './sse';
 import { streamFlv } from '../camera-api/media-routes';
 import { Library } from '../media/library';
 import { AI_TYPES } from '../profile/rlc1224a';
+import { setCommandFor } from '../engine/settings';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import { createSessionSigner, readCookie, sessionCookieName, SESSION_MS } from './session';
@@ -262,7 +263,9 @@ export function createControlApp(engine: Engine): express.Express {
     certificate: { source: e.certs.state.source, enable: e.certs.state.enable },
   }));
   // Whole-object writes through the camera's own validation.
-  const SET_FOR: Record<string, string> = { Rec: 'SetRecV20', MdAlarm: 'SetMdAlarm', Isp: 'SetIsp', IrLights: 'SetIrLights', WhiteLed: 'SetWhiteLed', Osd: 'SetOsd', NetPort: 'SetNetPort', Ftp: 'SetFtpV20' };
+  // The keys PUT /settings/:key writes (AiAlarm has its own route below; Ntp
+  // and Enc are not written from here).
+  const UI_KEYS = ['Rec', 'MdAlarm', 'Isp', 'IrLights', 'WhiteLed', 'Osd', 'NetPort', 'Ftp'] as const;
   const writeSetting = (res: Response, cmd: string, key: string, body: unknown) => {
     if (!body || typeof body !== 'object' || Array.isArray(body)) return bad(res, 'the body must be the whole settings object');
     const r = e.settings.set(cmd, { [key]: body }, { strictPartial: true });
@@ -277,8 +280,8 @@ export function createControlApp(engine: Engine): express.Express {
   });
   api.put('/settings/:key', (req, res) => {
     const key = req.params.key;
-    if (!Object.hasOwn(SET_FOR, key)) return void res.status(404).json({ error: 'not_found' });
-    writeSetting(res, SET_FOR[key], key, req.body);
+    if (!isOneOf(UI_KEYS, key)) return void res.status(404).json({ error: 'not_found' });
+    writeSetting(res, setCommandFor(key), key, req.body);
   });
   api.get('/users', (_req, res) => void res.json(e.sessions.users()));
 

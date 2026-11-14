@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { Writable } from 'stream';
-import { SettingsStore } from '../src/engine/settings';
+import { SettingsStore, setCommandFor, isSetCommand } from '../src/engine/settings';
 import { createLogger } from '../src/log';
 
 function logSink() {
@@ -242,3 +242,13 @@ describe('SettingsStore', () => {
   });
 });
 
+
+describe('setCommandFor', () => {
+  it('names the Set command of each settings key', () => {
+    expect(setCommandFor('Rec')).toBe('SetRecV20');
+    expect(setCommandFor('Ftp')).toBe('SetFtpV20');
+    expect(setCommandFor('Isp')).toBe('SetIsp');
+    expect(setCommandFor('AiAlarm')).toBe('SetAiAlarm');
+    for (const key of ['Rec', 'MdAlarm', 'AiAlarm', 'Isp', 'IrLights', 'WhiteLed', 'Osd', 'Ftp', 'NetPort', 'Ntp', 'Enc'] as const) expect(isSetCommand(setCommandFor(key))).toBe(true);
+  });
+});
