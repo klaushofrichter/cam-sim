@@ -89,17 +89,22 @@ export async function snap(engine: Engine, req: Request, res: Response): Promise
   res.type('image/jpeg').send(await engine.snapMain());
 }
 
-// A tag with its timestamp moved by `offsetMs` (for looping the fixture).
-// The bytes can hold another timestamp than `tag.ms` (a sequence's later
-// videos keep their own bytes), so they are rewritten unless they match.
-function shifted(tag: FlvTag, offsetMs: number): Buffer {
+// Writes a tag with its timestamp moved by `offsetMs` (for looping the
+// fixture). The bytes can hold another timestamp than `tag.ms` (a sequence's
+// later videos keep their own bytes), so they are rewritten unless they
+// match: only the 11-byte tag header is copied, and the two writes are
+// corked so the tag still goes out as one chunk.
+function writeShifted(res: Response, tag: FlvTag, offsetMs: number): void {
   const ms = tag.ms + offsetMs;
   const inBytes = (tag.bytes.readUIntBE(4, 3) | (tag.bytes[7] << 24)) >>> 0;
-  if (inBytes === ms >>> 0) return tag.bytes;
-  const b = Buffer.from(tag.bytes);
-  b.writeUIntBE(ms & 0xffffff, 4, 3);
-  b[7] = (ms >>> 24) & 0xff;
-  return b;
+  if (inBytes === ms >>> 0) return void res.write(tag.bytes);
+  const h = Buffer.from(tag.bytes.subarray(0, 11));
+  h.writeUIntBE(ms & 0xffffff, 4, 3);
+  h[7] = (ms >>> 24) & 0xff;
+  res.cork();
+  res.write(h);
+  res.write(tag.bytes.subarray(11));
+  res.uncork();
 }
 
 // AVC/HEVC end of sequence: never mid-stream (a live camera doesn't end).
@@ -179,7 +184,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
   let lastMs = 0;
   const send = (t: FlvTag, offset: number) => {
     lastMs = Math.max(lastMs, t.ms + offset);
-    res.write(shifted(t, offset));
+    writeShifted(res, t, offset);
   };
   const floor = (due: number) => Math.max(due, lastMs + 1);
   // A new source, or the loop again after the pipeline: from its start (or
