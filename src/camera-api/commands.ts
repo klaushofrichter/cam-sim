@@ -83,7 +83,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   GetDevInfo: (c) => {
     c.engine.counters.devInfoCalls++;
-    return ok(c.cmd, { DevInfo: c.engine.profile.devInfo(c.engine.settings.name, c.engine.serial, c.engine.config.firmVer) });
+    return ok(c.cmd, { DevInfo: c.engine.devInfo() });
   },
   // The camera's name, one value with GetDevInfo.name and the OSD text
   // (measured 2026-10-03). action 1 adds the initial value and the range the

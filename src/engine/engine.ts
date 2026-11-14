@@ -294,6 +294,12 @@ export class Engine {
     return this.down() || this.certRestarting;
   }
 
+  // The camera's identity (GetDevInfo, ONVIF GetDeviceInformation, the
+  // control API): its name, serial and firmware.
+  devInfo(): ReturnType<CameraProfile['devInfo']> {
+    return this.profile.devInfo(this.settings.name, this.serial, this.config.firmVer);
+  }
+
   // A protocol's port answers: the camera is online and the port is enabled
   // (SetNetPort).
   serving(port: 'http' | 'https' | 'rtmp' | 'rtsp' | 'onvif'): boolean {

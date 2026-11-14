@@ -256,7 +256,7 @@ export function createControlApp(engine: Engine): express.Express {
 
   api.get('/settings', (_req, res) => void res.json({
     settings: e.settings.running,
-    devInfo: e.profile.devInfo(e.settings.name, e.serial, e.config.firmVer),
+    devInfo: e.devInfo(),
     hddInfo: e.sd.hddInfo(),
     enc: e.settings.running.Enc,
     certificate: { source: e.certs.state.source, enable: e.certs.state.enable },
