@@ -7,6 +7,7 @@ import { loadConfig, ConfigError } from '../src/config';
 import { configFromOptions } from '../src/index';
 import { MODELS, profileFor } from '../src/profile/profile';
 import { FIRMWARE_VERSION } from '../src/profile/version';
+import { resetDefaultsFor } from '../src/profile/rlc1224a';
 import { fileName, flagsHex } from '../src/engine/sdcard';
 import { createControlApp } from '../src/control-api/app';
 import { loginReplyXml, nonceXml } from '../src/baichuan/xml';
@@ -81,7 +82,7 @@ describe('CX820 profile (reference/cx820)', () => {
     expect(f.Ftp).toMatchObject({ enable: 0, server: '', userName: '', password: '', picWidth: 3840, picHeight: 2160 });
     expect(shape(f.NetPort)).toEqual(shape(ref('GetNetPort').NetPort));
     // Reset defaults keep the factory key sets (the partial-Set reset is not measured on the CX820).
-    const r = CX.resetDefaults();
+    const r = resetDefaultsFor(CX.factorySettings(''));
     expect(shape(r.Isp)).toEqual(shape(f.Isp));
     expect(shape(r.WhiteLed)).toEqual(shape(f.WhiteLed));
   });
@@ -89,12 +90,10 @@ describe('CX820 profile (reference/cx820)', () => {
   it('record file names carry the CX820 flags (Search-*.json)', () => {
     const sub = ref('Search-sub').SearchResult.File[0].name as string;
     const main = ref('Search-main').SearchResult.File[0].name as string;
-    expect(flagsHex('sub', ['motion'], CX.fileFlags)).toBe('2B148080000000');
-    expect(flagsHex('main', ['motion'], CX.fileFlags)).toBe('67328280000000');
-    expect(fileName('sub', '2026-10-20', true, '110752', '110814', ['motion'], 0x6fe32, CX.fileFlags)).toBe(sub);
-    expect(fileName('main', '2026-10-20', true, '110752', '110814', ['motion'], 0x4dd005, CX.fileFlags)).toBe(main);
-    // The default stays the RLC-1224A's.
-    expect(flagsHex('sub', ['motion'])).toBe('55148080000000');
+    expect(flagsHex('sub', ['motion'], CX.recordNames)).toBe('2B148080000000');
+    expect(flagsHex('main', ['motion'], CX.recordNames)).toBe('67328280000000');
+    expect(fileName('sub', '2026-10-20', true, '110752', '110814', ['motion'], 0x6fe32, CX.recordNames)).toBe(sub);
+    expect(fileName('main', '2026-10-20', true, '110752', '110814', ['motion'], 0x4dd005, CX.recordNames)).toBe(main);
   });
 
   it('test media follow the profile: sub 640x360 at 10 fps, main at 25 fps, ext 896x512 at 15 fps', () => {

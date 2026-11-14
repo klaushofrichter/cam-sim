@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import type { User } from '../config';
 import type { Clock } from './clock';
+import { safeEqual } from '../util/safe-equal';
 
 const LEASE_S = 3600;
 // The first session id the real camera handed out after a restart.
@@ -29,7 +30,7 @@ export class Sessions {
 
   login(userName: string, password: string, ip: string): LoginResult {
     const user = this.userList.find((u) => u.name === userName);
-    if (!user || user.password !== password) return { ok: false, rspCode: -7 };
+    if (!user || !safeEqual(password, user.password)) return { ok: false, rspCode: -7 };
     const token = randomBytes(8).toString('hex');
     this.tokens.set(token, { user, ip, sessionId: this.nextId++, expiresAt: this.clock.now().getTime() + LEASE_S * 1000 });
     return { ok: true, token, leaseTime: LEASE_S };

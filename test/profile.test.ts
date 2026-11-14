@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { FIRMWARE, devInfo, ENC, DEFAULT_NET_PORT, ABILITY, factorySettings, resetDefaults, IR_LIGHTS_EXTRA } from '../src/profile/rlc1224a';
+import { FIRMWARE, devInfo, ENC, DEFAULT_NET_PORT, ABILITY, factorySettings, resetDefaultsFor, IR_LIGHTS_EXTRA } from '../src/profile/rlc1224a';
 
 const REF = join(__dirname, '..', 'reference', 'rlc-1224a');
 const ref = (cmd: string) => JSON.parse(readFileSync(join(REF, `${cmd}.json`), 'utf8')).reply[0].value;
@@ -36,7 +36,7 @@ describe('RLC-1224A profile', () => {
   });
 
   it('reset defaults match the measured partial-write resets', () => {
-    const r = resetDefaults();
+    const r = resetDefaultsFor(factorySettings(''));
     expect(r.Isp.rotation).toBe(1);
     expect(r.Isp.mirroring).toBe(1);
     expect(r.Osd.watermark).toBe(0);

@@ -17,6 +17,10 @@ const run = promisify(execFile);
 const ONE_DECODER_THREAD = ['-threads', '1'];
 // Bump when the prepared files change, so caches are rebuilt.
 const LIBRARY_VERSION = 5;
+// What a sequence's live streams may take in memory, all streams together
+// (a viewer's stream holds its videos' FLVs): cam2 has 1 GiB, and 32
+// camera-sized mains (about 60 MB each for 60 s) OOM-killed it.
+const MAX_SEQUENCE_BYTES = 384 * 1024 * 1024;
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.m4v', '.avi', '.webm']);
 
 export interface VideoEntry {
@@ -45,6 +49,8 @@ function slug(name: string): string {
 // ffmpeg reads a plain absolute path (no protocol like concat:, no option-like '-').
 const input = (p: string) => `file:${resolve(p)}`;
 const STALE_TMP_MS = 3600_000;
+// Scaled into W x H, letterboxed: the picture keeps its aspect ratio.
+const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
 
 async function probe(file: string): Promise<{ vcodec?: string; acodec?: string; duration: number; fps: number }> {
   const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,avg_frame_rate:format=duration', '-of', 'json', input(file)]);
@@ -64,7 +70,7 @@ export class Library {
   private readonly sources = new Map<string, Source>();
   private readonly abort = new AbortController();
 
-  constructor(private readonly engine: Engine, private readonly opts: { sourceDir?: string; cacheDir: string }) {
+  constructor(private readonly engine: Engine, private readonly opts: { sourceDir?: string; cacheDir: string; maxSequenceBytes?: number }) {
     engine.library = this;
     this.entries.set('test-pattern', { id: 'test-pattern', name: 'Test pattern', state: 'ready', converted: true });
     // Every cached copy stays servable, so recordings keep their video after
@@ -162,18 +168,25 @@ export class Library {
     return [all[0], ...all.slice(1).sort((a, b) => a.id.localeCompare(b.id))].map((e) => ({ ...e }));
   }
 
-  // Loaded now, so missing files fail here and not in a live stream.
+  // Checked now (lengths from the files' tag headers, without loading
+  // them), so missing files fail here and not in a live stream.
   private preload(id: string, media: MediaSource): string | null {
     try {
       for (const s of ['sub', 'main'] as const) {
-        media.liveFlv(s);
+        media.durationMs(s);
         media.clipSize(s);
       }
-      if (this.engine.profile.media.ext) media.liveFlv('ext');
+      if (this.engine.profile.media.ext) media.durationMs('ext');
     } catch (err) {
       return `video ${id} files are missing or unreadable (${(err as NodeJS.ErrnoException).code ?? 'error'})`;
     }
     return null;
+  }
+
+  // After a refusal: what the videos read goes, except the ones on air.
+  private releaseUnshown(media: MediaSource[]): void {
+    const shown = new Set([this.engine.media, ...(this.engine.media.items?.() ?? [])]);
+    for (const m of media) if (!shown.has(m)) m.release?.();
   }
 
   // null on success, or why not.
@@ -183,7 +196,10 @@ export class Library {
     if (entry.state !== 'ready') return `video ${id} is not ready (${entry.state})`;
     const media = this.engine.mediaFor({ video: id });
     const why = this.preload(id, media);
-    if (why) return why;
+    if (why) {
+      this.releaseUnshown([media]);
+      return why;
+    }
     this.engine.setMedia(media, id);
     return null;
   }
@@ -209,9 +225,25 @@ export class Library {
     const differ = ids.filter((id) => this.entries.get(id)!.compat !== first);
     if (differ.length) return refuse(409, 'incompatible', `${differ.join(', ')} can't be played in sequence with ${ids[0]}: another codec setup`);
     const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
+    // Each video on its own, so a refusal names the one whose files fail.
+    const refuseLoaded = (status: 409, error: string, detail: string) => {
+      this.releaseUnshown(items.map((i) => i.media));
+      return refuse(status, error, detail);
+    };
+    for (const { id, media } of items) {
+      const why = this.preload(id, media);
+      if (why) return refuseLoaded(409, 'not_ready', why);
+    }
     const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
     const why = this.preload(ids[0], media);
-    if (why) return refuse(409, 'not_ready', why);
+    if (why) return refuseLoaded(409, 'not_ready', why);
+    const streams = this.engine.profile.media.ext ? (['sub', 'main', 'ext'] as const) : (['sub', 'main'] as const);
+    const bytes = items.reduce((n, i) => n + streams.reduce((m, s) => m + (i.media.liveBytes?.(s) ?? 0), 0), 0);
+    const max = this.opts.maxSequenceBytes ?? MAX_SEQUENCE_BYTES;
+    if (bytes > max) {
+      const mb = (b: number) => Math.ceil(b / 1048576);
+      return refuseLoaded(409, 'too_large', `the sequence's live streams take ${mb(bytes)} MB, more than the ${mb(max)} MB a sequence may hold in memory: choose fewer or shorter videos`);
+    }
     this.engine.setMedia(media, ids[0], ids);
     return null;
   }
@@ -314,7 +346,6 @@ export class Library {
         const hasAudio = !!src.acodec;
         const quiet = hasAudio ? [] : silent(src);
         const amap = hasAudio ? ['-map', '0:v:0', '-map', '0:a:0'] : ['-map', '0:v:0', '-map', '1:a:0', '-shortest'];
-        const fit = (W: string, H: string) => `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`;
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(w, h)},fps=${m.mainFps}`, '-c:v', 'libx265', '-preset', 'veryfast', '-b:v', '8M',
           '-x265-params', 'keyint=40:min-keyint=40:bframes=0:log-level=error', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '16000', ...FRAG, '-f', 'mp4', out.clipMain], this.abort.signal);
         await ffmpeg([...from, ...quiet, ...amap, '-vf', `${fit(sw, sh)},${m.noSar ? 'setsar=0,' : ''}fps=${m.subFps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-g', '40',
@@ -330,8 +361,7 @@ export class Library {
       if (m.ext) {
         // The ext stream's live FLV (a model with one): H.264 at its size, from the main copy.
         const [ew, eh] = m.ext.size.split('x');
-        const fitExt = `scale=${ew}:${eh}:force_original_aspect_ratio=decrease,pad=${ew}:${eh}:(ow-iw)/2:(oh-ih)/2`;
-        await ffmpeg([...ONE_DECODER_THREAD, '-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fitExt},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
+        await ffmpeg([...ONE_DECODER_THREAD, '-i', out.clipMain, '-map', '0:v:0', '-map', '0:a:0', '-vf', `${fit(ew, eh)},fps=${m.ext.fps}`, '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M',
           '-g', String(m.ext.fps * 4), '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-f', 'flv', out.extFlv], this.abort.signal);
       }
       writeMainFlv(out.mainFlv, h265, aac, Math.round(info.fps) || 20);

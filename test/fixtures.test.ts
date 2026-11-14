@@ -129,6 +129,17 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
     expect(m.clipPath('main')).toBe(paths.clipMain);
     expect(m.durationMs('sub')).toBeGreaterThan(5000);
   });
+
+  // A sequence's clock needs every item's length: reading it must not load
+  // and keep the stream (a camera-sized main is tens of MB per video).
+  it('knows a stream\'s length without loading it, the same length as from its tags', () => {
+    const m = new FixtureMedia(paths);
+    const d = m.durationMs('main');
+    expect((m as unknown as { flv: Map<string, unknown> }).flv.size).toBe(0);
+    const tags = readFlv(readFileSync(paths.mainFlv)).tags;
+    expect(d).toBe(tags[tags.length - 1].ms + 100);
+    expect(m.liveBytes('main')).toBe(statSync(paths.mainFlv).size);
+  });
 });
 
 describe.skipIf(!hasFfmpeg)('fixtures per model', () => {

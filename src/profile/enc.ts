@@ -20,7 +20,7 @@ export interface EncStream {
 }
 export interface Enc { audio: number; channel: number; mainStream: EncStream; subStream: EncStream }
 
-export const STREAM_KEYS = ['mainStream', 'subStream'] as const;
+const STREAM_KEYS = ['mainStream', 'subStream'] as const;
 export type StreamKey = (typeof STREAM_KEYS)[number];
 
 // The E1 Outdoor Pro's range, measured 2026-10-30.
@@ -33,7 +33,7 @@ export const RLC_ENC_RANGE: Obj[] = rlcRange;
 export const CX820_ENC_RANGE: Obj[] = cx820Range;
 
 // "W*H" as numbers, or undefined.
-export function sizeOf(size: unknown): { width: number; height: number } | undefined {
+function sizeOf(size: unknown): { width: number; height: number } | undefined {
   const m = typeof size === 'string' ? /^(\d{2,5})\*(\d{2,5})$/.exec(size) : null;
   return m ? { width: Number(m[1]), height: Number(m[2]) } : undefined;
 }

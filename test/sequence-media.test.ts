@@ -6,6 +6,7 @@ import { FlvWriter, type FlvTag } from '../src/media/flv';
 import { inputArgsOf, type LiveStream, type MediaSource, type Stream } from '../src/media/source';
 import { FixtureMedia, fixturePaths } from '../src/media/fixtures';
 import { SequenceMedia } from '../src/media/sequence';
+import { makeEngine } from './helpers';
 
 const w = new FlvWriter();
 const tag = (type: 8 | 9 | 18, ms: number, bytes: Buffer): FlvTag => ({ type, ms, bytes });
@@ -59,7 +60,11 @@ describe('SequenceMedia', () => {
     });
     const c = { t: 0 };
     const s = new SequenceMedia([{ id: 'a', media: counted(a) }, { id: 'b', media: counted(b) }], { now: () => c.t, listDir: dir });
-    for (const st of ['sub', 'main'] as const) s.liveFlv(st);
+    // Preload (as the library does), then a viewer of each stream.
+    for (const st of ['sub', 'main'] as const) {
+      s.durationMs(st);
+      s.liveFlv(st);
+    }
     const after = { ...calls };
     c.t = 1200;
     s.currentId();
@@ -68,6 +73,42 @@ describe('SequenceMedia', () => {
     s.startMs('sub');
     s.inputArgs('sub');
     expect(calls).toEqual(after);
+  });
+
+  // A main FLV is tens of MB per video: only a main viewer may load it.
+  it('loads no stream for the clock, snapshots, recordings or RTSP', async () => {
+    const loaded: string[] = [];
+    const watched = (m: MediaSource): MediaSource => ({ ...m, liveFlv: (s) => (loaded.push(s), m.liveFlv(s)) });
+    const c = { t: 0 };
+    const s = new SequenceMedia([{ id: 'a', media: watched(a) }, { id: 'b', media: watched(b) }], { now: () => c.t, listDir: dir });
+    for (const st of ['sub', 'main', 'ext'] as const) s.durationMs(st);
+    c.t = 1200;
+    s.position();
+    expect(s.currentId()).toBe('b');
+    await s.snapshot();
+    s.clipSize('main');
+    s.inputArgs('main');
+    expect(loaded).toEqual([]);
+    s.startMs('sub');
+    expect([...new Set(loaded)]).toEqual(['sub']); // a sub viewer loads sub only
+  });
+
+  // The clock moves between calls: a recording's sizes and video must come
+  // from one reading, not from items on either side of a switch.
+  it('a recording takes its video and sizes from one clock reading', async () => {
+    const engine = await makeEngine();
+    // Created at 0; the reads after it come at 998, 999, 1000...: the clock
+    // crosses into the second video during them.
+    let n = 0;
+    const now = () => (n++ === 0 ? 0 : 997 + n);
+    const one = fake('one', 1000);
+    const three = { ...fake('three', 1000), clipSize: (st: Stream) => (st === 'sub' ? 30 : 300) };
+    const s = new SequenceMedia([{ id: 'one', media: { ...one, clipSize: (st: Stream) => (st === 'sub' ? 10 : 100) } }, { id: 'three', media: three }], { now, listDir: dir });
+    s.durationMs('main');
+    engine.setMedia(s, 'one', ['one', 'three']);
+    const rec = engine.sd.add({ date: '2026-09-26', start: '120000', triggers: ['motion'], dst: true });
+    const sizes = rec.video === 'one' ? { sub: 10, main: 100 } : { sub: 30, main: 300 };
+    expect({ sub: rec.files.sub.size, main: rec.files.main.size }).toEqual(sizes);
   });
 
   it('items lists the videos it plays', () => {
@@ -163,12 +204,20 @@ describe('SequenceMedia', () => {
     expect(s.startMs('main')).toBe(500);
   });
 
+  // Every stream of an item takes the item's (main) length, so an FLV viewer
+  // looping on its stream's total stays on the clock, loop after loop.
   it('sub follows the main clock although its durations differ', () => {
     const c = { t: 0 };
-    const s = new SequenceMedia([{ id: 'a', media: fake('a', 1000, 950) }, { id: 'b', media: fake('b', 2500, 2450) }], { now: () => c.t, listDir: dir });
+    const b2 = fake('b', 2500, 2450);
+    const s = new SequenceMedia([{ id: 'a', media: fake('a', 1000, 950) }, { id: 'b', media: b2 }], { now: () => c.t, listDir: dir });
+    expect(s.durationMs('sub')).toBe(s.durationMs('main'));
+    // Item b's sub starts where its main does, not after a's 950 ms.
+    expect(s.liveFlv('sub').tags.find((t) => t.bytes === b2.liveFlv('sub').tags[2].bytes)!.ms).toBe(1000);
     c.t = 3500 * 40 + 1200; // many loops, 200 ms into item b on main
     expect(s.currentId()).toBe('b');
-    expect(s.startMs('sub')).toBe(950); // on sub, item b starts after a's 950 ms
+    expect(s.startMs('sub')).toBe(1000); // b's first keyframe, on the clock
+    // The clip concat (RTSP, recordings) plays the clips back to back: there
+    // item b starts after a's 950 ms.
     expect(s.inputArgs('sub').at(-1)).toBe('1.150');
     c.t = 3500 * 40 + 970; // item a's sub is over (950) while main is still in a
     expect(s.currentId()).toBe('a');

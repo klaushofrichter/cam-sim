@@ -7,7 +7,7 @@ import { join } from 'path';
 import request from 'supertest';
 import { fixedClock } from '../src/engine/clock';
 import { findFonts } from '../src/pipeline/fonts';
-import { drawTextOnJpeg } from '../src/pipeline/ptz-picture';
+import { renderJpeg } from '../src/pipeline/ptz-picture';
 import { createLogger } from '../src/log';
 import { createControlApp } from '../src/control-api/app';
 import { makeCamera, makeEngine, login } from './helpers';
@@ -27,10 +27,10 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
 const isJpeg = (b: Buffer) => b[0] === 0xff && b[1] === 0xd8 && b.at(-2) === 0xff && b.at(-1) === 0xd9;
 
 describe.skipIf(!fonts)('PTZ snapshots', () => {
-  it('drawTextOnJpeg draws on a JPEG and gives a JPEG back', async () => {
+  it('renderJpeg draws text on a JPEG and gives a JPEG back', async () => {
     const e = await makeEngine();
     const plain = await e.media.snapshot();
-    const out = await drawTextOnJpeg(plain, 'PAN 180 TILT 25 ZOOM 7', fonts!.regular);
+    const out = await renderJpeg(plain, { text: 'PAN 180 TILT 25 ZOOM 7', font: fonts!.regular });
     expect(isJpeg(out)).toBe(true);
     expect(out.equals(plain)).toBe(false);
   });
@@ -82,7 +82,7 @@ describe.skipIf(!fonts)('PTZ snapshots', () => {
     expect((await e.snapshot()).equals(plain)).toBe(true);
     e.ptz!.zoomFocus({ op: 'ZoomPos', pos: 20 });
     expect((await e.snapshot()).equals(plain)).toBe(true);
-    await expect(drawTextOnJpeg(plain, 'PAN 1', fonts!.regular, '/nonexistent')).rejects.toThrow();
+    await expect(renderJpeg(plain, { text: 'PAN 1', font: fonts!.regular }, '/nonexistent')).rejects.toThrow();
     expect(out.match(/ptz_snapshot_failed/g)).toHaveLength(1);
   });
 

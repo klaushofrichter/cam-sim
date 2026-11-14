@@ -154,7 +154,7 @@ paths:
         '200': { description: '{ selected, sequence }' }
         '400': { description: 'invalid id or ids, duplicates, an empty list, or the test pattern in a sequence' }
         '404': { description: unknown video }
-        '409': { description: 'video not ready (still preparing, or failed), or incompatible (error: incompatible; detail names the videos that differ from the first)' }
+        '409': { description: 'video not ready (still preparing, or failed), incompatible (error: incompatible; detail names the videos that differ from the first), or too large (error: too_large; the live streams of all its videos together exceed 384 MB)' }
   /sim/api/videos/{id}/poster:
     get:
       summary: A still of a ready video (JPEG)

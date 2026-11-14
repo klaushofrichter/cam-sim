@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- E1 Outdoor Pro: `GetPtzCurPos {PtzCurPos: {channel: 0}}` answers the pan/tilt/zoom/focus position (`Ppos`, `Tpos`, `Zpos`, `Fpos`) as the real E1 does (measured 2026-11-14); a plain `{channel: 0}` is still refused with `-1`. `ToPos` now takes time instead of jumping: pan, tilt and zoom travel at their rates (zoom 7 → 20 in about 1 s at speed 32, the camera took 0.9 s), and the Simulator page shows it moving until it arrives. A `ToPos` that keeps the zoom no longer refocuses, so a focus set by hand stays (measured); one to another zoom refocuses as before.
+
+- Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer, and the faults behave as before. Live FLV viewers cost less: a looped or sequence tag no longer copies its whole video payload per viewer, and a video's tag list is filtered once instead of once per viewer. A cached Snap or web picture no longer reads the picture file from disk on every poll.
+
+- Video sequences use far less memory: choosing one no longer loads every video's live streams (a video's length is read from its file without loading it), and a stream is loaded only when someone watches it. A sequence of 32 camera-sized videos OOM-killed cam2. A sequence whose live streams total more than 384 MB is refused with 409 `too_large` (about five 60 s camera-sized videos).
+- Video sequences: live viewers of the sub and ext streams stay on the sequence clock; before, they drifted from it a little on every loop.
+- Video sequences: a recording made at the moment the sequence switches videos names one video with that video's sizes (before, it could take its sizes from the video before).
+- Video sequences: a refusal because of missing or unreadable files names the video that failed, not the first one, and a refused video or sequence no longer keeps what it read in memory.
+- FTP: clips, pictures and `TestFtp` files are named after the camera's current name, so after `SetDevName` they carry the new name like `GetDevInfo` and the OSD (before, the start-up name). Not measured on a real camera, which holds a single name.
+- SD card: after old recordings were deleted (retention) and the simulator restarted, new recordings could get ids still in use; ids now continue after the highest one.
+
+## v2026.11.09.2
+
 - RTSP: when another program takes MediaMTX's loopback port between cam-sim picking it and MediaMTX binding it, cam-sim starts MediaMTX again on a new port (up to three tries) instead of failing with "MediaMTX exited during start".
 - Power-off ends a detection in progress at once and silently: no ONVIF "detection off" notification fires after the camera is off (a camera that is off sends nothing), and after power-on `GetMdState`/`GetAiState` read no detection. Before, the detection's timer still ran and fired after power-off (cam-sim#83).
 - A new seed set, `recent` (`CAMSIM_SEED_CLIPS=recent`, `POST /sim/api/recordings/seed {"clips":"recent"}`, `createCamSim({ seedClips: 'recent' })`): the six demo recordings, but never in the future. Today's four keep their kinds, order and lengths and are moved into the part of today gone by, ending at least a minute ago (from 17:47:05 on they are the `demo` times); in the first 11 minutes after midnight the whole set is a day earlier. `recentClips(hhmmss)` is exported. `demo` is unchanged (cam-sim#92).

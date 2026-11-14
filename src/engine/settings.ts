@@ -1,5 +1,5 @@
 import type pino from 'pino';
-import { nameRspCode, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
+import { nameRspCode, resetDefaultsFor, AI_TYPES, OSD_POSITIONS, type Settings, type AiType } from '../profile/rlc1224a';
 import { profileFor, type CameraProfile } from '../profile/profile';
 import { clone, deepMerge, isObject, readJson, writeJsonAtomic } from '../util/json-file';
 import { isOneOf } from '../util/one-of';
@@ -47,6 +47,9 @@ const SET_COMMANDS: Record<string, Key> = {
 };
 
 export const isSetCommand = (cmd: string): boolean => Object.hasOwn(SET_COMMANDS, cmd);
+
+// The Set command that writes a settings key (SetRecV20 for Rec, ...).
+export const setCommandFor = (key: Key): string => Object.keys(SET_COMMANDS).find((cmd) => SET_COMMANDS[cmd] === key)!;
 
 const int = (v: unknown, lo: number, hi: number) => Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi;
 
@@ -135,7 +138,7 @@ export class SettingsStore {
     // from clients that write the whole object: keep the stored password.
     const mask = this.profile.ftpPasswordMask;
     if (key === 'Ftp' && mask !== undefined && sent.password === mask) sent = { ...sent, password: this.running.Ftp.password };
-    this.defaults ??= this.profile.resetDefaults();
+    this.defaults ??= resetDefaultsFor(this.profile.factorySettings(''));
     const defaults = this.defaults;
     // SetEnc: the streams the camera would run must be in its range (both
     // sizes one entry's pair); width and height follow size.

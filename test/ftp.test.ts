@@ -91,6 +91,22 @@ describe('FTP upload', () => {
     await expect.poll(() => engine.counters.ftpUploads).toBe(1);
   });
 
+  // The camera holds one name (GetDevName, DevInfo, OSD); after SetDevName
+  // the uploads carry the new one. Not measured on a camera.
+  it('names uploads after the camera name set with SetDevName', async () => {
+    const s = await ftpServer();
+    const engine = await makeEngine({ CAMSIM_NAME: 'Den' });
+    const up = new FtpUploader(engine);
+    closers.push(() => up.stop());
+    engine.settings.set('SetFtpV20', { Ftp: ftpObject(engine, { port: s.port, autoDir: 0, remoteDir: '' }) }, { strictPartial: true });
+    expect(engine.settings.setName('Yard')).toBeNull();
+    const { recording } = engine.events.trigger('motion', 1);
+    await up.uploadRecording(engine.sd.byId(recording!.id)!);
+    const list = files(s.root);
+    expect(list).toHaveLength(2);
+    for (const f of list) expect(f).toMatch(/^Yard_00_\d{14}\.(mp4|jpg)$/);
+  });
+
   it('uploads the sub clip with streamType 1, and over FTPS with onlyFtps 1', async () => {
     const s = await ftpServer({ tls: true });
     const engine = await makeEngine({ CAMSIM_NAME: 'Den' });

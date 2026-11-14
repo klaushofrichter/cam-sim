@@ -74,14 +74,21 @@ the probe.
 - `ZoomInc` at speed 32 for 1.5 s took zoom 7 → 26 (of 0–27); `GetZoomFocus`
   follows. Zoom 0–27, focus 0–97; at the start zoom 7, focus 49.
 - Absolute zoom: `StartZoomFocus {ZoomFocus: {channel, op: "ZoomPos", pos}}`.
+  To the zoom it is at, it runs an autofocus (measured 2026-11-12, the
+  camera's autofocus on, `GetAutoFocus` `disable: 0`): after `FocusDec` to
+  −13, the focus went 3, 15, 25, 14, 13, 14 over a few seconds and stayed at
+  14, the zoom unchanged. `SetAutoFocus` (the same object, or `disable` 1 then
+  0) did not refocus. The simulator refocuses at once.
 - Preset slots are ids 0–63, although `GetPtzPreset`'s `range` says 1–64;
   id 64 → `-4`. `SetPtzPreset {PtzPreset: {channel, enable: 1, id, name}}`
   saves the current position including zoom; delete with `enable: 0, name: ""`.
 - A name longer than 31 characters is accepted but stored as `pos<id+1>`.
 - `ToPos` to an empty slot answers 200 without moving.
 - `ToPos` to a saved slot restored its zoom (20) but not its focus.
-- `GetPtzCurPos` → `-1` "not exist"; `GetPtzTraceSection` → `-1` "not
-  exist"; `GetPtzTattern` and `GetPtzSerial` → `-12` "get config failed".
+- `GetPtzCurPos` → `-1` "not exist" (with `{channel: 0}`, the probe's
+  param; see 2026-11-14 below for the param it takes); `GetPtzTraceSection`
+  → `-1` "not exist"; `GetPtzTattern` and `GetPtzSerial` → `-12` "get config
+  failed".
 - How long a move runs without `Stop` was not measured.
 - A zoom while a zoom runs (measured 2026-10-30): after `ZoomInc` or
   `ZoomDec` with no `Stop` since, any further `ZoomInc` or `ZoomDec`, the
@@ -92,17 +99,44 @@ the probe.
   zoom. `Stop` then a zoom at once is accepted. The simulator keeps the
   running zoom on a refusal (not measured whether the camera's zoom goes on).
 
+## Focus after going to a preset (measured 2026-11-14)
+
+No capture file (the measurement's numbers are below).
+
+- `ToPos` (speed 32) to a preset with a **different zoom**: the zoom reached
+  the preset's value in about 0.9 s, then the camera refocused by itself (a
+  focus sweep from about 3.6 s, settled about 6 s after `ToPos`), as after any
+  zoom with autofocus on.
+- `ToPos` to a preset with the **same zoom**: no refocus. A focus pushed off
+  by hand (−13) stayed off after the move. `StartZoomFocus ZoomPos` to the
+  current zoom brought it back (settled about 3.5 s).
+- Presets store pan, tilt and zoom, not focus.
+- `GetPtzCurPos {PtzCurPos: {channel: 0}}` works:
+  `{"PtzCurPos":{"Fpos":511,"Ppos":1128,"Tpos":0,"Zpos":500,"channel":0}}`
+  (the value; plain `{channel: 0}` → `-1`). Pan and tilt show when a `ToPos`
+  has stopped moving. The camera reports no "moving" flag;
+  `GetPtzCheckState` → `0` at rest (not read during a move).
+- Measured with a temporary preset in slot 63, deleted afterwards.
+
+The simulator: `ToPos` travels (see below), the same zoom keeps the focus,
+another zoom refocuses with the zoom (not after it), and `GetPtzCurPos`
+answers the value above's shape.
+
 ## Not measured: the simulator's choices
 
 - Pan 0–355 and tilt 0–50 (simulator degrees), starting at pan 180, tilt 25.
-  The camera reports no pan/tilt position (`GetPtzCurPos` is refused).
+  `GetPtzCurPos` reports them in tenths (`Ppos`, `Tpos`), and zoom and focus
+  in `GetZoomFocus` steps (`Zpos`, `Fpos`): the camera's scales are unknown.
 - Rates per speed unit: pan/tilt 1.5°/s, zoom 0.4 steps/s, focus 0.4
   steps/s (speed 32 `ZoomInc` for 1.5 s takes zoom 7 → 26, as measured).
 - `Left`/`Right` change pan, `Up`/`Down` change tilt (`Up` increases it), the
   diagonals change both at full rate.
 - A move lasts until `Stop`, another op or `ToPos`, and is clamped at the
   limits; it stays "moving" while held at a limit.
-- `ToPos` and `ZoomPos` apply at once.
+- `ZoomPos` applies at once. `ToPos` travels: pan, tilt and zoom each at its
+  rate above (at speed 32 zoom 12.8 steps/s, so 7 → 20 in about 1 s, near
+  the measured 0.9 s; pan/tilt not measured) until all have arrived; `Stop`
+  or another op ends it where it is.
 - Omitted speed means 32. A speed that is not an integer → `-4`. `Stop`
   ignores speed.
 - Presets store pan/tilt/zoom; focus is not stored or restored.

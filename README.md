@@ -277,7 +277,10 @@ the stream goes on without a decoder reset. Each video has a `compat` key in
 `GET /sim/api/videos`; equal keys combine. The test pattern can't be part of
 a sequence. Incompatible ids are refused with 409 `incompatible`, and the
 web UI greys such videos out ("Different encoding: run
-scripts/library-normalize.sh to combine it").
+scripts/library-normalize.sh to combine it"). A live viewer of a sequence
+holds that stream of all its videos in memory, so a sequence whose live
+streams (sub, main and ext of every video) total more than 384 MB is refused
+with 409 `too_large`: about five 60 s camera-sized videos.
 
 - The MEVA clips from `scripts/library-meva.sh` and anything made by
   `scripts/library-normalize.sh` (below) share one key. A video the
@@ -482,7 +485,8 @@ SD draw `PAN x TILT y ZOOM z`.
 | `GetPtzPreset` | `{channel:0}` | `initial`, `range` (says ids 1–64) and `{PtzPreset:[{channel,enable,id,imgName,name}]}`, 64 slots, ids 0–63, empty ones named `pos<id+1>` |
 | `SetPtzPreset` | `{PtzPreset:{channel:0,enable,id,name}}` | `{rspCode:200}`; `enable:1` saves the current pan, tilt and zoom, `enable:0` empties the slot; a name longer than 31 is stored as `pos<id+1>`, one with a leading or trailing space or two spaces in a row changes nothing (measured) |
 | `GetPtzGuard`, `GetPtzCheckState`, `GetAutoFocus`, `GetPtzPatrol` | `{channel:0}` | the E1's captured answers (`initial`, `range`, `value`) |
-| `GetPtzCurPos`, `GetPtzTraceSection` | | `-1` "not exist" |
+| `GetPtzCurPos` | `{PtzCurPos:{channel:0}}` | `{PtzCurPos:{Fpos,Ppos,Tpos,Zpos,channel:0}}`, no `initial`/`range` (measured); pan and tilt in tenths of the simulator's degrees, zoom and focus in `GetZoomFocus` steps (the camera's scales are not measured); a plain `{channel:0}` → `-1` "not exist" (measured) |
+| `GetPtzTraceSection` | | `-1` "not exist" |
 | `GetPtzTattern`, `GetPtzSerial` | | `-12` "get config failed" |
 
 Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
@@ -494,7 +498,10 @@ Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
   `pos<id+1>`; `ToPos` to an empty slot answers 200 and nothing moves;
 - `ToPos` restores the zoom of the slot, not its focus; the camera refocuses
   for the new zoom (a slot at zoom 20: focus 52 → about 77), and `ZoomInc`
-  7 → 26 took the focus 49 → 81;
+  7 → 26 took the focus 49 → 81; a `ToPos` that keeps the zoom does not
+  refocus, so a bad focus stays bad (measured 2026-11-14);
+- `ToPos` takes time: zoom 7 → 20 at speed 32 in about 0.9 s (measured
+  2026-11-14), and `GetPtzCurPos` shows the travel;
 - while a zoom runs (`ZoomInc` or `ZoomDec`, no `Stop` since), another
   `ZoomInc` or `ZoomDec`, even the same one, → `-13` "set config failed" and
   the zoom goes on; moves and focus may be repeated or reversed mid-motion, a
@@ -502,18 +509,20 @@ Measured on the E1 (`reference/E1-Outdoor-Pro/README.md`):
   a zoom is accepted (measured 2026-10-30).
 
 The simulator's own choices (not measured):
-- pan 0–355 and tilt 0–50 degrees, starting at 180 and 25 (the camera reports
-  no pan/tilt position);
+- pan 0–355 and tilt 0–50 degrees, starting at 180 and 25;
 - per speed unit, pan and tilt move 1.5°/s, zoom and focus 0.4 steps/s;
 - autofocus: every zoom change (`ZoomInc`/`ZoomDec`, while it runs too,
-  `ToPos`, `ZoomPos`) sets the focus from the zoom, linear through zoom 7 →
+  a `ToPos` to another zoom, `ZoomPos`, also to the zoom it is at) sets the focus from the zoom, linear through zoom 7 →
   49, 20 → 77 and 26 → 81, with 0 → 34 and 27 → 82 at the ends (not measured
   exactly); `FocusInc`/`FocusDec`/`FocusPos` set it by hand until the next
   zoom;
   `Up` raises the tilt; diagonals move both axes at full rate;
 - a move lasts until `Stop`, another op (not a zoom over a zoom), `ToPos`
   or `StartZoomFocus`, and
-  stops at the limits; `ToPos` and `StartZoomFocus` apply at once;
+  stops at the limits; `StartZoomFocus` applies at once; `ToPos` travels,
+  pan, tilt and zoom each at its own rate (as above, at the given speed)
+  until all have arrived, and the focus follows a zoom change during the
+  travel (the camera sweeps after it);
 - omitted speed is 32; a speed that isn't an integer → `-4`; `Stop` ignores
   speed;
 - a preset stores pan, tilt and zoom, not focus; `enable:0` resets the name to
@@ -1107,6 +1116,7 @@ ctl -X PUT $C/faults/downloads.dropFirst -d '{"count":2}'
   404 for an unknown id, 409 while it isn't ready.
   With `{"ids":["a","b"]}` (up to 32) the videos play as a [sequence](#video-library)
   (`selected` is the first): 409 `incompatible` when their `compat` keys differ,
+  409 `too_large` when their live streams total more than 384 MB,
   400 for a repeated id or the test pattern in a list of more than one.
 - `GET /sim/api/videos/{id}/poster` → a JPEG still of a ready video.
 

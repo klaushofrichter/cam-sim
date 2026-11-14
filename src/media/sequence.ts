@@ -21,9 +21,12 @@ export class SequenceMedia implements MediaSource {
   private readonly t0: number;
   private readonly now: () => number;
   private readonly listDir: string;
+  // A stream's chain, built when a viewer asks for that stream: a main FLV
+  // is tens of MB per video, so nothing else loads one.
   private readonly flv = new Map<LiveStream, { header: Buffer; tags: FlvTag[] }>();
-  // Each item's length per stream, taken once while chaining: the sequence
-  // never asks an item again (a released item would parse its files anew).
+  // Each item's length per stream, taken once (from the files' tag headers,
+  // without loading them): the sequence never asks an item again (a released
+  // item would read its files anew).
   private readonly durations = new Map<LiveStream, number[]>();
   private readonly lists = new Map<Stream, string>();
   // Names this sequence's list files: a publisher restarting during a switch
@@ -49,15 +52,20 @@ export class SequenceMedia implements MediaSource {
   }
 
   private lengths(stream: LiveStream): number[] {
-    this.liveFlv(stream);
-    return this.durations.get(stream)!;
+    let l = this.durations.get(stream);
+    if (!l) {
+      l = this.entries.map((i) => i.media.durationMs(stream));
+      this.durations.set(stream, l);
+    }
+    return l;
   }
 
-  // Where the clock is on the main stream's total length.
+  // Where the clock is. An item lasts its main stream's length on every
+  // stream, so viewers of all streams loop on one total and stay on it.
   position(now: number = this.now()): { index: number; offsetMs: number } {
+    const lengths = this.lengths('main');
     const total = this.durationMs('main');
     let at = total > 0 ? (((now - this.t0) % total) + total) % total : 0;
-    const lengths = this.lengths('main');
     for (let index = 0; index < lengths.length; index++) {
       const d = lengths[index];
       if (at < d) return { index, offsetMs: at };
@@ -70,6 +78,10 @@ export class SequenceMedia implements MediaSource {
     return this.entries[this.position().index];
   }
 
+  playing(): SequenceItem {
+    return this.current();
+  }
+
   currentId(): string {
     return this.current().id;
   }
@@ -79,30 +91,33 @@ export class SequenceMedia implements MediaSource {
     if (!r) {
       const first = this.entries[0].media.liveFlv(stream);
       const tags = first.tags.filter((t) => t.type === 18 || isConfigTag(t));
-      const lengths: number[] = [];
+      // Each item on the clock's (main) length: a longer stream's tail is
+      // cut, a shorter one leaves a pause before the next item.
+      const lengths = this.lengths('main');
       let offset = 0;
-      for (const item of this.entries) {
+      this.entries.forEach((item, i) => {
         for (const t of item.media.liveFlv(stream).tags) {
-          if (t.type === 18 || isConfigTag(t) || isEndOfSequence(t)) continue;
+          if (t.type === 18 || isConfigTag(t) || isEndOfSequence(t) || t.ms >= lengths[i]) continue;
           tags.push({ ...t, ms: t.ms + offset });
         }
-        const d = item.media.durationMs(stream);
-        lengths.push(d);
-        offset += d;
-      }
+        offset += lengths[i];
+      });
       r = { header: first.header, tags };
-      this.durations.set(stream, lengths);
       this.flv.set(stream, r);
     }
     return r;
   }
 
+  // The same for every stream: the live chains all run on the clock. The
+  // stream's own lengths are taken now too (at preload), for inputArgs.
   durationMs(stream: LiveStream): number {
-    return this.lengths(stream).reduce((sum, d) => sum + d, 0);
+    this.lengths(stream);
+    return this.lengths('main').reduce((sum, d) => sum + d, 0);
   }
 
-  // The main clock's position mapped into `stream`'s own chained timeline.
-  private streamPosition(stream: LiveStream): number {
+  // The clock's position in a timeline of the items' lengths on `stream`
+  // (the live chains: main's; the clips played back to back: their own).
+  private positionOn(stream: LiveStream): number {
     const { index, offsetMs } = this.position();
     const lengths = this.lengths(stream);
     let at = 0;
@@ -111,7 +126,7 @@ export class SequenceMedia implements MediaSource {
   }
 
   startMs(stream: LiveStream): number {
-    const at = this.streamPosition(stream);
+    const at = this.positionOn('main');
     let start = 0;
     for (const t of this.liveFlv(stream).tags) {
       if (t.type !== 9 || isConfigTag(t) || !isKeyframe(t)) continue;
@@ -148,7 +163,7 @@ export class SequenceMedia implements MediaSource {
       this.lists.set(stream, file);
       if (this.released) this.dropLists();
     }
-    const sec = (this.streamPosition(stream) / 1000).toFixed(3);
+    const sec = (this.positionOn(stream) / 1000).toFixed(3);
     return ['-readrate_initial_burst', sec, '-f', 'concat', '-safe', '0', '-i', file, '-ss', sec];
   }
 

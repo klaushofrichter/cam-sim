@@ -17,12 +17,12 @@ import ability from './e1-ability.json';
 import ptzAnswers from './e1-ptz.json';
 import { CX820 } from './cx820';
 import { E1_ENC_RANGE } from './enc';
-import { IR_LIGHTS_EXTRA, devInfoFor, resetDefaultsFor, type Settings } from './rlc1224a';
+import { IR_LIGHTS_EXTRA, devInfoFor, type Settings } from './rlc1224a';
 import type { CameraProfile } from './profile';
 import type { PtzSpec } from '../engine/ptz';
 import { V03_NAMES } from '../engine/sdcard';
 
-export const E1_FIRMWARE = {
+const E1_FIRMWARE = {
   model: 'E1 Outdoor Pro',
   firmVer: 'v3.1.0.5714_2511271366',
   hardVer: 'IPC_560SD88MPW',
@@ -114,7 +114,6 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   ability,
   extras: { IrLights: IR_LIGHTS_EXTRA, WhiteLed: WHITE_LED_EXTRA },
   factorySettings,
-  resetDefaults: () => resetDefaultsFor(factorySettings('')),
   // ext: its GetAbility says main + ext + sub (live ver 1), but the ext
   // stream was NOT measured: the CX820's is assumed (896x512 at 15 fps, FLV
   // only, no RTSP ext path, FLV with RTMP off).
@@ -128,8 +127,7 @@ export const E1_OUTDOOR_PRO: CameraProfile = {
   // Record file names as measured 2026-11-02: RecS03_20261102_065854_065924_2B14808_B2B5F.mp4
   // and RecM03_…_6728828_…: name version 03, no animal-type field, 7-digit
   // flags (here without the motion bit).
-  fileFlags: { sub: 0x2b14800n, main: 0x6728820n },
-  nameFormat: V03_NAMES,
+  recordNames: { ...V03_NAMES, flags: { sub: 0x2b14800n, main: 0x6728820n } },
   // Measured 2026-11-02: the Baichuan download (cmd 8) of a recording Search
   // lists answers 400 within about 0.5 s; the E1's web UI downloads the same
   // files over HTTP. HTTP Download serves them here.
