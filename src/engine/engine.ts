@@ -256,10 +256,13 @@ export class Engine {
     const font = ptz ? this.ptzFontPath() ?? undefined : undefined;
     return this.rendered(kind, async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.playing().id}|${text ?? ''}|${size ?? ''}`;
+      // The key and the picture from one reading of the clock: in a
+      // sequence, a second reading at a switch would be the next video.
+      const playing = this.playing();
+      const key = `${playing.id}|${text ?? ''}|${size ?? ''}`;
       const cached = this.pictures.get(kind);
       if (cached?.key === key) return cached.jpeg;
-      const plain = await this.media.snapshot();
+      const plain = await playing.media.snapshot();
       try {
         const jpeg = await renderJpeg(plain, { text, font, size }, this.ffmpeg);
         this.pictures.set(kind, { key, jpeg });
