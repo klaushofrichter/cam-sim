@@ -134,7 +134,7 @@ describe('control API: videos', () => {
       expect((await put(app, { ids: ['a', 'b'] })).status).toBe(200);
       const dir = dirname((engine.mediaFor({ video: 'a' }) as unknown as { paths: { mainFlv: string } }).paths.mainFlv);
       rmSync(dir, { recursive: true, force: true });
-      expect(engine.media.currentId?.()).toBe('a');
+      expect(engine.playing().id).toBe('a');
       expect(engine.media.inputArgs?.('sub')).toContain('-ss');
       expect(engine.media.durationMs('main')).toBeGreaterThan(0);
     }, 90_000);
@@ -158,7 +158,7 @@ describe('control API: videos', () => {
     it('selecting a sequence loads no live stream until a viewer asks', async () => {
       const { app, engine } = await setupSeq();
       expect((await put(app, { ids: ['a', 'b'] })).status).toBe(200);
-      expect(engine.media.currentId?.()).toBe('a');
+      expect(engine.playing().id).toBe('a');
       await engine.media.snapshot();
       for (const id of ['a', 'b']) expect((engine.mediaFor({ video: id }) as unknown as { flv: Map<string, unknown> }).flv.size).toBe(0);
     }, 90_000);
@@ -266,7 +266,7 @@ describe('control API: videos', () => {
       const snap1 = await engine.snapMain();
       expect(Buffer.compare(snap1, await engine.snapMain())).toBe(0); // cached while a plays
       vi.spyOn(Date, 'now').mockReturnValue(t + 2500);
-      expect(engine.media.currentId?.()).toBe('c');
+      expect(engine.playing().id).toBe('c');
       expect(Buffer.compare(await engine.snapMain(), snap1)).not.toBe(0);
     }, 90_000);
 

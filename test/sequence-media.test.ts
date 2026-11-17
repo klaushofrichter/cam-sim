@@ -67,7 +67,7 @@ describe('SequenceMedia', () => {
     }
     const after = { ...calls };
     c.t = 1200;
-    s.currentId();
+    s.playing().id;
     s.position();
     s.durationMs('main');
     s.startMs('sub');
@@ -84,7 +84,7 @@ describe('SequenceMedia', () => {
     for (const st of ['sub', 'main', 'ext'] as const) s.durationMs(st);
     c.t = 1200;
     s.position();
-    expect(s.currentId()).toBe('b');
+    expect(s.playing().id).toBe('b');
     await s.snapshot();
     s.clipSize('main');
     s.inputArgs('main');
@@ -138,13 +138,13 @@ describe('SequenceMedia', () => {
     expect(s.startMs('main')).toBe(1500);
   });
 
-  it('currentId, snapshot and clipPath follow the playing item', async () => {
+  it('playing, snapshot and clipPath follow the playing item', async () => {
     const c = { t: 0 };
     const s = make(c);
     expect(s.ids()).toEqual(['a', 'b']);
-    expect(s.currentId()).toBe('a');
+    expect(s.playing().id).toBe('a');
     c.t = 1200;
-    expect(s.currentId()).toBe('b');
+    expect(s.playing().id).toBe('b');
     expect((await s.snapshot()).toString()).toBe('b');
     expect(s.clipPath('main')).toBe(b.clipPath('main'));
     expect(s.clipSize('main')).toBe(1);
@@ -214,13 +214,13 @@ describe('SequenceMedia', () => {
     // Item b's sub starts where its main does, not after a's 950 ms.
     expect(s.liveFlv('sub').tags.find((t) => t.bytes === b2.liveFlv('sub').tags[2].bytes)!.ms).toBe(1000);
     c.t = 3500 * 40 + 1200; // many loops, 200 ms into item b on main
-    expect(s.currentId()).toBe('b');
+    expect(s.playing().id).toBe('b');
     expect(s.startMs('sub')).toBe(1000); // b's first keyframe, on the clock
     // The clip concat (RTSP, recordings) plays the clips back to back: there
     // item b starts after a's 950 ms.
     expect(s.inputArgs('sub').at(-1)).toBe('1.150');
     c.t = 3500 * 40 + 970; // item a's sub is over (950) while main is still in a
-    expect(s.currentId()).toBe('a');
+    expect(s.playing().id).toBe('a');
     expect(s.inputArgs('sub').at(-1)).toBe('0.950');
   });
 });

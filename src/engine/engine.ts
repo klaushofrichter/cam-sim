@@ -128,10 +128,9 @@ export class Engine {
       clock,
       tz: config.tz,
       log,
-      fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
       // The video playing and its sizes from one clock reading.
       playing: () => {
-        const p = this.media.playing?.() ?? { id: this.videoId, media: this.media };
+        const p = this.playing();
         return { video: p.id, sizes: { sub: p.media.clipSize('sub'), main: p.media.clipSize('main') } };
       },
       names: this.profile.recordNames,
@@ -197,6 +196,11 @@ export class Engine {
     this.bus.emit('video', { id, selected: true, sequence: this.sequence });
   }
 
+  // The video on air: a sequence's playing item, or the selected video.
+  playing(): { id: string; media: MediaSource } {
+    return this.media.playing?.() ?? { id: this.videoId, media: this.media };
+  }
+
   // Library videos by id, so a recording is served from the video it was
   // made from (its sizes and names stay consistent after a switch).
   registerMedia(id: string, media: MediaSource): void {
@@ -248,7 +252,7 @@ export class Engine {
     const font = ptz ? this.ptzFontPath() ?? undefined : undefined;
     return this.rendered(kind, async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.media.currentId?.() ?? this.videoId}|${text ?? ''}|${size ?? ''}`;
+      const key = `${this.playing().id}|${text ?? ''}|${size ?? ''}`;
       const cached = this.pictures.get(kind);
       if (cached?.key === key) return cached.jpeg;
       const plain = await this.media.snapshot();

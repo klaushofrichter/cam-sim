@@ -14,7 +14,7 @@ const log = createLogger('silent');
 function setup(at: string) {
   vi.useFakeTimers({ now: new Date(at), toFake: ['setTimeout', 'clearTimeout', 'Date'] });
   const settings = new SettingsStore({ name: 'Den', log });
-  const sd = new SdCard({ capacityMb: 1000, clock: systemClock, tz: TZ, log, fixtureSizes: { sub: 1000, main: 2000 }, names: RLC1224A.recordNames });
+  const sd = new SdCard({ capacityMb: 1000, clock: systemClock, tz: TZ, log, playing: () => ({ video: 'test-pattern', sizes: { sub: 1000, main: 2000 } }), names: RLC1224A.recordNames });
   const events = new Events({ clock: systemClock, tz: TZ, sd, settings, rng: createRng(1) });
   return { settings, sd, events };
 }

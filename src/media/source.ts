@@ -20,8 +20,6 @@ export interface MediaSource {
   release?(): void;
   // A sequence of videos: the videos it plays (released with it).
   items?(): MediaSource[];
-  // A sequence of videos: the id of the video playing now.
-  currentId?(): string;
   // A sequence of videos: the video playing now, id and media from one
   // reading of the clock.
   playing?(): { id: string; media: MediaSource };

@@ -14,7 +14,7 @@ const sizes = { sub: 700_000, main: 5_000_000 };
 const names = RLC1224A.recordNames;
 const clock = () => fixedClock(new Date('2026-09-26T17:00:00Z')); // 12:00 CDT
 const make = (o: Partial<ConstructorParameters<typeof SdCard>[0]> = {}) =>
-  new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: sizes, names, ...o });
+  new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), playing: () => ({ video: 'test-pattern', sizes }), names, ...o });
 
 describe('names', () => {
   it('encodes trigger flags like the firmware', () => {
@@ -195,7 +195,7 @@ describe('SdCard', () => {
 
   it("keeps each recording's size, so names stay stable when the video changes", () => {
     const current = { sub: 1000, main: 2000 };
-    const sd = new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), fixtureSizes: () => current, names });
+    const sd = new SdCard({ capacityMb: 1000, clock: clock(), tz: TZ, log: quiet(), playing: () => ({ video: 'test-pattern', sizes: current }), names });
     const r = sd.add({ date: '2026-09-26', start: '065221', end: '065241', triggers: ['motion'], dst: true });
     const before = sd.byId(r.id)!.files.sub.name;
     current.sub = 5555;
