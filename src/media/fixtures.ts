@@ -310,8 +310,9 @@ export class FixtureMedia implements MediaSource {
     return statSync(this.clipPath(stream)).size;
   }
 
+  // The lengths stay: they describe files that never change (a prepared
+  // copy's folder is per source version), and a sequence reads them again.
   release(): void {
     this.flv.clear();
-    this.durations.clear();
   }
 }

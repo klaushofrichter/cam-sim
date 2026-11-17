@@ -150,7 +150,7 @@ describe('E1 Outdoor Pro record file names', () => {
 
   it('the SD card names its recordings that way, and the other models keep theirs', () => {
     const clock = fixedClock(new Date('2026-11-02T13:00:00Z'));
-    const card = (p = E1) => new SdCard({ capacityMb: 1000, clock, tz: 'America/Chicago', log: createLogger('silent'), fixtureSizes: { sub: 0xb2b5f, main: 0x5d5561 }, names: p.recordNames });
+    const card = (p = E1) => new SdCard({ capacityMb: 1000, clock, tz: 'America/Chicago', log: createLogger('silent'), playing: () => ({ video: 'test-pattern', sizes: { sub: 0xb2b5f, main: 0x5d5561 } }), names: p.recordNames });
     const e1 = card();
     e1.seed([{ daysAgo: 0, start: '065854', end: '065924', triggers: ['motion'] }]);
     const f = e1.all()[0].files;

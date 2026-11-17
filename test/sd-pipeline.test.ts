@@ -3,7 +3,7 @@ import { makeEngine } from './helpers';
 import { SdPipeline, scrubError } from '../src/pipeline/sd-pipeline';
 import { findFonts } from '../src/pipeline/fonts';
 import { isKeyframe } from '../src/media/flv-stream';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, rmSync, statSync } from 'fs';
 import type { FlvTag } from '../src/media/flv';
 
 const pipes: SdPipeline[] = [];
@@ -230,6 +230,12 @@ describe('SdPipeline', () => {
     const ptz = files().ptz!;
     expect(readFileSync(ptz, 'utf8')).toBe('PAN 180 TILT 25 ZOOM 7');
     expect((p as unknown as { vf: string }).vf).toContain('ptz.txt');
+    // Standing still, the file is not rewritten (a rewrite is a new inode).
+    const ino = statSync(ptz).ino;
+    await new Promise((r) => setTimeout(r, 2200));
+    expect(statSync(ptz).ino).toBe(ino);
+    rmSync(ptz);
+    await until(() => existsSync(ptz)); // a removed file comes back
     e.ptz!.control({ op: 'Left', speed: 64 });
     await until(() => readFileSync(ptz, 'utf8') !== 'PAN 180 TILT 25 ZOOM 7');
     expect(readFileSync(ptz, 'utf8')).toMatch(/^PAN \d+ TILT 25 ZOOM 7$/);

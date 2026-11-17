@@ -74,16 +74,9 @@ export class SequenceMedia implements MediaSource {
     return { index: 0, offsetMs: 0 };
   }
 
-  private current(): SequenceItem {
-    return this.entries[this.position().index];
-  }
-
+  // The video playing now, id and media from one reading of the clock.
   playing(): SequenceItem {
-    return this.current();
-  }
-
-  currentId(): string {
-    return this.current().id;
+    return this.entries[this.position().index];
   }
 
   liveFlv(stream: LiveStream): { header: Buffer; tags: FlvTag[] } {
@@ -137,15 +130,15 @@ export class SequenceMedia implements MediaSource {
   }
 
   snapshot(): Promise<Buffer> {
-    return this.current().media.snapshot();
+    return this.playing().media.snapshot();
   }
 
   clipPath(stream: Stream): string {
-    return this.current().media.clipPath(stream);
+    return this.playing().media.clipPath(stream);
   }
 
   clipSize(stream: Stream): number {
-    return this.current().media.clipSize(stream);
+    return this.playing().media.clipSize(stream);
   }
 
   // The concat of the clips, started at the clock's position. The position

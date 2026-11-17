@@ -1356,11 +1356,12 @@ CI runs:
 - the type checks and the tests;
 - the Playwright e2e suite of the web UI;
 - `npm audit` at `high`, blocking for all dependencies (dev ones included).
-  The only exception is `.github/audit-allowlist.json`, by advisory id:
-  GHSA-2p57-rm9w-gvfp (`ip`, dev-only via ftp-srv, no patched release). The
-  gate (`scripts/audit-gate.mjs`) fails when that advisory goes away, changes
-  or a new `ip` release appears, so the entry gets removed; the production
-  audit (`--omit=dev`) has no exceptions;
+  The only exceptions are in `.github/audit-allowlist.json`, by advisory id:
+  GHSA-2p57-rm9w-gvfp (`ip`, dev-only via ftp-srv) and GHSA-fc5q-39xc-vjpf
+  (`picomatch`, dev-only via vite and vitest), both without a patched release.
+  The gate (`scripts/audit-gate.mjs`) fails when an advisory goes away,
+  changes or a new release of its package appears, so the entry gets removed;
+  the production audit (`--omit=dev`) has no exceptions;
 - a check that no media file is committed;
 - CodeQL, with the accepted exceptions in `.github/codeql-accepted.tsv`;
 - the container smoke test;

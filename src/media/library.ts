@@ -6,7 +6,7 @@ import { promisify } from 'util';
 import { compatKey } from './compat';
 import { SequenceMedia } from './sequence';
 import type { Engine } from '../engine/engine';
-import type { MediaSource } from './source';
+import type { LiveStream, MediaSource } from './source';
 import { FRAG, FixtureMedia, ffmpeg, fixtureFilesExist, fixturePaths, fixtureSpec, writeMainFlv } from './fixtures';
 
 const run = promisify(execFile);
@@ -172,21 +172,20 @@ export class Library {
   // them), so missing files fail here and not in a live stream.
   private preload(id: string, media: MediaSource): string | null {
     try {
-      for (const s of ['sub', 'main'] as const) {
+      for (const s of this.liveStreams()) {
         media.durationMs(s);
-        media.clipSize(s);
+        if (s !== 'ext') media.clipSize(s);
       }
-      if (this.engine.profile.media.ext) media.durationMs('ext');
     } catch (err) {
       return `video ${id} files are missing or unreadable (${(err as NodeJS.ErrnoException).code ?? 'error'})`;
     }
     return null;
   }
 
-  // After a refusal: what the videos read goes, except the ones on air.
-  private releaseUnshown(media: MediaSource[]): void {
-    const shown = new Set([this.engine.media, ...(this.engine.media.items?.() ?? [])]);
-    for (const m of media) if (!shown.has(m)) m.release?.();
+  // The profile's live streams: what preload checks and a sequence's
+  // memory budget counts.
+  private liveStreams(): LiveStream[] {
+    return this.engine.profile.media.ext ? ['sub', 'main', 'ext'] : ['sub', 'main'];
   }
 
   // null on success, or why not.
@@ -197,7 +196,7 @@ export class Library {
     const media = this.engine.mediaFor({ video: id });
     const why = this.preload(id, media);
     if (why) {
-      this.releaseUnshown([media]);
+      this.engine.releaseExcept([media]);
       return why;
     }
     this.engine.setMedia(media, id);
@@ -217,8 +216,9 @@ export class Library {
       if (state !== 'ready') return refuse(409, 'not_ready', `video ${id} is not ready (${state})`);
     }
     if (ids.length === 1) {
+      // The loop above refused unknown and unready ids: only preload fails.
       const why = this.select(ids[0]);
-      return why ? refuse(why.startsWith('unknown') ? 404 : 409, why.startsWith('unknown') ? 'not_found' : 'not_ready', why) : null;
+      return why ? refuse(409, 'not_ready', why) : null;
     }
     const first = this.entries.get(ids[0])!.compat;
     if (!first) return refuse(409, 'incompatible', `${ids[0]} can't be played in a sequence: its codec setup is unknown`);
@@ -227,7 +227,7 @@ export class Library {
     const items = ids.map((id) => ({ id, media: this.engine.mediaFor({ video: id }) }));
     // Each video on its own, so a refusal names the one whose files fail.
     const refuseLoaded = (status: 409, error: string, detail: string) => {
-      this.releaseUnshown(items.map((i) => i.media));
+      this.engine.releaseExcept(items.map((i) => i.media));
       return refuse(status, error, detail);
     };
     for (const { id, media } of items) {
@@ -237,7 +237,7 @@ export class Library {
     const media = new SequenceMedia(items, { listDir: join(this.opts.cacheDir, '.sequence'), now: () => Date.now() });
     const why = this.preload(ids[0], media);
     if (why) return refuseLoaded(409, 'not_ready', why);
-    const streams = this.engine.profile.media.ext ? (['sub', 'main', 'ext'] as const) : (['sub', 'main'] as const);
+    const streams = this.liveStreams();
     const bytes = items.reduce((n, i) => n + streams.reduce((m, s) => m + (i.media.liveBytes?.(s) ?? 0), 0), 0);
     const max = this.opts.maxSequenceBytes ?? MAX_SEQUENCE_BYTES;
     if (bytes > max) {

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process';
-import { mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Engine } from '../engine/engine';
@@ -44,6 +44,7 @@ export class SdPipeline implements LiveSubSource {
   private rates = ''; // and its rate arguments (rateArgs)
   private videoChanged = false;
   private clockTimer?: NodeJS.Timeout;
+  private ptzWritten?: string; // the PTZ text in ptz.txt (rewritten when it changes)
   private startSoon?: NodeJS.Immediate;
   private restartTimer?: NodeJS.Timeout;
   private debounce?: NodeJS.Timeout;
@@ -154,7 +155,12 @@ export class SdPipeline implements LiveSubSource {
     try {
       const f = this.files();
       writeFileAtomic(f.clock, clockText(e.clock.now(), e.config.tz, TIME_FORMAT), { sync: false });
-      if (f.ptz && e.ptz) writeFileAtomic(f.ptz, ptzText(e.ptz.position()), { sync: false });
+      const ptz = f.ptz && e.ptz ? ptzText(e.ptz.position()) : undefined;
+      // Only a move changes it; a removed folder takes the file with it.
+      if (f.ptz && ptz !== undefined && (ptz !== this.ptzWritten || !existsSync(f.ptz))) {
+        writeFileAtomic(f.ptz, ptz, { sync: false });
+        this.ptzWritten = ptz;
+      }
     } catch (err) {
       e.log.warn({ err: (err as Error).message }, 'sd_pipeline_clock_write_failed');
     }
@@ -171,6 +177,7 @@ export class SdPipeline implements LiveSubSource {
     const running = e.settings.running as { Osd: any; Isp: any };
     mkdirSync(this.files().dir, { recursive: true });
     this.writeName(running);
+    this.ptzWritten = undefined;
     this.writeClock();
     this.clockTimer = setInterval(() => this.writeClock(), 1000);
     this.clockTimer.unref?.();

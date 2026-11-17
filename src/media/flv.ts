@@ -12,34 +12,48 @@ export interface FlvTag {
   bytes: Buffer; // tag header, body and trailing PreviousTagSize
 }
 
+// The 11-byte tag header at `at` (the caller checks that it is in `buf`):
+// type, body size and timestamp (24 bits plus the extended high byte).
+function tagHeader(buf: Buffer, at: number): { type: FlvTag['type']; size: number; ms: number } {
+  return { type: buf[at] as FlvTag['type'], size: buf.readUIntBE(at + 1, 3), ms: buf.readUIntBE(at + 4, 3) + buf[at + 7] * 0x1000000 };
+}
+
 // The whole tag at `at` (its bytes a view into `buf`), or undefined while
 // `buf` ends before it does.
 export function parseTagAt(buf: Buffer, at: number): { tag: FlvTag; end: number } | undefined {
   if (at + 11 > buf.length) return undefined;
-  const size = buf.readUIntBE(at + 1, 3);
+  const { type, size, ms } = tagHeader(buf, at);
   const end = at + 11 + size + 4;
   if (end > buf.length) return undefined;
-  const type = buf[at] as FlvTag['type'];
-  const ms = buf.readUIntBE(at + 4, 3) + buf[at + 7] * 0x1000000;
   const first = buf[at + 11];
   const codecId = type === 9 ? first & 0x0f : type === 8 ? first >> 4 : undefined;
   return { tag: { type, ms, codecId, bytes: buf.subarray(at, end) }, end };
 }
 
-// The last whole tag's timestamp, from the tag headers only: the payloads
-// are skipped, not read. undefined for a file without a whole tag.
+const BLOCK = 64 * 1024;
+
+// The last whole tag's timestamp, from the tag headers only: the file is
+// read in blocks and every header inside a block parsed from it, so only a
+// tag that crosses a block costs another read. undefined for a file without
+// a whole tag.
 export function lastTagMs(file: string): number | undefined {
   const fd = openSync(file, 'r');
   try {
     const size = fstatSync(fd).size;
-    const h = Buffer.alloc(11);
-    if (readSync(fd, h, 0, 9, 0) < 9) return undefined;
+    const block = Buffer.alloc(BLOCK);
+    let from = 0; // the file offset of block[0]
+    let len = readSync(fd, block, 0, BLOCK, 0);
+    if (len < 9) return undefined;
     let last: number | undefined;
-    for (let at = h.readUInt32BE(5) + 4; at + 11 <= size;) {
-      readSync(fd, h, 0, 11, at);
-      const end = at + 11 + h.readUIntBE(1, 3) + 4;
+    for (let at = block.readUInt32BE(5) + 4; at + 11 <= size;) {
+      if (at + 11 > from + len) {
+        from = at;
+        len = readSync(fd, block, 0, BLOCK, at);
+      }
+      const h = tagHeader(block, at - from);
+      const end = at + 11 + h.size + 4;
       if (end > size) break;
-      last = h.readUIntBE(4, 3) + h[7] * 0x1000000;
+      last = h.ms;
       at = end;
     }
     return last;
