@@ -3,6 +3,7 @@
 ## Unreleased
 
 - CI (internal): the full dependency audit allows the picomatch advisory GHSA-fc5q-39xc-vjpf (a slow pattern match, high), which reaches cam-sim only through the build and test tools (vite, vitest) and has no fixed release yet; Klaus approved it on 2026-11-17. The production audit still has no exceptions, and the gate fails again once a picomatch release or a fix appears, so the exception gets removed.
+- Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer. Choosing a video or a sequence reads each video's length with far fewer disk reads and only once per video (no rescan when the same videos are chosen again), so open live viewers no longer stutter while a long sequence is chosen. A PTZ camera's SD pipeline no longer rewrites its position overlay every second while the camera stands still.
 
 ## v2026.11.14.1
 
