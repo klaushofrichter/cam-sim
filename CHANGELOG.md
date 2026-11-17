@@ -5,6 +5,8 @@
 - CI (internal): the full dependency audit allows the picomatch advisory GHSA-fc5q-39xc-vjpf (a slow pattern match, high), which reaches cam-sim only through the build and test tools (vite, vitest) and has no fixed release yet; Klaus approved it on 2026-11-17. The production audit still has no exceptions, and the gate fails again once a picomatch release or a fix appears, so the exception gets removed.
 - Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer. Choosing a video or a sequence reads each video's length with far fewer disk reads and only once per video (no rescan when the same videos are chosen again), so open live viewers no longer stutter while a long sequence is chosen. A PTZ camera's SD pipeline no longer rewrites its position overlay every second while the camera stands still.
 
+- Video sequences: a Snap or web picture taken just as the sequence switched videos could be remembered under the other video's name and shown again later while that other video played (until the picture changed); the picture and its name now come from the same video.
+
 ## v2026.11.14.1
 
 - E1 Outdoor Pro: `GetPtzCurPos {PtzCurPos: {channel: 0}}` answers the pan/tilt/zoom/focus position (`Ppos`, `Tpos`, `Zpos`, `Fpos`) as the real E1 does (measured 2026-11-14); a plain `{channel: 0}` is still refused with `-1`. `ToPos` now takes time instead of jumping: pan, tilt and zoom travel at their rates (zoom 7 → 20 in about 1 s at speed 32, the camera took 0.9 s), and the Simulator page shows it moving until it arrives. A `ToPos` that keeps the zoom no longer refocuses, so a focus set by hand stays (measured); one to another zoom refocuses as before.

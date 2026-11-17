@@ -2,11 +2,16 @@
 // web/control snapshot stays at the fixture's sub size.
 import { describe, it, expect, vi } from 'vitest';
 import { Writable } from 'stream';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import request from 'supertest';
 import { fixedClock } from '../src/engine/clock';
 import { createLogger } from '../src/log';
 import { createControlApp } from '../src/control-api/app';
 import { findFonts } from '../src/pipeline/fonts';
+import { SequenceMedia } from '../src/media/sequence';
+import type { MediaSource } from '../src/media/source';
 import { makeCamera, makeEngine, login } from './helpers';
 
 // Width and height from a JPEG's SOF marker.
@@ -86,5 +91,44 @@ describe('Snap size (#126)', () => {
     expect((await e.snapMain()).equals(plain)).toBe(true);
     expect((await e.snapMain()).equals(plain)).toBe(true);
     expect(out.match(/snap_scale_failed/g)).toHaveLength(1);
+  });
+  it('a sequence at a switch: the cached Snap is the video its key names', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'camsim-snapseq-'));
+    try {
+      // An ffmpeg that gives its input back: the picture names its video.
+      const ff = join(dir, 'ffmpeg');
+      writeFileSync(ff, '#!/bin/sh\nexec cat\n');
+      chmodSync(ff, 0o755);
+      const item = (id: string): MediaSource => ({
+        snapshot: async () => Buffer.from(id),
+        liveFlv: () => ({ header: Buffer.alloc(0), tags: [] }),
+        durationMs: () => (id === 'a' ? 1000 : 2500),
+        clipPath: () => `/clips/${id}.mp4`,
+        clipSize: () => 1,
+      });
+      // The clock crosses from a to b right after the picture's first reading.
+      let t = 0;
+      let cross = false;
+      const now = () => {
+        const v = t;
+        if (cross) [t, cross] = [1000, false];
+        return v;
+      };
+      const seq = new SequenceMedia([{ id: 'a', media: item('a') }, { id: 'b', media: item('b') }], { now, listDir: dir });
+      const e = await makeEngine();
+      e.ffmpeg = ff;
+      e.media = seq;
+      t = 999;
+      cross = true;
+      // Read at 999 ms: a's picture under a's key.
+      expect((await e.snapMain()).toString()).toBe('a');
+      expect(e.playing().id).toBe('b');
+      // Back on a (the next loop): a's picture, not one cached under a's key.
+      t = 3500 + 500;
+      expect(e.playing().id).toBe('a');
+      expect((await e.snapMain()).toString()).toBe('a');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
