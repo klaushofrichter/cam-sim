@@ -111,6 +111,19 @@ describe('SequenceMedia', () => {
     expect({ sub: rec.files.sub.size, main: rec.files.main.size }).toEqual(sizes);
   });
 
+  it('releaseExcept keeps the media on air and the videos it plays', async () => {
+    const engine = await makeEngine();
+    const released: string[] = [];
+    const rel = (id: string) => ({ ...fake(id, 1000), release: () => void released.push(id) });
+    const [x, y, z] = [rel('x'), rel('y'), rel('z')];
+    const seq = new SequenceMedia([{ id: 'x', media: x }, { id: 'y', media: y }], { now: () => 0, listDir: dir, releaseDelayMs: 0 });
+    engine.setMedia(seq, 'x', ['x', 'y']);
+    engine.releaseExcept([x, y, z]);
+    expect(released).toEqual(['z']);
+    engine.releaseExcept([seq, x, y, z], z);
+    expect(released).toEqual(['z', 'x', 'y']);
+  });
+
   it('items lists the videos it plays', () => {
     expect(make({ t: 0 }).items()).toEqual([a, b]);
   });

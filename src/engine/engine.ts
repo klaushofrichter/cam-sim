@@ -185,10 +185,7 @@ export class Engine {
   setMedia(media: MediaSource, id: string, sequence?: string[]): void {
     // The old media and its videos go, except those the new one shows (a
     // sequence references its videos' parsed tags; no second copy).
-    if (this.media !== media) {
-      const kept = new Set([media, ...(media.items?.() ?? [])]);
-      for (const m of [this.media, ...(this.media.items?.() ?? [])]) if (!kept.has(m)) m.release?.();
-    }
+    if (this.media !== media) this.releaseExcept([this.media, ...(this.media.items?.() ?? [])], media);
     this.media = media;
     this.videoId = id;
     this.sequence = sequence ?? [id];
@@ -199,6 +196,13 @@ export class Engine {
   // The video on air: a sequence's playing item, or the selected video.
   playing(): { id: string; media: MediaSource } {
     return this.media.playing?.() ?? { id: this.videoId, media: this.media };
+  }
+
+  // Releases what `candidates` loaded, except `keep` and the videos it plays
+  // (a sequence references its videos' parsed tags).
+  releaseExcept(candidates: MediaSource[], keep: MediaSource = this.media): void {
+    const kept = new Set([keep, ...(keep.items?.() ?? [])]);
+    for (const m of candidates) if (!kept.has(m)) m.release?.();
   }
 
   // Library videos by id, so a recording is served from the video it was
