@@ -140,6 +140,17 @@ describe.skipIf(!hasFfmpeg)('fixtures', () => {
     expect(d).toBe(tags[tags.length - 1].ms + 100);
     expect(m.liveBytes('main')).toBe(statSync(paths.mainFlv).size);
   });
+
+  // The files never change: a released media keeps the lengths it read
+  // (a sequence of many videos asks every item again).
+  it('keeps the lengths it read across release', () => {
+    const own = { ...paths };
+    const m = new FixtureMedia(own);
+    const d = m.durationMs('main');
+    m.release();
+    own.mainFlv = join(paths.mainFlv, 'not-there'); // a second read would throw
+    expect(m.durationMs('main')).toBe(d);
+  });
 });
 
 describe.skipIf(!hasFfmpeg)('fixtures per model', () => {

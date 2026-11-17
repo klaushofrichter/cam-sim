@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { FlvWriter, readFlv, hvcc, avcc, splitAnnexB, h265NalType, parseAdts } from '../src/media/flv';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { FlvWriter, readFlv, lastTagMs, hvcc, avcc, splitAnnexB, h265NalType, parseAdts } from '../src/media/flv';
 
 // Minimal NAL units: 2-byte H.265 header (type << 1), then payload.
 const nal = (type: number, payload: number[]) => Buffer.from([type << 1, 1, ...payload]);
@@ -84,6 +87,30 @@ describe('FlvWriter', () => {
     const w = new FlvWriter();
     const { tags } = readFlv(Buffer.concat([w.header(true, false), w.audio(Buffer.from([1]), 0x1234567)]));
     expect(tags[0].ms).toBe(0x1234567);
+  });
+});
+
+describe('lastTagMs', () => {
+  // Small tags, tags larger than a 64 KB read block and headers across a
+  // block's end, an extended timestamp last, then a cut-off tag.
+  it('finds the last whole tag\'s timestamp from the headers, as readFlv does', () => {
+    const w = new FlvWriter();
+    const parts = [w.header(true, false)];
+    let ms = 0;
+    for (let i = 0; i < 400; i++) parts.push(w.audio(Buffer.alloc(i % 7 === 0 ? 70_000 : 200 + (i % 50)), (ms += 21)));
+    parts.push(w.audio(Buffer.alloc(10), 0x1234567));
+    const whole = Buffer.concat(parts);
+    const dir = mkdtempSync(join(tmpdir(), 'lasttag-'));
+    try {
+      const file = join(dir, 'a.flv');
+      writeFileSync(file, Buffer.concat([whole, w.audio(Buffer.alloc(500), 0x1234600).subarray(0, 300)]));
+      expect(lastTagMs(file)).toBe(0x1234567);
+      expect(readFlv(whole).tags.at(-1)!.ms).toBe(0x1234567);
+      writeFileSync(file, w.header(true, false));
+      expect(lastTagMs(file)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

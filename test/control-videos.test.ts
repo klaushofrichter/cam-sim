@@ -183,10 +183,9 @@ describe('control API: videos', () => {
 
     it('a refused sequence or video keeps nothing loaded of the videos it read', async () => {
       const { app, engine } = await setupSeq();
-      const cached = (id: string) => {
-        const m = engine.mediaFor({ video: id }) as unknown as { flv: Map<string, unknown>; durations: Map<string, unknown> };
-        return m.flv.size + m.durations.size;
-      };
+      // The parsed tags (the lengths, a few numbers of files that never
+      // change, stay).
+      const cached = (id: string) => (engine.mediaFor({ video: id }) as unknown as { flv: Map<string, unknown> }).flv.size;
       rmSync(join(dirname(engine.mediaFor({ video: 'b' }).clipPath('main')), 'main.flv'));
       expect((await put(app, { ids: ['a', 'b'] })).status).toBe(409);
       expect(cached('a')).toBe(0);
@@ -195,6 +194,7 @@ describe('control API: videos', () => {
       expect(cached('b')).toBe(0);
       // A video on air keeps what it has.
       expect((await put(app, { id: 'a' })).status).toBe(200);
+      engine.media.liveFlv('sub');
       expect((await put(app, { ids: ['a', 'b'] })).status).toBe(409);
       expect(cached('a')).toBeGreaterThan(0);
     }, 90_000);
