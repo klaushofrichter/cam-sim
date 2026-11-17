@@ -22,7 +22,7 @@ Reolink RLC-1224A simulator (or a CX820 with `CAMSIM_MODEL=CX820`; one profile p
 - Behave like the real camera, not like the Reolink docs. Measured behaviour is in the cams repo (`docs/reolink-api.md`) and the Obsidian note *Cameras/Reolink API Behaviour*. When the real camera differs from cam-sim, file an issue here.
 - Faults (`src/engine/faults.ts`) are part of the contract with cams' and cam-proxy's tests. Changing what a fault does needs the README fault table, the Simulator page label and the CHANGELOG updated together.
 - No camera footage in the repo or in releases: test media is generated. Don't upload clips or media to GitHub before Klaus has reviewed them.
-- `npm audit` blocks at `high` for all dependencies. The one exception is `.github/audit-allowlist.json` (GHSA-2p57-rm9w-gvfp, `ip` via the dev-only ftp-srv, approved by Klaus 2026-10-03); add entries only with Klaus's OK, by advisory id. When the gate says the advisory is gone or a fix appeared, remove the entry.
+- `npm audit` blocks at `high` for all dependencies. The only exceptions are in `.github/audit-allowlist.json` (GHSA-2p57-rm9w-gvfp, `ip` via the dev-only ftp-srv, approved by Klaus 2026-10-03; GHSA-fc5q-39xc-vjpf, `picomatch` via the dev-only vite/vitest, approved by Klaus 2026-11-17); add entries only with Klaus's OK, by advisory id. When the gate says the advisory is gone or a fix appeared, remove the entry.
 - Never source `.env` in a shell (values can contain shell syntax); `scripts/sync-secrets.sh` reads it. Never print secrets or tokens.
 - Cluster manifests live in kube-setup (`manifests/cam-sim/`). Ask the kube-setup session for changes; don't edit that repo from here.
 - `.superpowers/` is gitignored scratch space and none of it is committed.
