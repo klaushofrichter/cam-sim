@@ -128,10 +128,9 @@ export class Engine {
       clock,
       tz: config.tz,
       log,
-      fixtureSizes: () => ({ sub: this.media.clipSize('sub'), main: this.media.clipSize('main') }),
       // The video playing and its sizes from one clock reading.
       playing: () => {
-        const p = this.media.playing?.() ?? { id: this.videoId, media: this.media };
+        const p = this.playing();
         return { video: p.id, sizes: { sub: p.media.clipSize('sub'), main: p.media.clipSize('main') } };
       },
       names: this.profile.recordNames,
@@ -186,15 +185,24 @@ export class Engine {
   setMedia(media: MediaSource, id: string, sequence?: string[]): void {
     // The old media and its videos go, except those the new one shows (a
     // sequence references its videos' parsed tags; no second copy).
-    if (this.media !== media) {
-      const kept = new Set([media, ...(media.items?.() ?? [])]);
-      for (const m of [this.media, ...(this.media.items?.() ?? [])]) if (!kept.has(m)) m.release?.();
-    }
+    if (this.media !== media) this.releaseExcept([this.media, ...(this.media.items?.() ?? [])], media);
     this.media = media;
     this.videoId = id;
     this.sequence = sequence ?? [id];
     if (!sequence || sequence.length < 2) this.registerMedia(id, media);
     this.bus.emit('video', { id, selected: true, sequence: this.sequence });
+  }
+
+  // The video on air: a sequence's playing item, or the selected video.
+  playing(): { id: string; media: MediaSource } {
+    return this.media.playing?.() ?? { id: this.videoId, media: this.media };
+  }
+
+  // Releases what `candidates` loaded, except `keep` and the videos it plays
+  // (a sequence references its videos' parsed tags).
+  releaseExcept(candidates: MediaSource[], keep: MediaSource = this.media): void {
+    const kept = new Set([keep, ...(keep.items?.() ?? [])]);
+    for (const m of candidates) if (!kept.has(m)) m.release?.();
   }
 
   // Library videos by id, so a recording is served from the video it was
@@ -248,7 +256,7 @@ export class Engine {
     const font = ptz ? this.ptzFontPath() ?? undefined : undefined;
     return this.rendered(kind, async () => {
       const text = font && ptz ? ptzText(ptz.position()) : undefined;
-      const key = `${this.media.currentId?.() ?? this.videoId}|${text ?? ''}|${size ?? ''}`;
+      const key = `${this.playing().id}|${text ?? ''}|${size ?? ''}`;
       const cached = this.pictures.get(kind);
       if (cached?.key === key) return cached.jpeg;
       const plain = await this.media.snapshot();

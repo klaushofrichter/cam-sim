@@ -108,6 +108,19 @@ describe('Ptz', () => {
     expect(p.view().moving).toBeNull();
   });
 
+  it('an arrived ToPos is over: the next zoom starts from its target', () => {
+    p.zoomFocus({ op: 'ZoomPos', pos: 20 });
+    p.setPreset({ id: 0, enable: 1, name: 'z20' });
+    p.zoomFocus({ op: 'ZoomPos', pos: 7 });
+    p.control({ op: 'ToPos', id: 0, speed: 32 });
+    clock.advance(1100); // 13 / (0.4 * 32) = ~1.02 s
+    expect(p.view().moving).toBeNull();
+    expect((p as unknown as { moving?: unknown }).moving).toBeUndefined();
+    expect(p.control({ op: 'ZoomDec', speed: 32 })).toBeNull();
+    clock.advance(500);
+    expect(p.position().zoom).toBe(14); // 20 - 6.4
+  });
+
   it('ToPos with pan and tilt: each axis at its rate; Stop mid-travel freezes it', () => {
     p.control({ op: 'Left', speed: 32 }); clock.advance(2000); p.control({ op: 'Stop' }); // pan 84
     p.setPreset({ id: 1, enable: 1, name: 'west' });

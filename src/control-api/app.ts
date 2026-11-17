@@ -89,7 +89,7 @@ export function createControlApp(engine: Engine): express.Express {
 
   // Without a library folder the test pattern is the only video.
   const library = () => e.library ?? new Library(e, { cacheDir: '' });
-  api.get('/videos', (_req, res) => void res.json({ selected: e.videoId, sequence: e.sequence, playing: e.media.currentId?.() ?? e.videoId, videos: library().list() }));
+  api.get('/videos', (_req, res) => void res.json({ selected: e.videoId, sequence: e.sequence, playing: e.playing().id, videos: library().list() }));
   api.put('/video', (req, res) => {
     const { id, ids } = req.body ?? {};
     let list: string[];

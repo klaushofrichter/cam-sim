@@ -56,9 +56,9 @@ const DIRECTIONS: Partial<Record<Op, Partial<Record<Axis, 1 | -1>>>> = {
 };
 
 interface Slot { enable: 0 | 1; name: string; pan: number; tilt: number; zoom: number }
-// A ToPos travel carries its target: each axis runs at its rate until it
-// arrives, and the move ends when all have.
-interface Move { op: Op; speed: number; sinceMs: number; to?: { pan: number; tilt: number; zoom: number } }
+// A ToPos travel carries its target and its arrival: each axis runs at its
+// rate until it arrives, and the move ends when all have (untilMs).
+interface Move { op: Op; speed: number; sinceMs: number; to?: { pan: number; tilt: number; zoom: number }; untilMs?: number }
 
 const PARAM_ERROR = -4;
 const SET_CONFIG_FAILED = -13;
@@ -125,12 +125,15 @@ export class Ptz {
     return out;
   }
 
-  // The running move at `ms`: a travel that has arrived is over.
-  private running(ms: number): Move | undefined {
+  // The running move at `ms`. A travel that has arrived ends here: its
+  // target becomes the base, so `moving` always means a move is running.
+  private current(ms: number): Move | undefined {
     const m = this.moving;
-    if (!m?.to) return m;
-    const p = this.at(ms);
-    return p.pan === m.to.pan && p.tilt === m.to.tilt && p.zoom === m.to.zoom ? undefined : m;
+    if (m?.to && m.untilMs !== undefined && ms >= m.untilMs) {
+      this.base = { ...this.at(ms), ...m.to };
+      this.moving = undefined;
+    }
+    return this.moving;
   }
 
   // The camera refocuses after every zoom change (autofocus on): focus
@@ -184,13 +187,16 @@ export class Ptz {
       // stored: a zoom change refocuses for the slot's zoom (measured: zoom
       // 20, focus 52 -> 77), the same zoom keeps the focus (measured 2026-11-14).
       this.settle();
-      this.moving = { op, speed, sinceMs: this.clock.now().getTime(), to: { pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom } };
+      const to = { pan: slot.pan, tilt: slot.tilt, zoom: slot.zoom };
+      const sinceMs = this.clock.now().getTime();
+      const secs = Math.max(...(['pan', 'tilt', 'zoom'] as const).map((a) => Math.abs(to[a] - this.base[a]) / (this.rate(a) * speed)));
+      this.moving = { op, speed, sinceMs, to, untilMs: sinceMs + secs * 1000 };
       return null;
     }
     // A zoom while a zoom runs, either direction: -13 "set config failed",
     // and the running zoom goes on (measured 2026-10-30). Moves and focus may
     // be repeated or reversed mid-motion, and replace a zoom.
-    const run = this.running(this.clock.now().getTime());
+    const run = this.current(this.clock.now().getTime());
     if (isZoom(op) && run && isZoom(run.op)) return SET_CONFIG_FAILED;
     this.settle();
     this.moving = { op: op as Op, speed, sinceMs: this.clock.now().getTime() };
@@ -268,7 +274,7 @@ export class Ptz {
   }
 
   view(): PtzView {
-    const m = this.running(this.clock.now().getTime());
+    const m = this.current(this.clock.now().getTime());
     return {
       ...this.position(),
       moving: m ? { op: m.op, speed: m.speed, since: new Date(m.sinceMs).toISOString() } : null,
