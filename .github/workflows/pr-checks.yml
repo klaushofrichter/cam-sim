@@ -33,13 +33,11 @@ jobs:
       # Blocking: what ships (the image and the npm package), no exceptions.
       - run: npm audit --omit=dev --audit-level=high
       # Blocking too: everything, dev dependencies included, at high. The only
-      # exceptions are in the allowlist .github/audit-allowlist.json, by advisory
-      # id: GHSA-2p57-rm9w-gvfp (`ip` via ftp-srv, the tests' FTP server; approved
-      # by Klaus 2026-10-03) and GHSA-fc5q-39xc-vjpf (`picomatch` via vite and
-      # vitest, the build and test tools; approved by Klaus 2026-11-17), both
-      # without a patched release. The gate also fails when an advisory
-      # disappears, changes its range or a new release of its package appears,
-      # so the entry gets removed once it can be (scripts/audit-gate.mjs).
+      # exception is in the allowlist .github/audit-allowlist.json, by advisory
+      # id: GHSA-2p57-rm9w-gvfp (`ip` via ftp-srv, the tests' FTP server; no
+      # patched release; approved by Klaus 2026-10-03). The gate also fails when
+      # an advisory disappears, changes its range or a new release of its package
+      # appears, so the entry gets removed once it can be (scripts/audit-gate.mjs).
       - name: npm audit (all dependencies, with the allowlist)
         run: |
           set -euo pipefail

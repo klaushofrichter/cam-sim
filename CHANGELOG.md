@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI (internal): the full dependency audit no longer allows the picomatch advisory GHSA-fc5q-39xc-vjpf. GitHub withdrew it on 2026-11-18; the `ip` advisory (dev-only, via the tests' FTP server) stays the only exception.
+
 ## v2026.11.17.1
 
 - CI (internal): the full dependency audit allows the picomatch advisory GHSA-fc5q-39xc-vjpf (a slow pattern match, high), which reaches cam-sim only through the build and test tools (vite, vitest) and has no fixed release yet; Klaus approved it on 2026-11-17. The production audit still has no exceptions, and the gate fails again once a picomatch release or a fix appears, so the exception gets removed.
