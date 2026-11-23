@@ -6,6 +6,9 @@ export const isConfigTag = (t: FlvTag) => (t.type === 9 || t.type === 8) && t.by
 // A video keyframe (frame type 1 in the tag body's first byte).
 export const isKeyframe = (t: FlvTag) => t.type === 9 && t.bytes[11] >> 4 === 1;
 
+// AVC/HEVC end of sequence: never sent mid-stream (a live camera doesn't end).
+export const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
+
 // FLV from a pipe (ffmpeg -f flv pipe:1): the header once, then whole tags
 // as they complete, whatever the chunk boundaries. Chunks are queued and joined
 // only once the next header or tag is complete, so small chunks cost linear

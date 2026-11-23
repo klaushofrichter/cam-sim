@@ -74,7 +74,7 @@
 
   const describe = (v: Video) =>
     v.state === 'ready'
-      ? `${v.id === 'test-pattern' ? 'built in' : v.converted ? 'converted' : 'captured'}${v.durationS ? ` · ${v.durationS} s loop` : ''}`
+      ? `${v.id === TEST ? 'built in' : v.converted ? 'converted' : 'captured'}${v.durationS ? ` · ${v.durationS} s loop` : ''}`
       : v.state === 'failed'
         ? `could not be prepared: ${v.error ?? 'unknown error'}`
         : v.state === 'preparing'
