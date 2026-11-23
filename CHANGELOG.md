@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2026.11.23.2
+
 - Internal clean-up, no change to any camera, ONVIF, RTSP, Baichuan or control answer: a few duplicated helpers folded into the ones the code already has.
 
 ## v2026.11.23.1
