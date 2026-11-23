@@ -15,8 +15,6 @@ export type Model = (typeof MODELS)[number];
 
 type Obj = Record<string, any>;
 
-export type { EncStream } from './enc';
-
 export interface CameraProfile {
   model: Model;
   // GetDevInfo's fixed fields; firmVer is the default for CAMSIM_FIRMWARE.

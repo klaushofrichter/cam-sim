@@ -1,4 +1,10 @@
 const LIST_CAP = 1000;
+// Lists keep only their most recent entries, so a long-running simulator
+// doesn't grow without bound.
+function pushCapped(list: string[], v: string): void {
+  list.push(v);
+  if (list.length > LIST_CAP) list.splice(0, list.length - LIST_CAP);
+}
 
 // What tests read back through /sim/api/state (the cams mock's /__state and more).
 export class Counters {
@@ -23,16 +29,12 @@ export class Counters {
   baichuanStops = 0; // cmd 9 (stop) received after a login, whether or not a download was running
   droppedBaichuanDownloads = 0;
 
-  // Lists keep only their most recent entries, so a long-running simulator
-  // doesn't grow without bound.
   noteDownload(start: string): void {
-    this.downloadOrder.push(start);
-    if (this.downloadOrder.length > LIST_CAP) this.downloadOrder.splice(0, this.downloadOrder.length - LIST_CAP);
+    pushCapped(this.downloadOrder, start);
   }
 
   noteSet(cmd: string): void {
-    this.setCalls.push(cmd);
-    if (this.setCalls.length > LIST_CAP) this.setCalls.splice(0, this.setCalls.length - LIST_CAP);
+    pushCapped(this.setCalls, cmd);
   }
 
   reset(): void {

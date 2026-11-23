@@ -17,7 +17,7 @@ import ability from './e1-ability.json';
 import ptzAnswers from './e1-ptz.json';
 import { CX820 } from './cx820';
 import { E1_ENC_RANGE } from './enc';
-import { IR_LIGHTS_EXTRA, devInfoFor, type Settings } from './rlc1224a';
+import { AI_TYPES, IR_LIGHTS_EXTRA, devInfoFor, type Settings } from './rlc1224a';
 import type { CameraProfile } from './profile';
 import type { PtzSpec } from '../engine/ptz';
 import { V03_NAMES } from '../engine/sdcard';
@@ -63,7 +63,7 @@ function factorySettings(name: string): Settings {
   const s = CX820.factorySettings(name);
   s.Enc = structuredClone(ENC);
   s.MdAlarm.scope = { cols: COLS, rows: ROWS, table: AREA };
-  for (const t of ['people', 'vehicle', 'dog_cat'] as const) s.AiAlarm[t].scope = { area: AREA, cols: COLS, rows: ROWS }; // (not measured)
+  for (const t of AI_TYPES) s.AiAlarm[t].scope = { area: AREA, cols: COLS, rows: ROWS }; // (not measured)
   // With bd_night, CBR, day/night Auto; no binningMode or corridorMode.
   s.Isp = {
     antiFlicker: '60HZ', backLight: 'Off',

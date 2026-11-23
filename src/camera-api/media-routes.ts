@@ -1,5 +1,5 @@
 import { createReadStream } from 'fs';
-import { isConfigTag, isKeyframe } from '../media/flv-stream';
+import { isConfigTag, isEndOfSequence, isKeyframe } from '../media/flv-stream';
 import { Transform } from 'stream';
 import type { Request, Response } from 'express';
 import type { Engine } from '../engine/engine';
@@ -108,9 +108,6 @@ function writeShifted(res: Response, tag: FlvTag, offsetMs: number): void {
   res.uncork();
 }
 
-// AVC/HEVC end of sequence: never mid-stream (a live camera doesn't end).
-const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
-
 // A source's tags as viewers play them: without end-of-sequence tags (and
 // without script tags after the first source), and the part that loops.
 // The same for every viewer, so computed once per tag list; a media's list
@@ -183,6 +180,18 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
     return;
   }
   const { header } = src;
+  // The video shown now, after a switch (or after the pipeline). False when
+  // its files are unreadable: this stream ends, not the process.
+  const reload = (): boolean => {
+    try {
+      src = load(e.media, false);
+      return true;
+    } catch (err) {
+      e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
+      res.destroy();
+      return false;
+    }
+  };
 
   if (opts.count) {
     e.counters.activeStreams++;
@@ -251,14 +260,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
       if (ls?.active() && (!live || live.gen !== ls.generation())) enterLive(due);
       if (live && !ls?.active()) {
         leaveLive();
-        try {
-          src = load(e.media, false);
-        } catch (err) {
-          // The video shown now is unreadable: end this stream, not the process.
-          e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
-          res.destroy();
-          return;
-        }
+        if (!reload()) return;
         // The live part ran ahead of the wall clock by its replayed keyframe
         // group: the loop keeps that lead and goes on at once, instead of
         // pausing until the clock catches up.
@@ -274,14 +276,7 @@ export function streamFlv(engine: Engine, res: Response, stream: 'sub' | 'main' 
       }
     }
     if (e.media !== src.media) {
-      try {
-        src = load(e.media, false);
-      } catch (err) {
-        // The new video's files are unreadable: end this stream, not the process.
-        e.log.warn({ err: (err as Error).message }, 'flv_switch_failed');
-        res.destroy();
-        return;
-      }
+      if (!reload()) return;
       restartLoop(due);
     }
     for (;;) {
