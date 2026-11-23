@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signIn, resetSim, camLogin } from './helpers';
-import { CAM_PORT, TOKEN } from './env';
+import { CAM_PORT, TOKEN, UI_PORT } from './env';
 
 test.beforeEach(async ({ request }) => resetSim(request));
 
@@ -18,15 +18,15 @@ test('selecting a library video changes what the camera shows', async ({ page, r
     await yard.getByRole('checkbox').check();
     await expect(yard.getByTestId('video-state')).toContainText('playing now');
     expect(Buffer.compare(await snap(), before)).not.toBe(0);
-    expect((await (await request.get('http://127.0.0.1:19443/sim/api/videos', { headers })).json()).selected).toBe('yard');
+    expect((await (await request.get(`http://127.0.0.1:${UI_PORT}/sim/api/videos`, { headers })).json()).selected).toBe('yard');
   } finally {
-    await request.post('http://127.0.0.1:19443/sim/api/reset', { headers, data: { video: true } });
+    await request.post(`http://127.0.0.1:${UI_PORT}/sim/api/reset`, { headers, data: { video: true } });
   }
 });
 
 test('checking two videos plays them as a sequence', async ({ page, request }) => {
   const headers = { Authorization: `Bearer ${TOKEN}` };
-  const videos = async () => (await request.get('http://127.0.0.1:19443/sim/api/videos', { headers })).json();
+  const videos = async () => (await request.get(`http://127.0.0.1:${UI_PORT}/sim/api/videos`, { headers })).json();
   try {
     await signIn(page);
     await page.goto('/#/simulator');
@@ -45,7 +45,7 @@ test('checking two videos plays them as a sequence', async ({ page, request }) =
     await page.getByTestId('video-test-pattern').getByRole('radio').check();
     await expect.poll(async () => (await videos()).sequence).toEqual(['test-pattern']);
   } finally {
-    await request.post('http://127.0.0.1:19443/sim/api/reset', { headers, data: { video: true } });
+    await request.post(`http://127.0.0.1:${UI_PORT}/sim/api/reset`, { headers, data: { video: true } });
   }
 });
 

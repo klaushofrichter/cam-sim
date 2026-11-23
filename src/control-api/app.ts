@@ -1,5 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash } from 'crypto';
 import type { Engine } from '../engine/engine';
 import { FAULT_NAMES, ACTION_NAMES, FaultError, type ActionName, type FaultName } from '../engine/faults';
 import { DATE, HMS, TRIGGERS } from '../engine/types';
@@ -14,6 +14,8 @@ import { join } from 'path';
 import { createSessionSigner, readCookie, sessionCookieName, SESSION_MS } from './session';
 import { rateLimit } from 'express-rate-limit';
 import { isOneOf } from '../util/one-of';
+import { safeEqualBytes } from '../util/safe-equal';
+import { isObject } from '../util/json-file';
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
 
@@ -49,7 +51,7 @@ export function createControlApp(engine: Engine): express.Express {
   // signed HttpOnly cookie. Writes with the cookie need X-CamSim-UI (a header
   // a cross-site form can't send).
   const sessions = createSessionSigner();
-  const tokenMatches = (t: unknown) => typeof t === 'string' && !!e.config.controlToken && timingSafeEqual(digest(t), digest(e.config.controlToken));
+  const tokenMatches = (t: unknown) => typeof t === 'string' && !!e.config.controlToken && safeEqualBytes(digest(t), digest(e.config.controlToken));
   const SESSION_COOKIE = sessionCookieName(e.config.name);
   const cookieOf = (req: Request) => readCookie(req.get('cookie'), SESSION_COOKIE);
   const cookieFlags = (req: Request) => `Path=/; HttpOnly; SameSite=Strict${req.secure ? '; Secure' : ''}`;
@@ -267,7 +269,7 @@ export function createControlApp(engine: Engine): express.Express {
   // and Enc are not written from here).
   const UI_KEYS = ['Rec', 'MdAlarm', 'Isp', 'IrLights', 'WhiteLed', 'Osd', 'NetPort', 'Ftp'] as const;
   const writeSetting = (res: Response, cmd: string, key: string, body: unknown) => {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) return bad(res, 'the body must be the whole settings object');
+    if (!isObject(body)) return bad(res, 'the body must be the whole settings object');
     const r = e.settings.set(cmd, { [key]: body }, { strictPartial: true });
     if (r) return void res.status(400).json({ error: 'invalid', rspCode: r.rspCode });
     e.bus.emit('settings', { cmd });

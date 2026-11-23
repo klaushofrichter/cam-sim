@@ -3,6 +3,7 @@
 // only when the engine has a Ptz, so the fixed models never reach them.
 import { ok, done, setFaults, type Ctx, type Entry, type Handler } from './commands';
 import type { Engine } from '../engine/engine';
+import { isObject } from '../util/json-file';
 
 const spec = (e: Engine) => e.profile.ptz!;
 const ptz = (e: Engine) => e.ptz!;
@@ -34,8 +35,7 @@ const PTZ_HANDLERS: Record<string, Handler> = {
   // The position wrapped as {PtzCurPos: {channel}} (measured 2026-11-14); a
   // plain {channel} gets the captured refusal (-1 "not exist").
   GetPtzCurPos: (c) => {
-    const w = c.param?.PtzCurPos;
-    if (w === null || typeof w !== 'object' || Array.isArray(w)) return refusal(c);
+    if (!isObject(c.param?.PtzCurPos)) return refusal(c);
     return ok(c.cmd, { PtzCurPos: ptz(c.engine).curPos() });
   },
   GetPtzGuard: captured('GetPtzGuard'),

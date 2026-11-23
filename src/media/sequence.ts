@@ -2,10 +2,8 @@ import { randomBytes } from 'crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { FlvTag } from './flv';
-import { isConfigTag, isKeyframe } from './flv-stream';
+import { isConfigTag, isEndOfSequence, isKeyframe } from './flv-stream';
 import type { LiveStream, MediaSource, Stream } from './source';
-
-const isEndOfSequence = (t: FlvTag) => t.type === 9 && t.bytes[12] === 2;
 
 export interface SequenceItem {
   id: string;

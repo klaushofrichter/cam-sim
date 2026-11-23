@@ -21,7 +21,6 @@ export interface EncStream {
 export interface Enc { audio: number; channel: number; mainStream: EncStream; subStream: EncStream }
 
 const STREAM_KEYS = ['mainStream', 'subStream'] as const;
-export type StreamKey = (typeof STREAM_KEYS)[number];
 
 // The E1 Outdoor Pro's range, measured 2026-10-30.
 export const E1_ENC_RANGE: Obj[] = e1Range;
